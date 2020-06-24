@@ -67,7 +67,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
   this->verbose = verbose;
   num_measure_per_iter_ = num_measure_per_iter;
 
-  PrintTitle("Call search callbacks", verbose);
+  PrintTitle("Call pre-search callbacks", verbose);
   RunCallbacks(pre_search_callbacks);
 
   if (n_trials <= 1) {  // no measurement is allowed

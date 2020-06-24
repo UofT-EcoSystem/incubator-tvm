@@ -37,10 +37,12 @@ def call_all_topi_funcs(mod, target, params, target_host=None):
     """Call all TOPI compute + schedule to extract tasks in a relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
+    from tvm.relay.backend import graph_runtime_codegen
 
     with transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
-        bld_mod = relay.build_module.BuildModule()
-        bld_mod.call_all_topi_funcs(mod, target=target, params=params, target_host=target_host)
+        opt_mod, _ = relay.optimize(mod, target, params)
+        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+        grc.codegen(opt_mod["main"])
 
 def extract_from_program(mod, params, target, target_host=None):
     """ Extract tuning tasks from a relay program.

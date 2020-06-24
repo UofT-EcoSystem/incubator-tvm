@@ -103,7 +103,7 @@ def test_search_cuda():
 
 
 def test_search_custom_sketch_rule():
-    def meet_condition_func(meta_policy, state, stage_id):
+    def meet_condition_func(search_policy, state, stage_id):
         # Apply and Skip the Rest if this function does not return
         pass
 
@@ -119,16 +119,16 @@ def test_search_custom_sketch_rule():
     #           j.2
     #             k
     #               C
-    def apply_func1(meta_policy, state, stage_id):
+    def apply_func1(policy, state, stage_id):
         # Stage by stage way
         ret = []
         if stage_id == 2:
-            state = ansor.loop_state.State(state, meta_policy.cur_task.compute_dag)
+            state = ansor.loop_state.State(state, policy.cur_task.compute_dag)
             state.split(2, state.stages[2].iters[0], [4, 4])
             state.split(2, state.stages[2].iters[3], [4, 4])
             ret.append([state.state_object, stage_id - 1])
         elif stage_id == 1:
-            state = ansor.loop_state.State(state, meta_policy.cur_task.compute_dag)
+            state = ansor.loop_state.State(state, policy.cur_task.compute_dag)
             state.cache_read(1, "global", [2])
             state.compute_at(2, 3, state.stages[3].iters[4])
             ret.append([state.state_object, stage_id - 1])
@@ -136,10 +136,10 @@ def test_search_custom_sketch_rule():
             ret.append([state, stage_id - 1])
         return ret
 
-    def apply_func2(meta_policy, state, stage_id):
+    def apply_func2(policy, state, stage_id):
         # More template like way
         ret = []
-        state = ansor.loop_state.State(state, meta_policy.cur_task.compute_dag)
+        state = ansor.loop_state.State(state, policy.cur_task.compute_dag)
 
         state.split(2, state.stages[2].iters[0], [4, 4])
         state.split(2, state.stages[2].iters[3], [4, 4])

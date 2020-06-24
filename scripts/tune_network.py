@@ -396,6 +396,7 @@ if __name__ == "__main__":
         'build_timeout': args.build_timeout,
         'run_timeout': args.run_timeout,
         'early_stopping': args.early_stopping,
+        'pre_search_callbacks': [ansor.PreloadMeasuredStates(log_file)],
         **common_measure_parameters
     }
 
