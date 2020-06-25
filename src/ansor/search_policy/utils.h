@@ -233,7 +233,7 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, const te::O
       }
     } else if (cum_reduce_len > 1) {
       // Always try rfactor for reduction ops
-      return true;
+      return cum_reduce_len > task->hardware_params->num_cores * 16;
     }
   }
 
@@ -436,6 +436,11 @@ inline void PrintAllStates(const std::vector<State>& states) {
     std::cerr << states[i];
     std::cerr << "==============================================" << std::endl;
   }
+}
+
+// Return whether the search task is targeting a GPU
+inline bool IsGPUTask(const SearchTask& task) {
+  return ((task)->target->device_type == kDLGPU ||(task)->target->device_type == kDLOpenCL);
 }
 
 // Get all split steps on spatial iterators for one stage

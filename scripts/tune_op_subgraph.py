@@ -494,7 +494,8 @@ def tune_wkl(task_func_dict, shape_dict, wkl_type, args):
                     args.n_parallel, args.build_timeout, args.local_measure,
                     args.rpc_device_key, args.rpc_host, args.rpc_port,
                     args.rpc_num_threads, args.ndk_cc,
-                    pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)])
+                    pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)],
+                    auto_cache_flush=False)
 
             # tune workloads jointly using JointTuner
             tune_workloads_jointly(wkl_keys, np.ones(len(wkl_keys)), args.task_scheduler,

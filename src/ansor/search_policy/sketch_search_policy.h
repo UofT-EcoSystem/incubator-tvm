@@ -40,7 +40,22 @@
 namespace tvm {
 namespace ansor {
 
-class SketchGenerationRule;
+class SketchSearchPolicyNode;
+
+/*!
+ * \brief The base class for derivation rules used in the sketch generation
+ */
+class SketchGenerationRule {
+ public:
+  enum ConditionEnum {
+    kPass, kApply, kApplyAndSkipRest
+  };
+
+  virtual ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
+                                      const State& state, int stage_id) = 0;
+  virtual std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
+                                                    const State& state, int stage_id) = 0;
+};
 
 /*!
  * \brief The search policy that searches in a hierarchical search space defined by sketches.
@@ -79,6 +94,10 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   std::pair<Array<MeasureInput>, Array<MeasureResult> > ContinueSearchOneRound(
       SearchTask task, int num_measure, int verbose, ProgramMeasurer measurer) final;
 
+  /*! \brief Generate sketches
+   *  \returns The list of generated sketches */
+  std::vector<State> GenerateSketches();
+
   static constexpr const char *_type_key = "ansor.SketchSearchPolicy";
   static const std::vector<int> auto_unroll_configs;
 
@@ -96,8 +115,6 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   void SearchOneRound(std::vector<State>* best_states,
                       int num_random_states, std::vector<State>* random_states);
 
-  // Generate sketches without tile size
-  void GenerateSketch(std::vector<State>* out_states);
 
   // Sample init population
   void SampleInitPopulation(const std::vector<State>& sketches,

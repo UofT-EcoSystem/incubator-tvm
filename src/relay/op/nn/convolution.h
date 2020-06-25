@@ -161,10 +161,14 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (param->groups > 1) {
     CHECK(weight && weight->shape.defined())
         << "Weight shape must be specified when groups is greater than 1.";
-    Array<IndexExpr> wshape_oihw = trans_kernel_layout.ForwardShape(weight->shape);
-    if (tvm::tir::ExprDeepEqual()(param->groups, dshape_nchw[1]) &&
-        tvm::tir::ExprDeepEqual()(param->groups, wshape_oihw[0])) {
+    if (weight->shape.size() > 4 ) {  // todo(minminsun): Hack for kernel layout rewrite
       is_depthwise = true;
+    } else {
+      Array<IndexExpr> wshape_oihw = trans_kernel_layout.ForwardShape(weight->shape);
+      if (tvm::tir::ExprDeepEqual()(param->groups, dshape_nchw[1]) &&
+          tvm::tir::ExprDeepEqual()(param->groups, wshape_oihw[0])) {
+        is_depthwise = true;
+      }
     }
   }
 

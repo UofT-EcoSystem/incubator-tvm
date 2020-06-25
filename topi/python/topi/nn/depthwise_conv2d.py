@@ -19,7 +19,7 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
-from tvm import te
+from tvm import te, ansor
 
 from .dilate import dilate
 from .pad import pad
@@ -163,7 +163,24 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
 
     batch, in_height, in_width, in_channel = Input.shape
     # shape of dilated kernel
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
+    if ansor.GLOBAL_SCOPE.topi_in_compute_rewrite_mode:
+        # infer shape for the rewritten layout
+        if len(Filter.shape) >= 8:
+            base = len(Filter.shape) - 8
+            filter_height = Filter.shape[2 + base] * Filter.shape[5 + base]
+            filter_width = Filter.shape[3 + base] * Filter.shape[6 + base]
+            filter_channel = Filter.shape[4 + base] * Filter.shape[7 + base]
+            for i in range(base + 2):
+                filter_channel *= Filter.shape[i]
+            channel_multiplier = 1
+        elif len(Filter.shape) == 3:
+            filter_channel, filter_height, filter_width = Filter.shape
+            channel_multiplier = 1
+        else:
+            raise ValueError("Don't know how to infer layout for filter shape: %s. "\
+                "You can add a new branch for it to fix this." % str(Filter))
+    else:
+        filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
 
     dilated_kernel_h = (filter_height - 1) * dilation_h + 1
     dilated_kernel_w = (filter_width - 1) * dilation_w + 1
@@ -192,7 +209,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
                     idxdiv(c, channel_multiplier),
                     idxmod(c, channel_multiplier)].astype(out_dtype)),
             axis=[di, dj]),
-        name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
+        name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc",
+        attrs={"layout_free_placeholders": [Filter]})
     return Output
 
 def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding):

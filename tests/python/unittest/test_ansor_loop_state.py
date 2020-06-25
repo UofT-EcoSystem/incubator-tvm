@@ -23,7 +23,7 @@ import tvm
 from tvm import ansor, te
 import topi
 
-from test_ansor_common import matmul_ansor_test, conv2d_nchw_bn_relu
+from test_ansor_common import matmul_ansor_test, conv2d_nchw_bn_relu_ansor_test
 
 
 def test_split_fuse_reorder_annotation():
@@ -111,7 +111,7 @@ def test_follow_split_follow_fused_split():
 
 
 def test_compute_at_root_inline():
-    dag = ansor.ComputeDAG(conv2d_nchw_bn_relu(1, 224, 224, 3, 64, 7, 2, 3))
+    dag = ansor.ComputeDAG(conv2d_nchw_bn_relu_ansor_test(1, 224, 224, 3, 64, 7, 2, 3))
     s0 = dag.get_init_state()
 
     # data, padding, kernel = 0, 1, 2

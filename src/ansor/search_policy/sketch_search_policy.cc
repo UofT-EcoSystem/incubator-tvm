@@ -37,9 +37,6 @@
 #include <utility>
 #include "utils.h"
 
-#define IS_GPU(task) ((task)->target->device_type == kDLGPU || \
-  (task)->target->device_type == kDLOpenCL)
-
 namespace tvm {
 namespace ansor {
 
@@ -103,7 +100,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
       // Also pick some random states to do eps-greedy
       PickStatesWithEpsGreedy(&inputs, best_states, random_states, n_trials - ct);
 
-      // Have traversed all of search space
+      // Have traversed all of the search space
       if (inputs.empty()) {
         StdCout(verbose) << "All candidates in the search space have been measured." << std::endl;
         break;
@@ -150,7 +147,7 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> >
   PrintTitle("Search", verbose);
   SearchOneRound(&best_states, num_random * 2, &random_states);
 
-  // Fill correct bound. This is necessary for computing the correct ToStr() for reduncency check
+  // Infer bound. This is necessary for computing the correct ToStr() for redundancy check
   cur_task->compute_dag.InferBound(&best_states);
   cur_task->compute_dag.InferBound(&random_states);
 
@@ -244,7 +241,7 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
 
   // Generate sketches
   std::vector<State> sketches;
-  GenerateSketch(&sketches);
+  sketches = GenerateSketches();
 
   // PrintAllStates(sketches);
   // exit(0);
@@ -275,26 +272,12 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
   RandomSampleStates(init_population, &rand_gen_, num_random_states * 10, random_states);
 }
 
-// The base class for derivation rules used in sketch generation
-class SketchGenerationRule {
- public:
-  enum ConditionEnum {
-    kPass, kApply, kApplyAndSkipRest
-  };
-
-  virtual ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
-      const State& state, int stage_id) = 0;
-  virtual std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
-      const State& state, int stage_id) = 0;
-};
-
 static inline bool ShouldBeCacheRead(
     const SketchSearchPolicyNode* policy, const State& state, int stage_id) {
   const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
-  if (HasAttrsFlag(state, stage_id,
-                   SearchPolicyNode::no_cache_read_key)) {
+  if (HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_read_key)) {
     return false;
   }
 
@@ -305,8 +288,7 @@ static inline bool ShouldBeCacheRead(
   }
 
   int target_stage_id = OperationToStage(*consumers.begin(), state);
-  if (!NeedsMultilevelTiling(task, state,
-                             state->stages[target_stage_id]->op)) {
+  if (!NeedsMultilevelTiling(task, state, state->stages[target_stage_id]->op)) {
     return false;
   }
 
@@ -334,12 +316,10 @@ static inline bool ShouldAlwaysBeInlined(
     // Always inline condition:
     // 1. Has attrs that this must be inlined
     // 2. Analyse shows this is strict inlineable
-    // 3. A GPU stage can be inlined(If it should be cache read, do it first)
-    if (HasAttrsFlag(state, stage_id,
-                     SearchPolicyNode::always_compute_inline_key) ||
+    // 3. A GPU stage can be inlined (If it should be cache read, do it first)
+    if (HasAttrsFlag(state, stage_id, SearchPolicyNode::always_compute_inline_key) ||
         IsStrictInlineable(task, state, stage->op) ||
-        (IS_GPU(policy->cur_task) &&
-         !ShouldBeCacheRead(policy, state, stage_id))) {
+        (IsGPUTask(policy->cur_task) && !ShouldBeCacheRead(policy, state, stage_id))) {
       return true;
     }
   }
@@ -352,8 +332,7 @@ class RuleAlwaysInline : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
       const State& state, int stage_id) final {
-    return ShouldAlwaysBeInlined(policy, state, stage_id) ?
-        kApplyAndSkipRest : kPass;
+    return ShouldAlwaysBeInlined(policy, state, stage_id) ? kApplyAndSkipRest : kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
@@ -364,7 +343,7 @@ class RuleAlwaysInline : public SketchGenerationRule {
   }
 };
 
-// The rule that simply skip the current stage
+// The rule that simply skips the current stage
 class RuleSkipStage : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
@@ -397,13 +376,16 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
-    return NeedsMultilevelTiling(task, state, stage->op) ?
-           (IS_GPU(policy->cur_task) ? kApplyAndSkipRest : kApply) : kPass;
+    if (NeedsMultilevelTiling(task, state, stage->op)) {
+      return IsGPUTask(task) ? kApplyAndSkipRest : kApply;
+    } else {
+      return kPass;
+    }
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
-    std::string multi_level_tiling_structure = IS_GPU(policy->cur_task) ?
+    std::string multi_level_tiling_structure = IsGPUTask(policy->cur_task) ?
         GetStringParam(policy->params, "gpu_multi_level_tiling_structure") :
         GetStringParam(policy->params, "cpu_multi_level_tiling_structure");
 
@@ -425,26 +407,23 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
 
     int target_stage_id;
 
-    if (IS_GPU(policy->cur_task)) {
-      return NeedsMultilevelTiling(task, state, stage->op) &&
-             HasSingleElementwiseMatchedConsumer(task, state, stage,
-                                                 &target_stage_id) &&
-             (!HasCacheReadStage(state, stage_id) ||
-              HasCacheWriteStage(state, stage_id)) ?
-          kApplyAndSkipRest : kPass;
+    if (NeedsMultilevelTiling(task, state, stage->op)
+      && HasSingleElementwiseMatchedConsumer(task, state, stage, &target_stage_id)) {
+      if (HasCacheWriteStage(state, stage_id)) {  // Always do fusion for cache_write
+        return kApplyAndSkipRest;
+      } else {
+        return kApply;
+      }
     }
 
-    return NeedsMultilevelTiling(task, state, stage->op) &&
-            HasSingleElementwiseMatchedConsumer(task, state, stage,
-                                                &target_stage_id) ?
-        kApply : kPass;
+    return kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
-    std::string multi_level_tiling_structure = IS_GPU(policy->cur_task) ?
+    std::string multi_level_tiling_structure = IsGPUTask(policy->cur_task) ?
         GetStringParam(policy->params, "gpu_multi_level_tiling_structure") :
         GetStringParam(policy->params, "cpu_multi_level_tiling_structure");
 
@@ -459,7 +438,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
     base_state = DoMultiLevelTiling(base_state, stage_id,
         multi_level_tiling_structure, &spatial_split_step_ids);
     std::vector<int> follow_tiling_levels;
-    if (IS_GPU(policy->cur_task)) {
+    if (IsGPUTask(task)) {
       follow_tiling_levels.push_back(3);
     } else {
       follow_tiling_levels.push_back(1);
@@ -498,10 +477,8 @@ class RuleAddCacheWrite : public SketchGenerationRule {
     // but does not have a element-wise matched consumer
     return NeedsMultilevelTiling(task, state, stage->op) &&
            !HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_write_key) &&
-           (!HasSingleElementwiseMatchedConsumer(task, state, stage,
-                                                  &target_stage_id) ||
-             (HasCacheReadStage(state, stage_id) &&
-              !HasCacheWriteStage(state, stage_id))) ?
+           (!HasSingleElementwiseMatchedConsumer(task, state, stage, &target_stage_id) ||
+             (HasCacheReadStage(state, stage_id) && !HasCacheWriteStage(state, stage_id))) ?
         kApply : kPass;
   }
 
@@ -522,8 +499,7 @@ class RuleAddCacheRead : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
-    return ShouldBeCacheRead(policy, state, stage_id) ?
-        kApplyAndSkipRest : kPass;
+    return ShouldBeCacheRead(policy, state, stage_id) ?  kApplyAndSkipRest : kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
@@ -556,9 +532,8 @@ class RuleAddRfactor : public SketchGenerationRule {
     const SearchTask& task = policy->cur_task;
     const Stage& stage = state->stages[stage_id];
 
-    return NeedsRfactor(task, state, stage->op) &&
-           !HasCacheWriteStage(state, stage_id) ?
-        kApply : kPass;
+    return NeedsRfactor(task, state, stage->op) && !HasCacheWriteStage(state, stage_id) ?
+      kApply : kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
@@ -613,11 +588,8 @@ class RuleAddRfactor : public SketchGenerationRule {
   }
 };
 
-void SketchSearchPolicyNode::GenerateSketch(
-    std::vector<State>* out_states) {
+std::vector<State> SketchSearchPolicyNode::GenerateSketches() {
   State init_state = cur_task->compute_dag.GetInitState();
-  std::string cpu_multi_level_tiling_structure =
-      GetStringParam(params, "cpu_multi_level_tiling_structure");
 
   // two ping pong buffers to avoid copy
   std::vector<State> states_buf1, states_buf2;
@@ -637,24 +609,27 @@ void SketchSearchPolicyNode::GenerateSketch(
   static RuleAddCacheWrite rule_add_cache_write_stage;
   static RuleAddCacheRead rule_add_cache_read_stage;
   static RuleAddRfactor rule_add_rfactor;
+
   if (sketch_rules.empty()) {
-    // We may apply and skip the rest when processing some rules,
-    // should take care of the rule vector order here
+    // We may apply and skip the rest when processing some rules.
+    // Should take care of the order of rules here
     sketch_rules.push_back(&rule_always_inline);
     sketch_rules.push_back(&rule_add_cache_write_stage);
     sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
     sketch_rules.push_back(&rule_multi_level_tiling);
     sketch_rules.push_back(&rule_add_rfactor);
     sketch_rules.push_back(&rule_skip_stage);
-    if (IS_GPU(cur_task)) {
+
+    if (IsGPUTask(cur_task)) {
       // Try cache read first before cache write
       sketch_rules.insert(sketch_rules.begin() + 1, &rule_add_cache_read_stage);
     }
-    // TODO(xian): Add a new rule to try combination of multi-level
-    // tiling + rfactor
+
+    // TODO(lmzheng): Add a new rule to try combination of multi-level tiling + rfactor
   }
 
-  // Derivation rule based synthesizer
+  // Derivation rule based enumeration
+  std::vector<State> out_states;
   while (!pnow->empty()) {
     pnext->clear();
 
@@ -663,20 +638,22 @@ void SketchSearchPolicyNode::GenerateSketch(
 
       // Reaches to the terminal stage
       if (stage_id < 0) {
-        out_states->push_back(state);
+        out_states.push_back(state);
         continue;
       }
 
       // Try all derivation rules
       for (const auto& rule : sketch_rules) {
-        auto rule_check = rule->MeetCondition(this, state, stage_id);
-        if (rule_check > SketchGenerationRule::ConditionEnum::kPass) {
+        auto cond = rule->MeetCondition(this, state, stage_id);
+        if (cond == SketchGenerationRule::ConditionEnum::kApply ||
+            cond == SketchGenerationRule::ConditionEnum::kApplyAndSkipRest) {
           for (const auto& pair : rule->Apply(this, state, stage_id)) {
             cur_stage_id_map[pair.first] = pair.second;
             pnext->push_back(pair.first);
           }
+
           // Skip the reset rules
-          if (rule_check == SketchGenerationRule::ConditionEnum::kApplyAndSkipRest) {
+          if (cond == SketchGenerationRule::ConditionEnum::kApplyAndSkipRest) {
             break;
           }
         }
@@ -692,12 +669,12 @@ void SketchSearchPolicyNode::GenerateSketch(
   // Because during ApplySteps, a rfactor with undefined Expr() will crash TVM.
   // So rfactor with undefined Expr() will conflict with cache_write, cache_read, rfactor
   // in other stages
-  for (size_t i = 0; i < out_states->size(); ++i) {
-    auto pstate = (*out_states)[i].CopyOnWrite();
+  for (size_t i = 0; i < out_states.size(); ++i) {
+    auto pstate = out_states[i].CopyOnWrite();
     for (size_t step_id = 0; step_id < pstate->transform_steps.size(); ++step_id) {
       if (pstate->transform_steps[step_id]->IsInstance<RfactorStepNode>()) {
         CHECK_GE(step_id, 1);
-        int split_step_id = step_id - 1;
+        int split_step_id = static_cast<int>(step_id - 1);
         auto step = pstate->transform_steps[split_step_id].as<SplitStepNode>();
         CHECK(step != nullptr);
         pstate->transform_steps[split_step_id]
@@ -707,12 +684,14 @@ void SketchSearchPolicyNode::GenerateSketch(
     }
   }
 
-  StdCout(verbose) << "Generate Sketches\t\t#s: " << out_states->size() << std::endl;
+  StdCout(verbose) << "Generate Sketches\t\t#s: " << out_states.size() << std::endl;
+  return out_states;
 }
 
-int InitPopulationFillTileSize(const SketchSearchPolicyNode* policy,
+int InitPopulationFillTileSize(const SketchSearchPolicyNode& policy,
                                State* state, std::mt19937* rand_gen,
                                SplitFactorizationMemo* split_memo) {
+  // Scan the transformation history and randomly fill tiles size for all SplitStep
   for (size_t step_id = 0; step_id < (*state)->transform_steps.size(); ++step_id) {
     if (auto ps = (*state)->transform_steps[step_id].as<SplitStepNode>()) {
       bool defined = true;
@@ -730,7 +709,7 @@ int InitPopulationFillTileSize(const SketchSearchPolicyNode* policy,
       const std::vector<std::vector<PrimExpr> >& candidate_lens =
           split_memo->GetFactorizationSchemes(
               extent, ps->lengths.size(),
-              policy->cur_task->hardware_params->max_innermost_split_factor);
+              policy.cur_task->hardware_params->max_innermost_split_factor);
 
       StateNode* pstate = state->CopyOnWrite();
       pstate->transform_steps[step_id] = SplitStep(
@@ -902,6 +881,7 @@ int InitPopulationCooperativeFetching(const SketchSearchPolicyNode* policy,
 
 int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
                                         State* state, std::mt19937* rand_gen) {
+  // Randomly change the computation location for some stages
   if (GetIntParam(policy->params, "disable_change_compute_location")) {
     return 0;
   }
@@ -964,9 +944,9 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
 
     const Stage& target_stage = (*state)->stages[target_stage_id];
     std::set<std::string> to_unroll_name_set;
-    if (target_stage->op->attrs.count(policy->always_unroll_key)) {
+    if (target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
       to_unroll_name_set = GetIterNameSetParam(target_stage->op->attrs,
-                                               policy->always_unroll_key);
+                                               SearchPolicyNode::always_unroll_key);
     }
 
     std::vector<std::pair<int, Iterator> > candidates;
@@ -1017,14 +997,14 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
       target_target_stage_id = (*state)->attach_map->stage_to_attach_iter.at(
           target_stage_id).first;
       const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
-      if (target_target_stage->op->attrs.count(policy->always_unroll_key)) {
+      if (target_target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
         to_unroll_name_set = GetIterNameSetParam(target_target_stage->op->attrs,
-                                                 policy->always_unroll_key);
+                                                 SearchPolicyNode::always_unroll_key);
       } else {
         to_unroll_name_set.clear();
       }
 
-      int ct = 0;
+      ct = 0;
       for (const auto& target_target_iter : target_target_stage->iters) {
         if (target_target_iter->iter_type == kReduce ||
             (*state)->attach_map->iter_to_attached_stages.count(
@@ -1041,7 +1021,7 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
           continue;
         }
 
-        candidates.push_back(std::make_pair(target_target_stage_id, target_target_iter));
+        candidates.emplace_back(target_target_stage_id, target_target_iter);
       }
     }
 
@@ -1064,6 +1044,7 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
 
 int InitPopulationParallel(const SketchSearchPolicyNode* policy,
                            State* state) {
+  // Annotate parallel for CPU
   std::function<void(const SketchSearchPolicyNode*, State*, int stage_id, int iter_offset)>
       annotate_parallel;
 
@@ -1139,8 +1120,7 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
     }
 
     // Skip cooperative fetching stage
-    if (IS_GPU(policy->cur_task) &&
-        HasCacheReadStage((*state), stage_id - 1)) {
+    if (IsGPUTask(policy->cur_task) && HasCacheReadStage((*state), stage_id - 1)) {
       continue;
     }
 
@@ -1208,6 +1188,7 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
 
 int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
                          State* state, std::mt19937* rand_gen) {
+  // Add pragma auto_unroll_max_step for some stages
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
 
@@ -1215,7 +1196,7 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
       continue;
     }
 
-    if (stage->op->attrs.count(policy->always_unroll_inner_key)) {
+    if (stage->op->attrs.count(SearchPolicyNode::always_unroll_inner_key)) {
       // Special unroll policy
       auto to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
                                                     policy->always_unroll_inner_key);
@@ -1244,10 +1225,10 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
 
         n--;
       }
-    } else if (stage->op->attrs.count(policy->always_unroll_key)) {
+    } else if (stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
       // Special unroll policy
       auto to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
-                                                    policy->always_unroll_key);
+                                                    SearchPolicyNode::always_unroll_key);
 
       // Unroll the space iterators and reduce iterators listed in the attrs
       int n = static_cast<int>(stage->iters.size()) - 1;
@@ -1260,8 +1241,8 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
       }
     } else if (HasReduceIter(stage)) {
       // use auto unroll for multi level tiled stage
-      int value = policy->auto_unroll_configs[
-          (*rand_gen)() % policy->auto_unroll_configs.size()];
+      int value = SketchSearchPolicyNode::auto_unroll_configs[
+          (*rand_gen)() % SketchSearchPolicyNode::auto_unroll_configs.size()];
       state->pragma(stage_id, (*state)->stages[stage_id]->iters[0],
                     std::string("auto_unroll_max_step") + "$" + std::to_string(value));
     }
@@ -1273,23 +1254,20 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
 void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sketches,
     int out_size, std::vector<State>* out_states) {
   std::uniform_real_distribution<> dis(0.0, 1.0);
-  int continue_count = 0;
+  int fail_ct = 0;
 
-  // TODO(...): Maybe try muti thread here
+  // TODO(lmzheng,jcf94): Try multi thread here
   while (static_cast<int>(out_states->size()) < out_size &&
-         continue_count < out_size * 10) {
+         fail_ct < out_size * 10) {
     State tmp_s = sketches[rand_gen_() % sketches.size()];
 
-    InitPopulationFillTileSize(this, &tmp_s, &rand_gen_, &split_memo_);
+    InitPopulationFillTileSize(*this, &tmp_s, &rand_gen_, &split_memo_);
 
-    if (IS_GPU(cur_task)) {
+    if (IsGPUTask(cur_task)) {
       tmp_s = cur_task->compute_dag.InferBound(tmp_s);
 
       if (InitPopulationThreadBind(this, &tmp_s)) {
-        continue_count++;
-        if (continue_count == out_size) {
-          StdCout(verbose) << "Initial Population Sampling..." << std::endl;
-        }
+        fail_ct++;
         continue;
       }
 
@@ -1309,8 +1287,8 @@ void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sket
     out_states->push_back(std::move(tmp_s));
   }
 
-  StdCout(verbose) << "Sample Initial Population\t#s: "
-                   << out_states->size() << std::endl;
+  StdCout(verbose) << "Sample Initial Population\t#s: " << out_states->size()
+                   << "\tfail_ct: " << fail_ct << std::endl;
 }
 
 void SketchSearchPolicyNode::EvolutionarySearch(
@@ -1322,7 +1300,7 @@ void SketchSearchPolicyNode::EvolutionarySearch(
   int population = GetIntParam(params, "evolutionary_search_population");
   int num_iters =  GetIntParam(params, "evolutionary_search_num_iters");
   double mutation_prob = GetDoubleParam(params, "evolutionary_search_mutation_prob");
-  int num_cross_over = static_cast<int>(population * 0.0);  // NOT IMPLEMENTED currently
+  int num_cross_over = static_cast<int>(population * 0.0);  // HAS NOT BEEN MIGRATED
   int num_cross_over_trial_upper_bound = num_cross_over * 3;
   CostModel cost_model = program_cost_model;
 
@@ -1472,10 +1450,14 @@ void SketchSearchPolicyNode::EvolutionarySearch(
                    << std::fixed << std::setprecision(2) << duration << std::endl;
 }
 
+/*!
+ * \brief Base class for custom sketch generation rules
+ */
 class RuleCustomSketch : public SketchGenerationRule {
  public:
   RuleCustomSketch(PackedFunc meet_condition_func, PackedFunc apply_func) :
-      meet_condition_func_(meet_condition_func), apply_func_(apply_func) {}
+      meet_condition_func_(std::move(meet_condition_func)),
+      apply_func_(std::move(apply_func)) {}
 
   inline ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                                      const State& state, int stage_id) final {
@@ -1498,9 +1480,8 @@ class RuleCustomSketch : public SketchGenerationRule {
 
     for (const auto& item : apply_ret) {
       CHECK_EQ(item.size(), 2);
-      State state = Downcast<State>(item[0]);
       auto next = item[1].as<IntImmNode>();
-      ret.emplace_back(state, next->value);
+      ret.emplace_back(Downcast<State>(item[0]), next->value);
     }
     return ret;
   }
@@ -1513,8 +1494,8 @@ class RuleCustomSketch : public SketchGenerationRule {
 PreloadCustomSketchRule::PreloadCustomSketchRule(PackedFunc meet_condition_func,
                                                  PackedFunc apply_func) {
   auto node = make_object<PreloadCustomSketchRuleNode>();
-  node->meet_condition_func = meet_condition_func;
-  node->apply_func = apply_func;
+  node->meet_condition_func = std::move(meet_condition_func);
+  node->apply_func = std::move(apply_func);
   data_ = std::move(node);
 }
 
@@ -1527,9 +1508,14 @@ void PreloadCustomSketchRuleNode::callback(SearchPolicyNode* policy) {
 }
 
 TVM_REGISTER_GLOBAL("ansor.SketchSearchPolicy")
-.set_body_typed([](CostModel program_cost_model, Map<String, ObjectRef> params,
-                   int seed){
+.set_body_typed([](CostModel program_cost_model, Map<String, ObjectRef> params, int seed) {
   return SketchSearchPolicy(program_cost_model, params, seed);
+});
+
+TVM_REGISTER_GLOBAL("ansor.SketchSearchPolicyGenerateSketches")
+.set_body_typed([](SketchSearchPolicy policy, SearchTask task){
+  policy->cur_task = std::move(task);
+  return Array<State>(policy->GenerateSketches());
 });
 
 TVM_REGISTER_GLOBAL("ansor.PreloadCustomSketchRule")

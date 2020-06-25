@@ -30,7 +30,8 @@ def matmul_ansor_test(N, M, K):
     return [A, B, C]
 
 
-def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
+@ansor.register_workload_func
+def conv2d_nchw_bn_relu_ansor_test(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
     data = te.placeholder((N, CI, H, W), name='Data')
     kernel = te.placeholder((CO, CI, kernel_size, kernel_size), name='Kernel')
     bias = te.placeholder((CO, 1, 1), name='Bias')
@@ -54,6 +55,20 @@ def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation
 
     return [data, kernel, bias, bn_offset, bn_scale, out]
 
+
+@ansor.register_workload_func
+def max_pool2d_ansor_test(N, H, W, CI, padding):
+    data = te.placeholder((N, CI, H, W), name='Data')
+    out = topi.nn.pool(data, [2, 2], [1, 1], [padding, padding, padding, padding], 'max')
+
+    return [data, out]
+
+@ansor.register_workload_func
+def softmax_mn_ansor_test(M, N):
+    A = te.placeholder((M, N), name='A')
+    B = topi.nn.softmax(A, axis=1)
+
+    return [A, B]
 
 def get_tiled_matmul():
     A, B, C = matmul_ansor_test(512, 512, 512)

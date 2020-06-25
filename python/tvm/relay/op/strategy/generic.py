@@ -56,9 +56,14 @@ def get_conv2d_out_channels(kernel_shape, kernel_layout):
         return kernel_shape[0] * kernel_shape[5]
     if re.match(r"OIHW\d*o", kernel_layout):
         return kernel_shape[0] * kernel_shape[4]
+
     raise ValueError("Unknown conv2d kernel layout {}".format(kernel_layout))
 
 def is_depthwise_conv2d(data_shape, data_layout, kernel_shape, kernel_layout, groups):
+    # todo(minminsun): Hack for kernel layout rewrite
+    if kernel_layout == "HWOI" and len(kernel_shape) > 4 and groups > 1:
+        return True
+
     ic = get_conv2d_in_channels(data_shape, data_layout)
     oc = get_conv2d_out_channels(kernel_shape, kernel_layout)
     return ic == oc == groups

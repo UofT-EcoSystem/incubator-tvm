@@ -40,13 +40,12 @@ class KernelLayoutVisitor : public ExprVisitor {
   void VisitExpr_(const CallNode* n) {
     if (n && n->op.as<OpNode>() &&
         (std::find(op_white_lists.begin(), op_white_lists.end(), n->op.as<OpNode>()->name) !=
-         op_white_lists.end()) &&
-        n->args[1]->type_as<TensorTypeNode>()->shape[3].as<IntImmNode>()->value > 1 &&
-        !global_ori_layouts_queue.empty() && !global_new_layouts_queue.empty()) {
+         op_white_lists.end()) 
+        && !global_ori_layouts_queue.empty() && !global_new_layouts_queue.empty()) {
       ori_layouts_map[n] = global_ori_layouts_queue.front();
       new_layouts_map[n] = global_new_layouts_queue.front();
       // std::cout << "ori_layout " << global_ori_layouts_queue.front()
-      //     << " Filter_shape " << n->args[1]->type_as<TensorTypeNode>()->shape << std::endl;
+      //           << " Filter_shape " << n->args[1]->type_as<TensorTypeNode>()->shape << std::endl;
       global_ori_layouts_queue.pop_front();
       global_new_layouts_queue.pop_front();
     }
@@ -76,8 +75,7 @@ class KernelLayoutTransformer : public ExprMutator {
                                             "nn.conv2d", "nn.conv3d"};
     if (call && call->op.as<OpNode>() &&
         (std::find(op_white_lists.begin(), op_white_lists.end(), n->op.as<OpNode>()->name) !=
-             op_white_lists.end() &&
-         n->args[1]->type_as<TensorTypeNode>()->shape[3].as<IntImmNode>()->value > 1)) {
+             op_white_lists.end())) {
       auto ori_layout_iter = visitor_->ori_layouts_map.find(n);
       auto new_layout_iter = visitor_->new_layouts_map.find(n);
       if (ori_layout_iter != visitor_->ori_layouts_map.end() &&

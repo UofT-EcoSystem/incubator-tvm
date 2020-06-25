@@ -33,7 +33,7 @@ from tensor_core_support import tensor_core_meet_condition, tensor_core_apply
 def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose,
                        n_parallel, build_timeout, local_measure, rpc_device_key, rpc_host,
                        rpc_port, rpc_num_threads, ndk_cc, early_stopping=-1, run_timeout=10,
-                       pre_search_callbacks=None):
+                       pre_search_callbacks=None, auto_cache_flush=True):
     builder = runner = measure_ctx = None
     if local_measure:
         builder = ansor.LocalBuilder(timeout=build_timeout)
@@ -41,8 +41,11 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
             measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400)
             runner = measure_ctx.runner
         else:
-            os.environ['TVM_AUTO_CACHE_FLUSH'] = "1"
-            runner = ansor.LocalRunner(repeat=10, number=1, min_repeat_ms=0, timeout=run_timeout)
+            if auto_cache_flush:
+                os.environ['TVM_AUTO_CACHE_FLUSH'] = "1"
+                runner = ansor.LocalRunner(repeat=10, number=1, min_repeat_ms=0, timeout=run_timeout)
+            else:
+                runner = ansor.LocalRunner(repeat=1, number=5, min_repeat_ms=400, timeout=run_timeout)
     else:
         os.environ['TVM_NDK_CC'] = ndk_cc
         builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
@@ -216,7 +219,8 @@ if __name__ == "__main__":
                                                       args.n_parallel, args.build_timeout, args.local_measure,
                                                       args.rpc_device_key, args.rpc_host, args.rpc_port,
                                                       args.rpc_num_threads, args.ndk_cc,
-                                                      pre_search_callbacks=pre_search_callbacks)
+                                                      pre_search_callbacks=pre_search_callbacks,
+                                                      auto_cache_flush=False)
 
         if args.task_scheduler == 'no':
             # tune workloads one by one

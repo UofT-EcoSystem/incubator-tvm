@@ -129,6 +129,9 @@ class SketchSearchPolicy(SearchPolicy):
             _ffi_api.SketchSearchPolicy, program_cost_model, params,
             seed or random.randint(1, 1 << 30))
 
+    def generate_sketches(self, task):
+        return _ffi_api.SketchSearchPolicyGenerateSketches(self, task)
+
 
 @tvm._ffi.register_object("ansor.SearchCallback")
 class SearchCallback(Object):
