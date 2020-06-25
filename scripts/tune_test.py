@@ -47,8 +47,11 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
             else:
                 runner = ansor.LocalRunner(repeat=1, number=5, min_repeat_ms=400, timeout=run_timeout)
     else:
-        os.environ['TVM_NDK_CC'] = ndk_cc
-        builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
+        if ndk_cc is not None:
+            os.environ['TVM_NDK_CC'] = ndk_cc
+            builder = ansor.LocalBuilder(timeout=build_timeout, build_func='ndk')
+        else:
+            builder = ansor.LocalBuilder(timeout=build_timeout)
         runner = ansor.RPCRunner(key=rpc_device_key, host=rpc_host, port=rpc_port,
                                  timeout=run_timeout, n_parallel=n_parallel,
                                  repeat=1, min_repeat_ms=200)
@@ -86,8 +89,9 @@ def replay_workload(wkl_key, target, target_host, log_file,
             print("=" * 20 + " Equivalent Python Schedule Code " + "=" * 20)
             print(dag.print_python_code_from_state(inp.state))
             print("=" * 20 + " Lowered TIR " + "=" * 20)
-            print(tvm.lower(s, bufs, simple_mode=True))
+            print(str(tvm.lower(s, bufs, simple_mode=True)) + "\n")
 
+        print("=" * 20 + " Evaluate " + "=" * 20)
         if local_measure:
             remote = None
         else:
@@ -185,8 +189,8 @@ if __name__ == "__main__":
     parser.add_argument("--build-timeout", type=int, default=10)
     parser.add_argument("--run-timeout", type=int, default=60)
     parser.add_argument("--verbose", type=int, default=1)
-    parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
-    parser.add_argument("--rpc-device-key", type=str, default=None)
+    parser.add_argument("--rpc-device-key", type=str, default=None) 
+    # Setting `--rpc-device-key` to None means using local devices for measurement
     parser.add_argument("--rpc-host", type=str, default='0.0.0.0')
     parser.add_argument("--rpc-port", type=int, default=9190)
     parser.add_argument("--rpc-num-threads", type=int, default=None)
@@ -202,6 +206,7 @@ if __name__ == "__main__":
     wkl_keys = get_workload_keys(args.wkl)
     target = tvm.target.create(args.target)
     log_file = args.log_file or args.wkl + ".json"
+    local_measure = args.rpc_device_key is None
 
     # Tune workloads
     if args.tune:
@@ -219,7 +224,7 @@ if __name__ == "__main__":
         # create tune options
         tune_option, measure_ctx = create_tune_option(target, log_file,
                                                       args.n_trials, args.num_measure_per_iter, args.verbose,
-                                                      args.n_parallel, args.build_timeout, args.local_measure,
+                                                      args.n_parallel, args.build_timeout, local_measure,
                                                       args.rpc_device_key, args.rpc_host, args.rpc_port,
                                                       args.rpc_num_threads, args.ndk_cc,
                                                       pre_search_callbacks=pre_search_callbacks,
@@ -244,5 +249,5 @@ if __name__ == "__main__":
     if len(wkl_keys) == 1 or not args.tune:
         for wkl_key in wkl_keys:
             replay_workload(wkl_key, target, args.target_host, log_file,
-                            args.local_measure, args.rpc_device_key, args.rpc_host,
+                            local_measure, args.rpc_device_key, args.rpc_host,
                             args.rpc_port, args.rpc_num_threads, args.ndk_cc)

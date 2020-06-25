@@ -25,6 +25,7 @@ from .auto_schedule import SearchTask, SearchPolicy, SketchSearchPolicy, TuneOpt
 from .cost_model import RandomModel, XGBModel
 from .measure import ProgramMeasurer
 from .utils import array_mean, to_str_round
+from .serialization import LogReader
 
 
 class TaskScheduler:
@@ -138,14 +139,29 @@ class SimpleTaskScheduler(TaskScheduler):
 
         assert self.strategy in ['round-robin', 'gradient']
 
-        self.task_cts = []
-        self.task_costs_history = []
-        self.best_costs = self.cur_score = None
+        self.task_cts = [0 for _ in range(len(self.tasks))]
+        self.task_costs_history = [[] for _ in range(len(self.tasks))]
+        self.best_costs = 1e10 * np.ones(len(self.tasks))
         self.tune_option = self.measurer = self.search_policies = self.ct = self.tic = None
         self.num_measure_per_iter = None
         self.dead_tasks = set()
         self.sequential_now_task_idx = 0
         self.sequential_now_task_begin_ct = 0
+
+        # load best costs from log file
+        if load_log_file:
+            str_target = str(tasks[0].target)
+            workload_key_to_task_id = {t.workload_key : i for i, t in enumerate(tasks)}
+            for inp, res in LogReader(load_log_file):
+                if str(inp.task.target) != str_target:
+                    continue
+                if res.error_no != 0:
+                    continue
+                task_idx = workload_key_to_task_id[inp.task.workload_key]
+                if task_idx is not None:
+                    self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
+
+        self.cur_score = self.compute_score(self.best_costs)
 
     def tune(self, tune_option: TuneOption,
              search_policy: Union[str, List[SearchPolicy]] = 'default'):
@@ -160,10 +176,6 @@ class SimpleTaskScheduler(TaskScheduler):
         search_policy: Str or List[SearchPolicy]
         """
         # init members
-        self.task_cts = [0 for _ in range(len(self.tasks))]
-        self.task_costs_history = [[] for _ in range(len(self.tasks))]
-        self.best_costs = 1e10 * np.ones(len(self.tasks))
-        self.cur_score = self.compute_score(self.best_costs)
         self.tune_option = tune_option
         if self.use_debug_measurement_simulator is None:
             self.measurer = ProgramMeasurer(tune_option.builder, tune_option.runner,
@@ -177,7 +189,6 @@ class SimpleTaskScheduler(TaskScheduler):
                                                    self.num_measure_per_iter,
                                                    self.load_model_file,
                                                    self.load_log_file)
-        self.dead_tasks = set()
         self.sequential_now_task_idx = 0
         self.sequential_now_task_begin_ct = 0
 
@@ -251,13 +262,11 @@ class SimpleTaskScheduler(TaskScheduler):
             else:
                 raise ValueError("Invalid strategy: " + self.strategy)
 
-            if self.verbose >= 1:
-                print("Next tuning task: %d" % task_idx)
             self.tune_task(task_idx)
 
     def tune_task(self, task_idx):
-        """ ...
-        """
+        if self.verbose >= 1:
+            print("TaskScheduler\ttask id:\t%d" % task_idx)
         if self.use_debug_measurement_simulator is not None:
             measure_inputs, measure_results = \
                 self.use_debug_measurement_simulator.get_next_batch(
@@ -297,3 +306,4 @@ class SimpleTaskScheduler(TaskScheduler):
         for idx in self.dead_tasks:
             prob[idx] = 0
         return prob / prob.sum()
+

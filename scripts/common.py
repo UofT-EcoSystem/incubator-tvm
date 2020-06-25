@@ -586,11 +586,17 @@ def measure_schedule(s,
     if remote:
         ctx = remote.context(str(target), 0)
         temp = util.tempdir()
-        remote_path = temp.relpath("tmp_deploy_lib.so")
-        os.environ['TVM_NDK_CC'] = ndk_cc
-        func.export_library(remote_path, ndk.create_shared)
+        if ndk_cc:
+            os.environ['TVM_NDK_CC'] = ndk_cc
+            filename = "tmp_deploy_lib.so"
+            remote_path = temp.relpath(filename)
+            func.export_library(remote_path, ndk.create_shared)
+        else:
+            filename = "tmp_deploy_lib.tar"
+            remote_path = temp.relpath(filename)
+            func.export_library(remote_path)
         remote.upload(remote_path)
-        func = remote.load_module("tmp_deploy_lib.so")
+        func = remote.load_module(filename)
     else:
         ctx = tvm.context(str(target), 0)
 

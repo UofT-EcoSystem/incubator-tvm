@@ -107,7 +107,7 @@ def unpack_feature(byte_arr: bytearray) -> Tuple[np.ndarray, np.ndarray, np.ndar
     offset += m * size_of_int
 
     assert offset == len(byte_arr), "%d vs %d" % (offset, len(byte_arr))
-    return np.array(features), np.array(normalized_throughputs), np.array(task_ids)
+    return np.array(features, dtype=object), np.array(normalized_throughputs), np.array(task_ids)
 
 
 def get_per_stmt_features_from_file(filename: str,

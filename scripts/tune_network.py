@@ -168,21 +168,26 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
             ctx = tvm.cpu()
     else:
         print("=============== Request Remote ===============")
-        if 'TVM_NDK_CC' not in os.environ:
-            os.environ['TVM_NDK_CC'] = ndk_cc
         remote = request_remote(rpc_device_key, rpc_host, rpc_port)
 
         print("=============== Export ===============")
         ctx = remote.cpu()
         temp = util.tempdir()
-        path_lib = temp.relpath("deploy_lib.so")
-        lib.export_library(path_lib, ndk.create_shared)
+        if ndk_cc:
+            os.environ['TVM_NDK_CC'] = ndk_cc
+            filename = 'deploy_lib.so'
+            path_lib = temp.relpath(filename)
+            lib.export_library(path_lib, ndk.create_shared)
+        else:
+            filename = 'deploy_lib.tar'
+            path_lib = temp.relpath(filename)
+            lib.export_library(path_lib)
 
         print("=============== Upload ===============")
         remote.upload(path_lib)
 
         print("=============== Load ===============")
-        lib = remote.load_module("deploy_lib.so")
+        lib = remote.load_module(filename)
 
         if rpc_num_threads:
             config_threadpool = remote.get_function('runtime.config_threadpool')
@@ -337,8 +342,8 @@ if __name__ == "__main__":
     parser.add_argument("--run-timeout", type=int, default=10)
     parser.add_argument("--early-stopping", type=int, default=-1)
     parser.add_argument("--verbose", type=int, default=1)
-    parser.add_argument("--local-measure", type=str2bool, nargs='?', const=True, default=True)
     parser.add_argument("--rpc-device-key", type=str, default=None)
+    # Setting `--rpc-device-key` to None means using local devices for measurement
     parser.add_argument("--rpc-host", type=str, default='0.0.0.0')
     parser.add_argument("--rpc-port", type=int, default=9190)
     parser.add_argument("--rpc-num-threads", type=int, default=None)
@@ -356,6 +361,7 @@ if __name__ == "__main__":
     log_file = args.log_file or "%s-B%d-%s.json" % (args.network, args.batch_size,
                                                     target.target_name)
     load_log_file = args.load_log or log_file
+    local_measure = args.rpc_device_key is None
     search_policy = "%s.%s" % (args.policy, args.model_type)
     if args.layout:
         layout = args.layout
@@ -379,7 +385,7 @@ if __name__ == "__main__":
     }
 
     common_measure_parameters = {
-        'local_measure': args.local_measure,
+        'local_measure': local_measure,
         'rpc_device_key': args.rpc_device_key,
         'rpc_host': args.rpc_host,
         'rpc_port': args.rpc_port,
@@ -404,3 +410,4 @@ if __name__ == "__main__":
                       search_policy, task_scheduler_parameters, tune_option_arguments,
                       args.tune, args.debug_profile, args.check_correctness,
                       args.log_n_lines)
+

@@ -95,7 +95,7 @@ class XGBModel(PythonBasedModel):
         if n_cached > 0:
             features = list(features)
             features[:n_cached] = self.inputs_feature_cache
-            features = np.array(features)
+            features = np.array(features, dtype=object)
         self.inputs_feature_cache = features
         dtrain = pack_sum_xgbmatrix(features, normalized_throughputs,
                                     task_ids, normalized_throughputs)

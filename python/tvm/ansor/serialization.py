@@ -49,7 +49,7 @@ class LogReader(Object):
     ----------
     filename : Str
     """
-    def __init__(self, filename="ansor_tuning.json"):
+    def __init__(self, filename):
         self.__init_handle_by_constructor__(_ffi_api.LogReader, filename)
 
     def read_lines(self, max_size=-1, skip_size=0):
