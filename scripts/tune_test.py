@@ -83,6 +83,9 @@ def replay_workload(wkl_key, target, target_host, log_file,
 
         s, bufs = dag.apply_steps_from_state(inp.state)
         if show_lower_result:
+            print("=" * 20 + " Equivalent Python Schedule Code " + "=" * 20)
+            print(dag.print_python_code_from_state(inp.state))
+            print("=" * 20 + " Lowered TIR " + "=" * 20)
             print(tvm.lower(s, bufs, simple_mode=True))
 
         if local_measure:
