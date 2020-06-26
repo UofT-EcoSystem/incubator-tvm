@@ -19,6 +19,7 @@
 import argparse
 import logging
 import random
+import time
 
 import numpy as np
 
@@ -28,8 +29,8 @@ import topi
 from topi.nn.winograd_util import winograd_transform_matrices
 from topi.util import get_const_tuple
 
-from common import measure_schedule, str2bool, norm_bmn, conv2d_nhwc_bn_relu, conv2d_nchw_bn_relu
-from shape_configs import single_op_shape_dict, subgraph_shape_dict
+from common import measure_schedule, str2bool, norm_bmn, conv2d_nhwc_bn_relu, conv2d_nchw_bn_relu, log_line, BenchmarkRecord
+from shape_configs import shape_dict
 from tune_test import tune_workloads_jointly, replay_workload, create_tune_option
 
 # ========================== Single Ops ==========================
@@ -455,59 +456,7 @@ def transpose_batch_matmul(batch, seq_len, n_head, n_dim):
 
 # ========================== Tune function & Task dicts ==========================
 
-def tune_wkl(task_func_dict, shape_dict, wkl_type, args):
-    target = tvm.target.create(args.target)
-    local_measure = args.rpc_device_key is None
-
-    for wkl_meta_name, func in task_func_dict.items():
-        if not args.wkl in ["all", wkl_type, wkl_meta_name]:
-            continue
-
-        log_file = args.log_file or wkl_meta_name + ".json"
-        wkl_keys = []
-        for shape in shape_dict[wkl_meta_name]:
-            if shape[0] == 1:
-                shape = list(shape)
-                shape[0] = args.batch_size
-
-            wkl_key = ansor.make_workload_key_func(func, shape)
-            wkl_keys.append(wkl_key)
-            if args.fast_check:
-                break
-
-            if not args.tune:
-                cost, gflops = replay_workload(
-                        wkl_key, target, args.target_host, log_file,
-                        local_measure, args.rpc_device_key, args.rpc_host,
-                        args.rpc_port, args.rpc_num_threads, args.ndk_cc, False)
-                # log_line(BenchmarkRecord(target.name, 'gpu' if target.name == 'cuda' else 'cpu', 'subgraph',
-                #                          workload_name, "AutoSchedule", "default",
-                #                          {"costs": [cost]}, time.time()), args.out_file)
-
-        if args.tune:
-            print("========== Tune for %s (%d shapes) ========== " % (wkl_meta_name, len(wkl_keys)))
-
-            load_log_file = args.load_log or log_file
-            n_trials = args.n_trials_per_shape * len(wkl_keys)
-
-            tune_option, measure_ctx = create_tune_option(target, log_file,
-                    n_trials, args.num_measure_per_iter, args.verbose,
-                    args.n_parallel, args.build_timeout, local_measure,
-                    args.rpc_device_key, args.rpc_host, args.rpc_port,
-                    args.rpc_num_threads, args.ndk_cc,
-                    pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)],
-                    auto_cache_flush=False)
-
-            # tune workloads jointly using JointTuner
-            tune_workloads_jointly(wkl_keys, np.ones(len(wkl_keys)), args.task_scheduler,
-                                   target, args.target_host, args.policy, args.model_type,
-                                   args.load_model, load_log_file, tune_option)
-
-            if measure_ctx:
-                del measure_ctx
-
-
-single_op_task_func_dict = {
+task_func_dict = {
     'GMM': batch_matmul_nkkm,
     'C1D': conv1d_nlc,
     'C2D': conv2d_nhwc,
@@ -518,21 +467,17 @@ single_op_task_func_dict = {
     'T2D': conv2d_transpose_nhwc,
     'CAP': conv2d_capsule_nhwijc,
     'NRM': norm_bmn,
-    #'SMX': softmax_mn,
 
-#    The following workloads are not in our sinle op evaluation plan.
-#    They should be moved to `common.py` and be used by `tune_wkl.py`.
-#    'C2D_NCHW': conv2d_nchw,
-#    'C2DWG_NHWC': conv2d_winograd_nhwc,
-#    'C2DWG_NCHW': conv2d_winograd_nchw,
-#    'GMM_TC': matmul_nkkm,
-}
-
-subgraph_task_func_dict = {
     'conv2d_bn_relu': conv2d_nhwc_bn_relu,
-    #'conv2d_bn_relu': conv2d_nchw_bn_relu,    # some old log uses conv2d_nchw_bn_relu
     'transpose_batch_matmul': transpose_batch_matmul,
+
+    'C2D_NCHW': conv2d_nchw,
+    'C2DWG_NHWC': conv2d_winograd_nhwc,
+    'C2DWG_NCHW': conv2d_winograd_nchw,
 }
+
+single_op_eval_wkls = ['GMM', 'C1D', 'C2D', 'C3D', 'GRP', 'DIL', 'DEP', 'T2D', 'CAP', 'NRM']
+subgraph_eval_wkls = ['conv2d_bn_relu', 'transpose_batch_matmul']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -542,7 +487,7 @@ if __name__ == "__main__":
                               op       - Tune all single ops; \
                               subgraph - Tune all subgraphs; \
                               specific wkl name - Tune a specific workload")
-    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--batch-size", type=int, default=-1) 
     parser.add_argument("--target", type=str, default='llvm -mcpu=core-avx2')
     parser.add_argument("--target-host", type=str, default=None)
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)
@@ -582,24 +527,88 @@ if __name__ == "__main__":
     logging.basicConfig()
     logging.getLogger('ansor').setLevel(logging.DEBUG)
 
+    if args.wkl == 'op':
+        wkl_meta_names = single_op_eval_wkls
+    elif args.wkl == 'subgraph':
+        wkl_meta_names = subgraph_eval_wkls
+    elif args.wkl == 'all':
+        wkl_meta_names = single_op_eval_wkls + subgraph_eval_wkls
+    else:
+        wkl_meta_names = [args.wkl]
+
+    if args.batch_size < 0:
+        batch_sizes = [1, 16]
+    else:
+        batch_sizes = [args.batch_size]
+
     # compute the number of tasks
     num_tasks = 0
-    for wkl_meta_name in single_op_task_func_dict:
-        if not args.wkl in ["all", "op", wkl_meta_name]:
-            continue
+    for wkl_meta_name in wkl_meta_names:
         if args.fast_check:
             num_tasks += 1
         else:
-            num_tasks += len(single_op_shape_dict[wkl_meta_name])
-    for wkl_meta_name in subgraph_task_func_dict:
-        if not args.wkl in ["all", "subgraph", wkl_meta_name]:
-            continue
-        if args.fast_check:
-            num_tasks += 1
-        else:
-            num_tasks += len(subgraph_shape_dict[wkl_meta_name])
+            num_tasks += len(shape_dict[wkl_meta_name])
+    num_tasks *= len(batch_sizes)
     print("Number of tasks: %d\tTotal trials: %d" % (num_tasks, num_tasks * args.n_trials_per_shape))
 
-    # tune for tasks
-    tune_wkl(single_op_task_func_dict, single_op_shape_dict, "op", args)
-    tune_wkl(subgraph_task_func_dict, subgraph_shape_dict, "subgraph", args)
+    # tune or replay all tasks
+    target = tvm.target.create(args.target)
+    local_measure = args.rpc_device_key is None
+
+    for wkl_meta_name in wkl_meta_names:
+        func = task_func_dict[wkl_meta_name]
+        if wkl_meta_name in single_op_eval_wkls:
+            wkl_type = 'op'
+        elif wkl_meta_name in subgraph_eval_wkls:
+            wkl_type = 'subgraph'
+        else:
+            wkl_type = 'other'
+
+        log_file = args.log_file or wkl_meta_name + ".json"
+
+        wkl_keys = []
+        for shape in shape_dict[wkl_meta_name]:
+            for batch_size in batch_sizes:
+              if shape[0] == 1:
+                  shape = list(shape)
+                  shape[0] = batch_size
+
+                  wkl_key = ansor.make_workload_key_func(func, shape)
+                  wkl_keys.append(wkl_key)
+                  if args.fast_check:
+                      break
+
+                  if not args.tune:
+                      cost, gflops = replay_workload(
+                              wkl_key, target, args.target_host, log_file,
+                              local_measure, args.rpc_device_key, args.rpc_host,
+                              args.rpc_port, args.rpc_num_threads, args.ndk_cc, False)
+                      workload_name = "%s%s" % (wkl_meta_name, tuple(shape))
+                      log_line(BenchmarkRecord(target.target_name,
+                                               'gpu' if target.target_name == 'cuda' else 'cpu', wkl_type,
+                                               workload_name, "ours", "default",
+                                               {"costs": [cost]}, time.time()), 'results.tsv')
+
+
+        if args.tune:
+            print("========== Tune for %s (%d shapes) ========== " % (wkl_meta_name, len(wkl_keys)))
+
+            load_log_file = args.load_log or log_file
+            n_trials = args.n_trials_per_shape * len(wkl_keys)
+
+            tune_option, measure_ctx = create_tune_option(target, log_file,
+                    n_trials, args.num_measure_per_iter, args.verbose,
+                    args.n_parallel, args.build_timeout, local_measure,
+                    args.rpc_device_key, args.rpc_host, args.rpc_port,
+                    args.rpc_num_threads, args.ndk_cc,
+                    pre_search_callbacks=[ansor.PreloadMeasuredStates(log_file)],
+                    auto_cache_flush=False)
+
+            # tune workloads jointly using JointTuner
+            tune_workloads_jointly(wkl_keys, np.ones(len(wkl_keys)), args.task_scheduler,
+                                   target, args.target_host, args.policy, args.model_type,
+                                   args.load_model, load_log_file, tune_option)
+
+            if measure_ctx:
+                del measure_ctx
+

@@ -159,26 +159,6 @@ norm_shapes = [
     (1, 4096, 1024),
 ]
 
-single_op_shape_dict = {
-    'C1D': conv1d_shapes,
-    'C2D': conv2d_shapes,
-    'C3D': conv3d_shapes,
-    'GMM': matmul_shapes,
-    'GRP': group_conv2d_shapes,
-    'DIL': dilation_conv2d_shapes,
-    'DEP': depthwise_conv2d_shapes,
-    'T2D': conv2d_transpose_shapes,
-    'CAP': conv2d_capsule_shapes,
-    'NRM': norm_shapes,
-
-#    The following workloads are not in our sinle op evaluation plan.
-#    They should be moved to `common.py` and be used by `tune_wkl.py`.
-#    'C2D_NCHW': conv2d_nchw_shapes,
-#    'C2DWG_NHWC': conv2d_winograd_nhwc_shapes,
-#    'C2DWG_NCHW': conv2d_winograd_nchw_shapes,
-#    'GMM_TC': matmul_tensor_core_shapes,
-}
-
 conv2d_bn_relu_shapes = [
     (1, 224, 224, 3, 64, 7, 2, 3),
     (1, 56, 56, 64, 128, 3, 2, 1),
@@ -201,9 +181,23 @@ transpose_batch_matmul_shapes = [
     (16,  128, 12, 128),
 ]
 
-subgraph_shape_dict = {
+shape_dict = {
+    'C1D': conv1d_shapes,
+    'C2D': conv2d_shapes,
+    'C3D': conv3d_shapes,
+    'GMM': matmul_shapes,
+    'GRP': group_conv2d_shapes,
+    'DIL': dilation_conv2d_shapes,
+    'DEP': depthwise_conv2d_shapes,
+    'T2D': conv2d_transpose_shapes,
+    'CAP': conv2d_capsule_shapes,
+    'NRM': norm_shapes,
+
     "conv2d_bn_relu": conv2d_bn_relu_shapes,
     "transpose_batch_matmul": transpose_batch_matmul_shapes,
+
+    'C2DWG_NHWC': conv2d_winograd_nhwc_shapes,
+    'C2DWG_NCHW': conv2d_winograd_nchw_shapes,
 }
 
 resnet_shapes = [
