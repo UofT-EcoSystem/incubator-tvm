@@ -99,7 +99,6 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   std::vector<State> GenerateSketches();
 
   static constexpr const char *_type_key = "ansor.SketchSearchPolicy";
-  static const std::vector<int> auto_unroll_configs;
 
   TVM_DECLARE_FINAL_OBJECT_INFO(SketchSearchPolicyNode, SearchPolicyNode);
 
@@ -126,6 +125,7 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
 
   SplitFactorizationMemo split_memo_;  // Memorize split space for Split
   int num_measure_per_iter_;   // The number of states to measure per iteration
+  std::vector<int> auto_unroll_configs_;  // All possible candidates for auto_unroll
 };
 
 /*!

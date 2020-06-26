@@ -683,11 +683,23 @@ def PRINT_TIME(msg):
 ############################################################
 
 # The format for a line in resulst file
-BenchmarkRecord = namedtuple("BenchmarkRecord", [
-    'device', 'backend', 'workload_type', 'workload_name', 'library', 'algorithm', 'value',
-    'time_stamp'
-])
+BenchmarkRecord = namedtuple("BenchmarkRecord",
+                             ['device', 'backend', 'workload_type', 'workload_name',
+                              'library', 'algorithm', 'value', 'time_stamp'])
 
+def log_line(record, out_file):
+    with open(out_file, 'a') as fout:
+        fout.write("\t".join([to_str_round(x) for x in record]) + '\n')
+
+def extract_tar(path):
+    import tarfile
+    if path.endswith("tgz") or path.endswith("gz"):
+        dir_path = os.path.dirname(path)
+        tar = tarfile.open(path)
+        tar.extractall(path=dir_path)
+        tar.close()
+    else:
+        raise RuntimeError('Could not decompress the file: ' + path)
 
 class BaselineDatabase:
     """A class for query records in baseline database"""

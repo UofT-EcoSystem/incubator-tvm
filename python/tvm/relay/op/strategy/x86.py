@@ -231,7 +231,7 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
                                     wrap_topi_schedule(topi.x86.schedule_conv3d_ncdhw),
                                     name="conv3d_ncdhw.x86")
     elif layout == "NDHWC":
-        strategy.add_implementation(wrap_compute_conv3d(topi.x86.conv3d_ndhwc),
+        strategy.add_implementation(wrap_compute_conv3d(topi.nn.conv3d_ndhwc),
                                     wrap_topi_schedule(ansor.auto_schedule_topi),
                                     name="ansor")
     else:

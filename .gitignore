@@ -237,3 +237,6 @@ conda/pkg
 
 # ansor tuning logs
 scripts/*.json
+scripts/today_job.sh
+scripts/results.tsv
+

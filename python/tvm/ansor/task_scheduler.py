@@ -42,8 +42,6 @@ class TaskScheduler:
 
 def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: List[SearchTask],
                         num_measure_per_iter, load_model_file=None, load_log_file=None):
-    """ ...
-    """
     if search_policy == 'default':
         search_policy = 'sketch.xgb'
 
@@ -185,6 +183,7 @@ class SimpleTaskScheduler(TaskScheduler):
         # reset num_measure_per_iter to make sure every task is tuned at least once
         self.num_measure_per_iter = min(tune_option.num_measure_per_iter,
                                         tune_option.n_trials // len(self.tasks))
+        assert self.num_measure_per_iter > 0, "n_trials is too small"
         self.search_policies = get_search_policies(search_policy, self.tasks,
                                                    self.num_measure_per_iter,
                                                    self.load_model_file,

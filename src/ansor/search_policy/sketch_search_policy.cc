@@ -43,9 +43,6 @@ namespace ansor {
 TVM_REGISTER_NODE_TYPE(SketchSearchPolicyNode);
 TVM_REGISTER_OBJECT_TYPE(PreloadCustomSketchRuleNode);
 
-// All possible candidates for auto_unroll
-const std::vector<int> SketchSearchPolicyNode::auto_unroll_configs{0, 16, 64, 512, 1024};
-
 SketchSearchPolicy::SketchSearchPolicy(CostModel program_cost_model,
                                        Map<String, ObjectRef> params,
                                        int seed) {
@@ -234,6 +231,11 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
       static_cast<int>(
           GetDoubleParam(params, "evolutionary_search_use_measured_ratio") * population));
   bool have_cost_model = !program_cost_model->IsInstance<RandomModelNode>();
+  if (IsGPUTask(cur_task)) {
+    auto_unroll_configs_ = {0, 16, 64, 512, 1024};
+  } else {
+    auto_unroll_configs_ = {0, 16, 64, 512}; 
+  }
 
   if (!have_cost_model) {
     num_use_measured = 0;
@@ -1187,7 +1189,8 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
 }
 
 int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
-                         State* state, std::mt19937* rand_gen) {
+                         State* state, std::mt19937* rand_gen,
+                         const std::vector<int>& auto_unroll_configs) {
   // Add pragma auto_unroll_max_step for some stages
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
@@ -1199,7 +1202,7 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
     if (stage->op->attrs.count(SearchPolicyNode::always_unroll_inner_key)) {
       // Special unroll policy
       auto to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
-                                                    policy->always_unroll_inner_key);
+                                                    SearchPolicyNode::always_unroll_inner_key);
       std::set<std::string> visited_names;
 
       // Unroll the space iterators and reduce iterators listed in the attrs
@@ -1241,8 +1244,7 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
       }
     } else if (HasReduceIter(stage)) {
       // use auto unroll for multi level tiled stage
-      int value = SketchSearchPolicyNode::auto_unroll_configs[
-          (*rand_gen)() % SketchSearchPolicyNode::auto_unroll_configs.size()];
+      int value = auto_unroll_configs[(*rand_gen)() % auto_unroll_configs.size()];
       state->pragma(stage_id, (*state)->stages[stage_id]->iters[0],
                     std::string("auto_unroll_max_step") + "$" + std::to_string(value));
     }
@@ -1282,7 +1284,7 @@ void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sket
 
     InitPopulationVectorization(this, &tmp_s, &rand_gen_);
 
-    InitPopulationUnroll(this, &tmp_s, &rand_gen_);
+    InitPopulationUnroll(this, &tmp_s, &rand_gen_, this->auto_unroll_configs_);
 
     out_states->push_back(std::move(tmp_s));
   }
@@ -1406,27 +1408,46 @@ void SketchSearchPolicyNode::EvolutionarySearch(
       int id = RandomChoose(prefix_sum_probs, &rand_gen_);
 
       if (dis(rand_gen_) < mutation_prob) {
-        const std::vector<double> rule_prefix_sum_probs{0.9, 1.0};
+        std::vector<double> rule_probs;
+        std::vector<double> rule_prefix_sum_probs;
+
+        if (IsGPUTask(cur_task)) {
+          rule_probs = {0.90, 0.10, 0.00, 0.00};
+        } else {
+          rule_probs = {0.90, 0.05, 0.05, 0.00};
+        }
+
+        double sum_prob = 0.0;
+        for (double prob : rule_probs) {
+          sum_prob += prob;
+          rule_prefix_sum_probs.push_back(sum_prob);
+        }
 
         int rule_id = RandomChoose(rule_prefix_sum_probs, &rand_gen_);
 
-        if (rule_id == 0) {
-          // Mutate Tile Size
-          State tmp_s = RandomMutateTileSize((*pnow)[id], &split_memo_, &rand_gen_,
-                                             cur_task->hardware_params->max_innermost_split_factor);
-          if (tmp_s.defined()) {
-            pnext->push_back(std::move(tmp_s));
-          } else {
-            mutation_fail_ct++;
-          }
-        } else if (rule_id == 1) {
-          // Mutate auto-unroll max step.
-          State tmp_s = RandomMutateMaxUnrollStep((*pnow)[id], &rand_gen_, auto_unroll_configs);
-          if (tmp_s.defined()) {
-            pnext->push_back(std::move(tmp_s));
-          } else {
-            mutation_fail_ct++;
-          }
+        State tmp_s;
+        switch (rule_id) {
+          case 0:
+            tmp_s = RandomMutateTileSize((*pnow)[id], &split_memo_, &rand_gen_,
+                    cur_task->hardware_params->max_innermost_split_factor);
+            break;
+          case 1:
+            tmp_s = RandomMutateMaxUnrollStep((*pnow)[id], &rand_gen_, auto_unroll_configs_);
+            break;
+          case 2:
+            tmp_s = RandomMutateComputeLocation((*pnow)[id], &rand_gen_, cur_task);
+            break;
+          case 3:
+            tmp_s = RandomMutateParallel((*pnow)[id], &rand_gen_, cur_task);
+            break;
+          default:
+            LOG(FATAL) << "Invalid rule id: " << rule_id;
+        }
+
+        if (tmp_s.defined()) {
+          pnext->push_back(std::move(tmp_s));
+        } else {
+          mutation_fail_ct++;
         }
       } else {
         pnext->push_back((*pnow)[id]);

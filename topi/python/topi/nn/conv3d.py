@@ -18,7 +18,7 @@
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
 import tvm
-from tvm import te
+from tvm import te, ansor
 
 from .pad import pad
 from .util import get_pad_tuple3d
@@ -134,7 +134,26 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
         dilation_d, dilation_h, dilation_w = dilation
 
     batch, in_depth, in_height, in_width, in_channel = Input.shape
-    kernel_d, kernel_h, kernel_w, channel, num_filter = Filter.shape
+
+    if ansor.GLOBAL_SCOPE.topi_in_compute_rewrite_mode:
+        # infer shape for the rewritten layout
+        if len(Filter.shape) >= 12:
+            base = len(Filter.shape) - 12
+            kernel_d = Filter.shape[2 + base] * Filter.shape[7 + base]
+            kernel_h = Filter.shape[3 + base] * Filter.shape[8 + base]
+            kernel_w = Filter.shape[4 + base] * Filter.shape[9 + base]
+            channel = Filter.shape[5 + base] * Filter.shape[10 + base]
+            num_filter = Filter.shape[6 + base] * Filter.shape[11 + base]
+            for i in range(base + 2):
+                num_filter *= Filter.shape[i]
+        elif len(Filter.shape) == 5:
+            num_filter, kernel_d, kernel_h, kernel_w, channel = Filter.shape
+        else:
+            raise ValueError("Don't know how to infer layout for filter shape: %s. "\
+                "You can add a new branch for it to fix this." % str(Filter))
+    else:
+        kernel_d, kernel_h, kernel_w, channel, num_filter = Filter.shape
+
     # compute the output shape
     dilated_kernel_d = (kernel_d - 1) * dilation_d + 1
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
@@ -159,7 +178,7 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
             PaddedInput[nn, dd * stride_d + rd * dilation_d, hh * stride_h + rh * dilation_h,
                         ww * stride_w + rw * dilation_w, rc].astype(out_dtype) *
             Filter[rd, rh, rw, rc, cc].astype(out_dtype), axis=[rd, rh, rw, rc]),
-        name="Conv3dOutput", tag="conv3d_ndhwc")
+        name="Conv3dOutput", tag="conv3d_ndhwc", attrs={"layout_free_placeholders": [Filter]})
     return Output
 
 

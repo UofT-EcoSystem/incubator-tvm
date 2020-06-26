@@ -18,6 +18,7 @@
 """Tune a whole neural network"""
 import argparse
 import logging
+import time
 import random
 import os
 import numpy as np
@@ -29,9 +30,9 @@ from tvm.contrib.debugger import debug_runtime
 from tvm.contrib import util, ndk
 from tvm.relay import testing
 from tvm.ansor.utils import request_remote
-#from baseline.utils import log_line, BenchmarkRecord
+from tvm.contrib.download import download_testdata
 
-from common import str2bool
+from common import str2bool, extract_tar, log_line, BenchmarkRecord
 from tune_test import create_tune_option
 
 dtype = "float32"
@@ -47,7 +48,7 @@ def get_network(name, network_path, batch_size, layout):
         layout = "NDHWC"
         image_shape = (16, 112, 112, 3)
         input_shape = (batch_size, *image_shape)
-        mod, params = relay.testing.resnet3d.get_workload(num_layers=n_layer, batch_size=batch_size, image_shape=image_shape, dtype=dtype, layout=layout)
+        mod, params = relay.testing.resnet_3d.get_workload(num_layers=n_layer, batch_size=batch_size, image_shape=image_shape, dtype=dtype, layout=layout)
     elif name.startswith("resnet"):
         n_layer = int(name.split('-')[1])
         image_shape = (224, 224, 3) if layout == 'NHWC' else (3, 224, 224)
@@ -87,8 +88,7 @@ def get_network(name, network_path, batch_size, layout):
 
         input_name = 'input0'  # only one input, set it to this name
         shape_list = {input_name: input_shape}
-        mod, params = relay.frontend.from_pytorch(scripted_model,
-                                                  shape_list)
+        mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
     elif name == 'squeezenet_v1.1':
         mod, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
     elif name == 'inception_v3':
@@ -102,17 +102,28 @@ def get_network(name, network_path, batch_size, layout):
         net = mod["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
         mod = relay.Module.from_expr(net)
-    elif name == 'tflite-mobilenet-v2' or name == 'tflite-resnet-v2-50':
+    elif name == 'tflite-mobilenet-v2':
+        import tflite.Model
+
+        model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
+        model_path = download_testdata(model_url, "mobilenet_v2_1.0_224.tgz", module=['tf', 'official'])
+        model_dir = os.path.dirname(model_path)
+        extract_tar(model_path)
+        tflite_model_file = os.path.join(model_dir, "mobilenet_v2_1.0_224.tflite")
+        tflite_model_buf = open(tflite_model_file, "rb").read()
+
+        # Get TFLite model from buffer
         try:
+            import tflite
+            tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+        except AttributeError:
             import tflite.Model
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
+            tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+
         input_name = "input"
-        input_shape = (1, 224, 224, 3)
-        output_shape = (1, 1001)
+        input_shape = (batch_size, 224, 224, 3)
+        output_shape = (batch_size, 1001)
         input_dtype = "float32"
-        tflite_model_buf = open(network_path, "rb").read()
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
         mod, params = relay.frontend.from_tflite(tflite_model,
                                                  shape_dict={input_name: input_shape},
                                                  dtype_dict={input_name: input_dtype})
@@ -281,9 +292,9 @@ def tune_and_evaluate(network_arguments, target, target_host,
 
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res) * 1000, np.std(prof_res) * 1000))
-        #log_line(BenchmarkRecord(target.target_name, 'gpu' if target.target_name == 'cuda' else 'cpu', 'network',
-        #                         "%s.B%d" % (network_name, batch_size), 'AutoSchedule', layout,
-        #                         {"costs": prof_res}, time.time()), record_file)
+        log_line(BenchmarkRecord(target.target_name, 'gpu' if target.target_name == 'cuda' else 'cpu', 'network',
+                                 "%s.B%d" % (network_arguments['name'], network_arguments['batch_size']),
+                                 'ours', network_arguments['layout'], {"costs": prof_res}, time.time()), 'results.tsv')
 
     if check_correctness:
         print("========== Check Correctness ==========")
