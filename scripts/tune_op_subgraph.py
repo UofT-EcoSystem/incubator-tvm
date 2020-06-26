@@ -487,7 +487,7 @@ if __name__ == "__main__":
                               op       - Tune all single ops; \
                               subgraph - Tune all subgraphs; \
                               specific wkl name - Tune a specific workload")
-    parser.add_argument("--batch-size", type=int, default=-1) 
+    parser.add_argument("--batch-size", type=int, default=1) 
     parser.add_argument("--target", type=str, default='llvm -mcpu=core-avx2')
     parser.add_argument("--target-host", type=str, default=None)
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)

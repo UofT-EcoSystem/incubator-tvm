@@ -36,9 +36,9 @@
 - Intel CPU
   ```
   # tune
-  python3 tune_op_subgraph.py --wkl all --target "llvm -mcpu=core-avx2" --n-trials-per-shape 1000 
+  python3 tune_op_subgraph.py --wkl all --batch-size -1 --target "llvm -mcpu=core-avx2" --n-trials-per-shape 1000 
 
   # replay
-  python3 tune_op_subgraph.py --wkl all --target "llvm -mcpu=core-avx2" --tune false
+  python3 tune_op_subgraph.py --wkl all --batch-size -1 --target "llvm -mcpu=core-avx2" --tune false
   ```
 
