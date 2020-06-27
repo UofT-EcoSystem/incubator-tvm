@@ -725,7 +725,7 @@ void PruneUndefined(std::vector<State>* states) {
       continue;
     }
     if (i != pt) {
-      (*states)[pt++] = std::move((*states)[i]);
+      (*states)[pt] = std::move((*states)[i]);
     }
     pt++;
   }
