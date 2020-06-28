@@ -27,7 +27,7 @@ import numpy as np
 
 from tvm.tir.expr import FloatImm
 
-logger = logging.getLogger('auto_scheduler')
+logger = logging.getLogger('ansor')
 
 
 class DispatchContext(object):
@@ -58,6 +58,8 @@ class DispatchContext(object):
             The schedule configuration for the workload
         """
         ret = self._query_inside(target, workload)
+        if ret is None:
+            ret = self._old_ctx.query(target, workload)
         return ret
 
     def update(self, target, workload, cfg):
@@ -244,6 +246,8 @@ class ApplyHistoryBest(DispatchContext):
             key = (k, workload)
             self._best_user_defined[key] = state
 
+class FallbackConfig:
+    pass
 
 class FallbackContext(DispatchContext):
     """
@@ -270,7 +274,7 @@ class FallbackContext(DispatchContext):
             if msg not in self.messages:
                 self.messages.add(msg)
                 logger.warning(msg)
-        cfg = None
+        cfg = FallbackConfig()
 
         # cache this config to avoid duplicated warning message
         self.memory[key] = cfg

@@ -47,8 +47,9 @@ def lower(sch, inputs, func_name, source_func):
 
     try:
         f = tvm.driver.lower(sch, inputs, name=func_name)
-        # logging.debug("lower function %s", func_name)
-        # logging.debug("%s", _build.lower(sch, inputs, simple_mode=True))
+        #if "batch_matmul" in func_name:
+        #    print("lower function %s", func_name)
+        #    print("%s", tvm.driver.lower(sch, inputs, simple_mode=True))
     except Exception:
         msg = traceback.format_exc()
         msg += "Error during compile function\n"

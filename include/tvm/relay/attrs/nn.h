@@ -931,6 +931,17 @@ struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
   }
 };
 
+/*! \brief Attributes for batch matmul operator */
+struct BatchMatmulAttrs : public tvm::AttrsNode<BatchMatmulAttrs> {
+  bool weight_transposed;
+
+  TVM_DECLARE_ATTRS(BatchMatmulAttrs, "relay.attrs.BatchNormAttrs") {
+    TVM_ATTR_FIELD(weight_transposed)
+        .set_default(true)
+        .describe("If True, the weight layout is BNK. If False, the weight layout is BKN");
+  }
+};
+
 /*! \brief Attributes for sparse_dense operator */
 struct SparseDenseAttrs : public tvm::AttrsNode<SparseDenseAttrs> {
   TVM_DECLARE_ATTRS(SparseDenseAttrs, "relay.attrs.SparseDenseAttrs") {}

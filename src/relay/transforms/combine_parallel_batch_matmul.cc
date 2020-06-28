@@ -53,7 +53,9 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
       : ParallelOpCombiner("nn.batch_matmul", min_num_branches) {}
 
  protected:
-  bool IsSupportedOp(const CallNode* n) { return true; }
+  bool IsSupportedOp(const CallNode* n) { 
+    return n->attrs.as<BatchMatmulAttrs>()->weight_transposed == true;
+  }
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
     StructuralEqual eq;
@@ -79,7 +81,7 @@ class ParallelBatchMatmulCombiner : public ParallelOpCombiner {
       weights.push_back(batch_matmul->args[1]);
     }
     Expr new_weight = MakeConcatenate(Tuple(weights), 1);
-    return Call(batch_matmul, {data, new_weight}, {}, {});
+    return Call(batch_matmul, {data, new_weight}, branches[0][0]->attrs, {});
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) { return true; }

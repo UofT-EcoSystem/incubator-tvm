@@ -605,7 +605,7 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
       target_stage_id = common_root_id;
     }
 
-    const Stage& target_stage = old_state->stages[target_stage_id];
+    const Stage& target_stage = (old_state)->stages[target_stage_id];
     std::set<std::string> to_unroll_name_set;
     if (target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
       to_unroll_name_set = GetIterNameSetParam(target_stage->op->attrs,
@@ -618,9 +618,8 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
 
     bool visited_reduce = false;
     // enumerate compute_at location at target_stage
-    int ct = 0;
-    for (size_t iter_id = 0; iter_id < target_stage->iters.size(); ++iter_id) {
-      const auto& target_iter = target_stage->iters[iter_id];
+    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+      const Iterator& target_iter = target_stage->iters[i];
       if (target_iter->iter_type == kReduce) {
         visited_reduce = true;
         if (!target_is_tiled) {  // do not go into reduce iter
@@ -646,10 +645,10 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
         // In this case, the lengths of first level iterators are always one
         continue;
       }
-      candidates.emplace_back(target_stage_id, iter_id);
+      candidates.emplace_back(target_stage_id, i);
 
       if ((old_state)->attach_map->iter_to_attached_stages.count(
-          std::make_pair(target_stage_id, ct++))) {
+          std::make_pair(target_stage_id, i))) {
         break;
       }
     }
@@ -668,12 +667,11 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
         to_unroll_name_set.clear();
       }
 
-      int ct = 0;
-      for (size_t iter_id = 0; iter_id < target_target_stage->iters.size(); ++iter_id) {
-        const auto& target_target_iter = target_target_stage->iters[iter_id];
+      for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
+        const Iterator& target_target_iter = target_target_stage->iters[i];
         if (target_target_iter->iter_type == kReduce ||
             (old_state)->attach_map->iter_to_attached_stages.count(
-                std::make_pair(target_target_stage_id, ct++))) {
+                std::make_pair(target_target_stage_id, i))) {
           break;
         }
 
@@ -686,7 +684,7 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
           continue;
         }
 
-        candidates.emplace_back(target_target_stage_id, iter_id);
+        candidates.emplace_back(target_target_stage_id, i);
       }
     }
 

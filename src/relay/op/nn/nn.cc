@@ -843,22 +843,35 @@ If the input has size k on axis 1, then both gamma and beta have shape (k,).
     .add_type_rel("GroupNorm", GroupNormRel);
 
 // relay.nn.batch_matmul
+TVM_REGISTER_NODE_TYPE(BatchMatmulAttrs);
+
 bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                     const TypeReporter& reporter) {
+  const BatchMatmulAttrs* param = attrs.as<BatchMatmulAttrs>();
   CHECK_EQ(types.size(), 3);
   const auto* x = types[0].as<TensorTypeNode>();
   const auto* y = types[1].as<TensorTypeNode>();
   if (x == nullptr || y == nullptr) return false;
   CHECK(x->shape.size() == 3 && y->shape.size() == 3);
-  CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
-      << "BatchDot: batch dimension doesn't match, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
-  CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
-      << "BatchDot: shapes of x and y is inconsistent, "
-      << " x shape=" << x->shape << ", y shape=" << y->shape;
 
   Array<tvm::PrimExpr> oshape = x->shape;
-  oshape.Set(2, y->shape[1]);
+  if (param->weight_transposed) {
+    CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+        << "BatchDot: batch dimension doesn't match, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
+    CHECK(reporter->AssertEQ(x->shape[2], y->shape[2]))
+        << "BatchDot: shapes of x and y is inconsistent, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
+    oshape.Set(2, y->shape[1]);
+  } else {
+    CHECK(reporter->AssertEQ(x->shape[0], y->shape[0]))
+        << "BatchDot: batch dimension doesn't match, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
+    CHECK(reporter->AssertEQ(x->shape[2], y->shape[1]))
+        << "BatchDot: shapes of x and y is inconsistent, "
+        << " x shape=" << x->shape << ", y shape=" << y->shape;
+    oshape.Set(2, y->shape[2]);
+  }
 
   // assign output type
   reporter->Assign(types[2], TensorType(oshape, x->dtype));
@@ -867,8 +880,10 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 // Positional relay function to create batch_matmul operator used by frontend FFI.
 Expr MakeBatchMatmul(Expr x, Expr y) {
+  auto attrs = make_object<BatchMatmulAttrs>();
+  attrs->weight_transposed = true;
   static const Op& op = Op::Get("nn.batch_matmul");
-  return Call(op, {x, y}, Attrs(), {});
+  return Call(op, {x, y}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_matmul").set_body_typed(MakeBatchMatmul);

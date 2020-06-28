@@ -70,6 +70,14 @@ def softmax_mn_ansor_test(M, N):
 
     return [A, B]
 
+@ansor.register_workload_func
+def softmax_abcd_ansor_test(a, b, c, d):
+    A = te.placeholder((a, b, c, d), name='A')
+    B = topi.nn.softmax(A, axis=-1)
+
+    return [A, B]
+
+
 def get_tiled_matmul():
     A, B, C = matmul_ansor_test(512, 512, 512)
     dag = ansor.ComputeDAG([A, B, C])

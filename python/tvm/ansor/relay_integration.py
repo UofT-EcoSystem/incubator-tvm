@@ -28,7 +28,7 @@ import threading
 import tvm
 from tvm import te, transform
 from tvm.te.tensor import PlaceholderOp, ComputeOp
-from .dispatcher import DispatchContext
+from .dispatcher import DispatchContext, FallbackConfig
 from .workload_registry import register_workload_bufs, compute_dag_hash
 from .compute_dag import ComputeDAG, LayoutRewriteLevel
 from .env import GLOBAL_SCOPE
@@ -212,7 +212,7 @@ def auto_schedule_topi(outs):
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
         state = DispatchContext.current.query(tvm.target.Target.current(), key)
-        if state is None:
+        if isinstance(state, FallbackConfig):
             return te.create_schedule([x.op for x in outs])
 
         dag = ComputeDAG(io_tensors)

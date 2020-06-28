@@ -319,7 +319,7 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     """batch_matmul x86 strategy"""
     strategy = _op.OpStrategy()
 
-    strategy.add_implementation(wrap_compute_dense(topi.nn.batch_matmul),
+    strategy.add_implementation(wrap_compute_batch_matmul(topi.nn.batch_matmul),
                                 wrap_topi_schedule(ansor.auto_schedule_topi),
                                 name='ansor',
                                 plevel=ansor_plevel)

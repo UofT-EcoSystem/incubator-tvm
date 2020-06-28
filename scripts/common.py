@@ -61,6 +61,14 @@ def softmax_mn(M, N):
     return [A, B]
 
 @register_workload_func
+def softmax_abcd(a, b, c, d):
+    A = te.placeholder((a, b, c, d), name='A')
+    B = topi.nn.softmax(A, axis=-1)
+
+    return [A, B]
+
+
+@register_workload_func
 def norm_bmn(B, M, N):
     A = te.placeholder((B, M, N), name='A')
     i = te.reduce_axis((0, M))
@@ -410,7 +418,8 @@ def parse_workload_name(name: str) -> List[str]:
 
         batch_size = 1 if res.group(4) is None else int(res.group(4))
         return ['resnet-%s.C%d.B%d' % (n_layers, i, batch_size) for i in idx_list]
-    elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite', 'depthwise-conv2d-rewrite']:
+    elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite', 'depthwise-conv2d-rewrite',
+                  'bert-softmax']:
         return [name]
     else:
         raise ValueError("Invalid workload " + name)
@@ -551,6 +560,8 @@ def get_workload_keys(name: str) -> List[str]:
         elif name == 'conv2d-relu-softmax-min':
             return [make_workload_key_func(conv2d_relu_softmax_min,
                                            (1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1), (1, 1)))]
+        elif name == 'bert-softmax':
+            return [make_workload_key_func(softmax_abcd, (1, 12, 128, 128))]
         else:
             raise ValueError("Invalid workload " + name)
 

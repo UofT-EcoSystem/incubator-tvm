@@ -189,8 +189,8 @@ relay::Function RunTypeCheck(const IRModule& mod, const GlobalVar& var, relay::F
   auto fv = relay::FreeVars(func);
   auto ftv = relay::FreeTypeVars(func, mod);
   if (fv.size() != 0) {
-    LOG(WARNING) << "There are free variables: " << fv << " in function: " << AsText(func, false)
-                 << std::endl;
+    //LOG(WARNING) << "There are free variables: " << fv << " in function: " << AsText(func, false)
+    //             << std::endl;
   }
   if (ftv.size() != 0) {
     LOG(WARNING) << "There are free type variables: " << ftv

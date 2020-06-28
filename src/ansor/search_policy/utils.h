@@ -233,7 +233,7 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, const te::O
       }
     } else if (cum_reduce_len > 1) {
       // Always try rfactor for reduction ops
-      return cum_reduce_len > task->hardware_params->num_cores * 16;
+      return cum_reduce_len > task->hardware_params->num_cores;
     }
   }
 

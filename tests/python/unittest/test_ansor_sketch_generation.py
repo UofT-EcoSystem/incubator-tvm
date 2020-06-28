@@ -2,7 +2,8 @@ import tvm
 from tvm import te, ansor
 
 from test_ansor_common import (matmul_ansor_test, conv2d_nchw_bn_relu_ansor_test,
-                               max_pool2d_ansor_test, softmax_mn_ansor_test)
+                               max_pool2d_ansor_test, softmax_mn_ansor_test,
+                               softmax_abcd_ansor_test)
 
 def print_sketches(sketches):
     for i, s in enumerate(sketches):
@@ -34,6 +35,9 @@ def test_cpu_max_pool2d_sketch():
 
 def test_cpu_softmax_sketch():
     sketches = generate_sketches(softmax_mn_ansor_test, (1, 1024), 'llvm')
+    assert len(sketches) == 9
+
+    sketches = generate_sketches(softmax_abcd_ansor_test, (1, 12, 128, 128), 'llvm')
     assert len(sketches) == 9
 
 def test_gpu_matmul_sketch():

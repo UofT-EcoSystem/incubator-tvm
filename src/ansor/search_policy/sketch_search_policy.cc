@@ -904,7 +904,6 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
     }
 
     std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
-
     GetConsumers(policy->cur_task, (*state), stage->op, &consumers);
     if (consumers.empty()) {
       continue;
@@ -951,14 +950,14 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
                                                SearchPolicyNode::always_unroll_key);
     }
 
-    std::vector<std::pair<int, Iterator> > candidates;
+    std::vector<std::pair<int, int> > candidates;
     bool target_compute_at_other = target_stage->compute_at == kIter;
     bool target_is_tiled = IsTiled(target_stage);
 
     bool visited_reduce = false;
     // enumerate compute_at location at target_stage
-    int ct = 0;
-    for (const auto& target_iter : target_stage->iters) {
+    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+      const Iterator& target_iter = target_stage->iters[i];
       if (target_iter->iter_type == kReduce) {
         visited_reduce = true;
         if (!target_is_tiled) {  // do not go into reduce iter
@@ -971,8 +970,8 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
       }
 
       if (to_unroll_name_set.count(target_iter->name)) {
-          // Do not go into always unroll region
-          break;
+        // Do not go into always unroll region
+        break;
       }
 
       if (GetExtent(target_iter) == 1) {  // skip iterators with length of 1
@@ -984,10 +983,10 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
         // In this case, the lengths of first level iterators are always one
         continue;
       }
-      candidates.emplace_back(target_stage_id, target_iter);
+      candidates.emplace_back(target_stage_id, i);
 
       if ((*state)->attach_map->iter_to_attached_stages.count(
-          std::make_pair(target_stage_id, ct++))) {
+          std::make_pair(target_stage_id, i))) {
         break;
       }
     }
@@ -1006,24 +1005,24 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
         to_unroll_name_set.clear();
       }
 
-      ct = 0;
-      for (const auto& target_target_iter : target_target_stage->iters) {
+      for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
+        const Iterator& target_target_iter = target_target_stage->iters[i];
         if (target_target_iter->iter_type == kReduce ||
             (*state)->attach_map->iter_to_attached_stages.count(
-                std::make_pair(target_target_stage_id, ct++))) {
+                std::make_pair(target_target_stage_id, i))) {
           break;
         }
 
         if (to_unroll_name_set.count(target_target_iter->name)) {
-            // Do not go into always unroll region
-            break;
+          // Do not go into always unroll region
+          break;
         }
 
         if (GetExtent(target_target_iter) == 1) {  // skip iterators with length of 1
           continue;
         }
 
-        candidates.emplace_back(target_target_stage_id, target_target_iter);
+        candidates.emplace_back(target_target_stage_id, i);
       }
     }
 
@@ -1037,7 +1036,9 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
       state->compute_root(stage_id);
     } else {
       choice = choice - 2;
-      state->compute_at(stage_id, candidates[choice].first, candidates[choice].second);
+      const Stage& stage = (*state)->stages[candidates[choice].first];
+      state->compute_at(stage_id, candidates[choice].first,
+                        stage->iters[candidates[choice].second]);
     }
   }
 

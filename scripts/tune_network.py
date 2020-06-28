@@ -34,14 +34,14 @@ from tvm.contrib.download import download_testdata
 
 from common import str2bool, extract_tar, log_line, BenchmarkRecord
 from tune_test import create_tune_option
-
-dtype = "float32"
+from bert_optimization import optimize_bert
 
 def get_network(name, network_path, batch_size, layout):
     """Get the relay module and random weights for a network"""
     input_shape = (batch_size, 3, 224, 224)
     output_shape = (batch_size, 1000)
     input_name = 'data'
+    input_dtype = dtype = 'float32'
 
     if name.startswith("resnet3d"):
         n_layer = int(name.split('-')[1])
@@ -73,21 +73,6 @@ def get_network(name, network_path, batch_size, layout):
         image_shape = (224, 224, 3) if layout == 'NHWC' else (3, 224, 224)
         input_shape = (batch_size, *image_shape)
         mod, params = relay.testing.mobilenet.get_workload(batch_size=batch_size, layout=layout, image_shape=image_shape, dtype=dtype)
-    elif name == 'r3d_18':
-        import torch
-        import torchvision
-
-        model = getattr(torchvision.models.video, name)(pretrained=False)
-        model = model.eval()
-
-        # We grab the TorchScripted model via tracing
-        input_shape = [batch_size, 3, 16, 112, 112]
-        input_data = torch.randn(input_shape)
-        scripted_model = torch.jit.trace(model, input_data).eval()
-
-        input_name = 'input0'  # only one input, set it to this name
-        shape_list = {input_name: input_shape}
-        mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
     elif name == 'squeezenet_v1.1':
         mod, params = relay.testing.squeezenet.get_workload(batch_size=batch_size, version='1.1', dtype=dtype)
     elif name == 'inception_v3':
@@ -145,35 +130,53 @@ def get_network(name, network_path, batch_size, layout):
         mod, params = relay.frontend.from_pytorch(scripted_model,
                                                   shape_list)
     elif name == 'bert':
-        import tensorflow as tf
+        import torch
+        import transformers
 
-        bert_pb = './baseline/tensorflow/tf_models/bert/bert-B%d.pb' % batch_size
-        try:
-            with tf.compat.v1.gfile.GFile(bert_pb, 'rb') as f:
-                graph_def = tf.compat.v1.GraphDef()
-                graph_def.ParseFromString(f.read())
-        except:
-            raise ValueError("Need to run ./baseline/tensorflow/bert/generate_bert_pb.py to get model first")
+        model_class = transformers.BertModel
+        tokenizer_class = transformers.BertTokenizer
 
-        input_shape = (batch_size, 128)
-        input_name = ['input']
-        shape_dict = {
-            'input': input_shape
-        }
-        out_names = [
-            'bert/pooler/dense/Tanh'
-        ]
+        # Better to download them manualy
+        #   https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-pytorch_model.bin
+        #   https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt
+        #   https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-config.json
+        # Then rename to pytorch_model.bin, vocab.txt & config.json
+        # weight = 'path to downloaded model dir'
+        weight = 'bert-base-uncased'
+        model = model_class.from_pretrained(weight)
+        model.eval()
 
-        mod, params = relay.frontend.from_tensorflow(graph_def,
-                                                    shape=shape_dict,
-                                                    outputs=out_names)
+        # tokenizer = tokenizer_class.from_pretrained(weight)
+        # A = torch.tensor([tokenizer.encode("Here is some text to encode", add_special_tokens=True)])
+        # There is 30522 words in bert-base-uncased's vocabulary list
+        input_shape = [batch_size, 128]
+        input_name = 'input_ids'
+        input_dtype = 'int64'
+        A = torch.randint(30000, input_shape)
+        scripted_model = torch.jit.trace(model, [A])
+        shape_list = [('input_ids', input_shape)]
+        mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+        mod = optimize_bert(mod, params)
+    elif name == 'debug':
+        import torch
+
+        def func(data):
+            B = torch.ones((batch_size, 1024, 1024))
+            C = torch.matmul(data, B)
+            return C
+
+        input_shape = [batch_size, 1024, 1024]
+        data = torch.rand(*input_shape)
+        scripted_model = torch.jit.trace(func, [data])
+        shape_list = [('data', input_shape)]
+        mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+        #mod = optimize_bert(mod, params)
     else:
         raise ValueError("Unsupported network: " + name)
 
-    return mod, params, input_name, input_shape, output_shape
+    return mod, params, input_name, input_shape, input_dtype, output_shape
 
-
-def create_module(data_shape, graph, lib, target, input_name, params, debug_profile,
+def create_module(data_shape, data_dtype, graph, lib, target, input_name, params, debug_profile,
         local_measure, ndk_cc, rpc_device_key, rpc_host, rpc_port, rpc_num_threads, seed=43):
     if local_measure:
         if target.target_name == "cuda":
@@ -208,7 +211,7 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
             config_threadpool(0, rpc_num_threads)
 
     np.random.seed(seed)
-    np_data = 100 * (np.random.uniform(size=data_shape)).astype(dtype)
+    np_data = 100 * (np.random.uniform(size=data_shape)).astype(data_dtype)
     data_tvm = tvm.nd.array(np_data, ctx=ctx)
     if debug_profile:
         module = debug_runtime.create(graph, lib, ctx)
@@ -224,7 +227,6 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
         module.set_input(k, v)
 
     return module, ctx, np_data
-
 
 def get_tflite_output(data, model_path):
     from tensorflow import lite as interpreter_wrapper
@@ -249,7 +251,7 @@ def tune_and_evaluate(network_arguments, target, target_host,
                       search_policy, task_scheduler_arguments, tune_option_arguments,
                       tune, debug_profile, check_correctness, log_n_lines, compare_with_tflite):
     # Extract tasks from relay program
-    mod, params, input_name, data_shape, out_shape = get_network(**network_arguments)
+    mod, params, input_name, data_shape, data_dtype, out_shape = get_network(**network_arguments)
 
     # Tune all
     if tune:
@@ -297,8 +299,8 @@ def tune_and_evaluate(network_arguments, target, target_host,
         ansor.finish_layout_rewrite()
         print("=============== Compile Finish ===============")
 
-        module, ctx, data = create_module(data_shape, graph, lib, target, input_name,
-                                    opt_params, debug_profile, **common_measure_parameters)
+        module, ctx, data = create_module(data_shape, data_dtype, graph, lib, target, input_name,
+                                          opt_params, debug_profile, **common_measure_parameters)
 
         # Evaluate
         print("========== Evaluate ==========")
@@ -334,7 +336,7 @@ def tune_and_evaluate(network_arguments, target, target_host,
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
 
-        module, _, _ = create_module(data_shape, graph, lib, target, input_name,
+        module, _, _ = create_module(data_shape, data_dtype, graph, lib, target, input_name,
                                      opt_params, debug_profile, **common_measure_parameters)
         module.run()
 
@@ -375,7 +377,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-measure-per-iter", type=int, default=48,
                         help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
-    parser.add_argument("--run-timeout", type=int, default=10)
+    parser.add_argument("--run-timeout", type=int, default=25)
     parser.add_argument("--early-stopping", type=int, default=-1)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--rpc-device-key", type=str, default=None)
