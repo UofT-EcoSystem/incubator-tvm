@@ -267,7 +267,7 @@ def unravel_index(idx, shape):
     return indices
 
 
-def const_matrix(matrix, name="const_matrix"):
+def const_matrix(matrix, name="const_matrix", attrs=None):
     """convert a const numpy 2-dimensional matrix to tvm tensor
 
     Parameters
@@ -276,6 +276,8 @@ def const_matrix(matrix, name="const_matrix"):
         Const input array
     name: str, optional
         The name of output op
+    attrs: dict, optional
+        The attr of op
 
     Returns
     -------
@@ -295,7 +297,7 @@ def const_matrix(matrix, name="const_matrix"):
                                      now)
         return now
 
-    return te.compute(matrix.shape, select_array, name=name)
+    return te.compute(matrix.shape, select_array, name=name, attrs=attrs)
 
 
 def get_max_power2_factor(n, max_value=None):

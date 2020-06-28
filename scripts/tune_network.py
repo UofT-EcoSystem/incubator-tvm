@@ -104,11 +104,15 @@ def get_network(name, network_path, batch_size, layout):
     elif name == 'tflite-mobilenet-v2':
         import tflite.Model
 
-        model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
-        model_path = download_testdata(model_url, "mobilenet_v2_1.0_224.tgz", module=['tf', 'official'])
-        model_dir = os.path.dirname(model_path)
-        extract_tar(model_path)
-        tflite_model_file = os.path.join(model_dir, "mobilenet_v2_1.0_224.tflite")
+        if network_path:
+            tflite_model_file = network_path
+        else:
+            model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224.tgz"
+            model_path = download_testdata(model_url, "mobilenet_v2_1.0_224.tgz", module=['tf', 'official'])
+            model_dir = os.path.dirname(model_path)
+            extract_tar(model_path)
+            tflite_model_file = os.path.join(model_dir, "mobilenet_v2_1.0_224.tflite")
+
         tflite_model_buf = open(tflite_model_file, "rb").read()
 
         # Get TFLite model from buffer
@@ -204,7 +208,8 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
             config_threadpool(0, rpc_num_threads)
 
     np.random.seed(seed)
-    data_tvm = tvm.nd.array(100 * (np.random.uniform(size=data_shape)).astype(dtype), ctx=ctx)
+    np_data = 100 * (np.random.uniform(size=data_shape)).astype(dtype)
+    data_tvm = tvm.nd.array(np_data, ctx=ctx)
     if debug_profile:
         module = debug_runtime.create(graph, lib, ctx)
     else:
@@ -218,12 +223,31 @@ def create_module(data_shape, graph, lib, target, input_name, params, debug_prof
     for k, v in params.items():
         module.set_input(k, v)
 
-    return module, ctx
+    return module, ctx, np_data
 
+
+def get_tflite_output(data, model_path):
+    from tensorflow import lite as interpreter_wrapper
+    interpreter = interpreter_wrapper.Interpreter(model_path=model_path)
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    # set input
+    interpreter.set_tensor(input_details[0]['index'], data)
+
+    # Run
+    interpreter.invoke()
+
+    # get output
+    tflite_output = interpreter.get_tensor(output_details[0]['index'])
+
+    return tflite_output
 
 def tune_and_evaluate(network_arguments, target, target_host,
                       search_policy, task_scheduler_arguments, tune_option_arguments,
-                      tune, debug_profile, check_correctness, log_n_lines):
+                      tune, debug_profile, check_correctness, log_n_lines, compare_with_tflite):
     # Extract tasks from relay program
     mod, params, input_name, data_shape, out_shape = get_network(**network_arguments)
 
@@ -266,15 +290,14 @@ def tune_and_evaluate(network_arguments, target, target_host,
             # disable layout rewrite
             ansor.LayoutRewriteLevel.BOTH_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
             ansor.LayoutRewriteLevel.COMPUTE_REWRITE = ansor.LayoutRewriteLevel.NO_REWRITE
-
-        with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        with tvm.transform.PassContext(opt_level=3):
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
 
         ansor.finish_layout_rewrite()
         print("=============== Compile Finish ===============")
 
-        module, ctx = create_module(data_shape, graph, lib, target, input_name,
+        module, ctx, data = create_module(data_shape, graph, lib, target, input_name,
                                     opt_params, debug_profile, **common_measure_parameters)
 
         # Evaluate
@@ -283,11 +306,14 @@ def tune_and_evaluate(network_arguments, target, target_host,
         prof_res = np.array(ftimer().results)
 
         # display profile information
-        if debug_profile or check_correctness:
+        if debug_profile or check_correctness or compare_with_tflite:
             module.run()
-            if check_correctness:
+            if check_correctness or compare_with_tflite:
                 actual_output = module.get_output(0).asnumpy()
-                print(actual_output)
+            if compare_with_tflite:
+                print("========== Compare with tflite ==========")
+                assert network_arguments['network_path'], "tflite model path shouldn't be none"
+                get_tflite_output(data, network_arguments['network_path'])
 
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res) * 1000, np.std(prof_res) * 1000))
@@ -308,8 +334,8 @@ def tune_and_evaluate(network_arguments, target, target_host,
             graph, lib, opt_params = relay.build_module.build(
                 mod, target=target, params=params)
 
-        module, _ = create_module(data_shape, graph, lib, target, input_name,
-                                  opt_params, debug_profile, **common_measure_parameters)
+        module, _, _ = create_module(data_shape, graph, lib, target, input_name,
+                                     opt_params, debug_profile, **common_measure_parameters)
         module.run()
 
         expected_output = module.get_output(0).asnumpy()
@@ -359,6 +385,7 @@ if __name__ == "__main__":
     parser.add_argument("--rpc-num-threads", type=int, default=None)
     parser.add_argument("--n-parallel", type=int, default=1)
     parser.add_argument("--ndk-cc", type=str, default=None)
+    parser.add_argument("--compare-with-tflite", type=str2bool, nargs='?', const=True, default=False)
     args = parser.parse_args()
 
     np.random.seed(args.seed)
@@ -419,5 +446,5 @@ if __name__ == "__main__":
     tune_and_evaluate(network_arguments, target, args.target_host,
                       search_policy, task_scheduler_parameters, tune_option_arguments,
                       args.tune, args.debug_profile, args.check_correctness,
-                      args.log_n_lines)
+                      args.log_n_lines, args.compare_with_tflite)
 

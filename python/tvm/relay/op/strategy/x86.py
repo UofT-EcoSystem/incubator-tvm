@@ -82,6 +82,8 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     data, kernel = inputs
     dilation_h, dilation_w = get_const_tuple(attrs.dilation)
+    stride_h, stride_w = attrs.get_int_tuple("strides")
+    padding = attrs.get_int_tuple("padding")
     groups = attrs.groups
     layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
@@ -107,7 +109,24 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             #logger.warning("For x86 target, NCHW layout is recommended for conv2d.")
-            strategy.add_implementation(
+            # TODO: we should have better way to handle this
+            is_winograd_applicable = False
+            if len(kernel.shape) == 4:
+                kernel_h, kernel_w, _, co = get_const_tuple(kernel.shape)
+                is_winograd_applicable = "float" in data.dtype and \
+                                         "float" in kernel.dtype and \
+                                         kernel_h == 3 and kernel_w == 3 and \
+                                         stride_h == 1 and stride_w == 1 and \
+                                         dilation_h == 1 and dilation_w == 1 and \
+                                         64 < co < 512
+
+            if is_winograd_applicable:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd),
+                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                    name="ansor.winograd")
+            else:
+                strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.conv2d_nhwc),
                 wrap_topi_schedule(ansor.auto_schedule_topi),
                 name="ansor")
@@ -363,4 +382,53 @@ def bitserial_dense_strategy_cpu(attrs, inputs, out_type, target):
         wrap_compute_bitserial_dense(topi.x86.bitserial_dense),
         wrap_topi_schedule(topi.x86.schedule_bitserial_dense),
         name="bitserial_dense.x86")
+    return strategy
+
+@conv2d_winograd_without_weight_transfrom_strategy.register("cpu")
+def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_type, target):
+    """conv2d_winograd_without_weight_transfrom arm cpu strategy"""
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.data_layout
+    strides = attrs.get_int_tuple("strides")
+    kernel = inputs[1]
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert strides == (1, 1), "Do not support strides now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+    strategy = _op.OpStrategy()
+    if layout == "NHWC":
+        if len(kernel.shape) >= 14:
+            # For cpu tile structure SSRSRS
+            base = len(kernel.shape) - 14
+            pad_kh = get_const_int(kernel.shape[0 + base] * kernel.shape[3 + base] *
+                                  kernel.shape[7 + base] * kernel.shape[11 + base])
+            pad_kw = get_const_int(kernel.shape[1 + base] * kernel.shape[4 + base] *
+                                  kernel.shape[8 + base] * kernel.shape[12 + base])
+            assert base % 3 == 0
+            for i in range(base // 3):
+                pad_kh *= get_const_int(kernel.shape[i * 3])
+                pad_kw *= get_const_int(kernel.shape[i * 3 + 1])
+        elif len(kernel.shape) == 10:
+            # For cpu tile structure SRS
+            pad_kh = get_const_int(kernel.shape[0] * kernel.shape[3] * kernel.shape[7])
+            pad_kw = get_const_int(kernel.shape[1] * kernel.shape[4] * kernel.shape[8])
+        elif len(kernel.shape) == 7:
+            # For cpu tile structure SRS
+            pad_kh = get_const_int(kernel.shape[0] * kernel.shape[4])
+            pad_kw = get_const_int(kernel.shape[1] * kernel.shape[5])
+        elif len(kernel.shape) == 4:
+            pad_kh, pad_kw, _, _ = get_const_tuple(kernel.shape)
+        else:
+            raise RuntimeError("Unsupported kernel shape: {}".format(kernel.shape))
+        tile_size = attrs.get_int("tile_size")
+        kh = pad_kh - tile_size + 1
+        kw = pad_kw - tile_size + 1
+        assert kh == 3 and kw == 3
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd_without_weight_transform),
+            wrap_topi_schedule(ansor.auto_schedule_topi),
+            name="ansor.winograd")
+    else:
+        raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
+                           format(layout))
     return strategy

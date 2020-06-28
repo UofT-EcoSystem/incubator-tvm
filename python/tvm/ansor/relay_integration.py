@@ -39,7 +39,7 @@ def call_all_topi_funcs(mod, target, params, target_host=None):
     from tvm import relay
     from tvm.relay.backend import graph_runtime_codegen
 
-    with transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
+    with transform.PassContext(opt_level=3):
         opt_mod, _ = relay.optimize(mod, target, params)
         grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
         grc.codegen(opt_mod["main"])
