@@ -1201,8 +1201,8 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
 
     if (stage->op->attrs.count(SearchPolicyNode::always_unroll_inner_key)) {
       // Special unroll policy
-      auto to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
-                                                    SearchPolicyNode::always_unroll_inner_key);
+      const auto& to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
+              SearchPolicyNode::always_unroll_inner_key);
       std::set<std::string> visited_names;
 
       // Unroll the space iterators and reduce iterators listed in the attrs
@@ -1228,10 +1228,12 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
 
         n--;
       }
-    } else if (stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
+    }
+
+    if (stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
       // Special unroll policy
-      auto to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
-                                                    SearchPolicyNode::always_unroll_key);
+      const auto& to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
+              SearchPolicyNode::always_unroll_key);
 
       // Unroll the space iterators and reduce iterators listed in the attrs
       int n = static_cast<int>(stage->iters.size()) - 1;
@@ -1242,7 +1244,9 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
         }
         n--;
       }
-    } else if (HasReduceIter(stage)) {
+    }
+
+    if (HasReduceIter(stage)) {
       // use auto unroll for multi level tiled stage
       int value = auto_unroll_configs[(*rand_gen)() % auto_unroll_configs.size()];
       state->pragma(stage_id, (*state)->stages[stage_id]->iters[0],

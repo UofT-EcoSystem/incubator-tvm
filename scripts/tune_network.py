@@ -64,10 +64,9 @@ def get_network(name, network_path, batch_size, layout):
         mod, params = relay.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size, dtype=dtype)
     elif name == 'dcgan':
         input_shape = (batch_size, 100)
-        mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size)
+        mod, params = relay.testing.dcgan.get_workload(batch_size=batch_size, layout=layout)
     elif name == 'dqn':
-        layout = "NHWC"
-        image_shape = (84, 84, 4)
+        image_shape = (84, 84, 4) if layout == 'NHWC' else (4, 84, 84)
         input_shape = (batch_size, *image_shape)
         mod, params = relay.testing.dqn.get_workload(batch_size=batch_size, image_shape=image_shape, dtype=dtype, layout=layout)
     elif name == 'mobilenet':

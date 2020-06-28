@@ -511,7 +511,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-measure-per-iter", type=int, default=48,
                         help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
-    parser.add_argument("--run-timeout", type=int, default=60)
+    parser.add_argument("--run-timeout", type=int, default=30)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--rpc-device-key", type=str, default=None)
     # Setting `--rpc-device-key` to None means using local devices for measurement
@@ -588,7 +588,6 @@ if __name__ == "__main__":
                                                'gpu' if target.target_name == 'cuda' else 'cpu', wkl_type,
                                                workload_name, "ours", "default",
                                                {"costs": [cost]}, time.time()), 'results.tsv')
-
 
         if args.tune:
             print("========== Tune for %s (%d shapes) ========== " % (wkl_meta_name, len(wkl_keys)))

@@ -80,7 +80,7 @@ inline std::set<std::string> GetIterNameSetParam(const Map<String, ObjectRef>& a
   auto names = attr_dict[key].as<ArrayNode>();
   CHECK(names != nullptr);
   for (const auto & name : *names) {
-    ret.insert(name.as<StringImmNode>()->value);
+    ret.insert(name.as<StringObj>()->data);
   }
   return ret;
 }
