@@ -27,6 +27,7 @@
 #include <tvm/te/schedule_pass.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/runtime/registry.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -130,7 +131,7 @@ class TensorAccessExtractor : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->name == tir::intrinsic::tvm_if_then_else) {
+    if (op->op.same_as(builtin::if_then_else())) {
       has_branch = true;
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -181,7 +182,7 @@ bool IsInjective(const te::Operation& op,  const std::vector<PrimExpr>& index,
   std::vector<int> var_idx_ct(cop->axis.size(), 0);
 
   for (const auto& expr : index) {
-    if (!is_const(expr)) {
+    if (!is_const_int(expr)) {
       bool found = false;
       for (size_t i = 0; i < cop->axis.size(); ++i) {
         if (IsConstShiftEqual(cop->axis[i]->var, expr)) {
@@ -232,8 +233,7 @@ static bool HasExpensiveOp(const PrimExpr& expr) {
   bool found = false;
   PostOrderVisit(expr, [&found](const ObjectRef &node) {
     if (const CallNode* op = node.as<CallNode>()) {
-      if (op->call_type == CallNode::CallType::PureIntrinsic &&
-          op->name == "exp") {
+      if (op->op.as<OpNode>()->name == "exp") {
         found = true;
       }
     }

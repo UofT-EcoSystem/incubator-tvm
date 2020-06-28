@@ -27,6 +27,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/op_attr_types.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <algorithm>
@@ -260,7 +261,12 @@ class MathOpCounter : public StmtExprVisitor {
   void VisitExpr_(const SelectNode* op) final { select_op++; StmtExprVisitor::VisitExpr_(op); }
 
   void VisitExpr_(const CallNode* op) final {
-    if (op->call_type == CallNode::CallType::PureIntrinsic) {
+    auto* pop = op->op.as<OpNode>();
+    CHECK(pop != nullptr);
+    auto effect_kind = op_call_effect_[GetRef<Op>(pop)];
+    bool is_pure = effect_kind == CallEffectKind::kPure || effect_kind == CallEffectKind::kExprAnnotation;
+
+    if (is_pure) {
       if (op->dtype.is_float()) {
         float_math_func++;
       } else {
@@ -282,6 +288,8 @@ class MathOpCounter : public StmtExprVisitor {
   size_t int_mad{0}, int_addsub{0}, int_mul{0}, int_divmod{0},
          int_cmp{0}, int_math_func{0}, int_other_func{0};
   size_t bool_op{0}, select_op{0};
+
+  OpAttrMap<TCallEffectKind> op_call_effect_ = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
 };
 
 

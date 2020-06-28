@@ -161,7 +161,7 @@ SplitStep::SplitStep(int stage_id, int iter_id, PrimExpr extent,
   auto node = make_object<SplitStepNode>();
   node->stage_id = stage_id;
   // Extent can be a unreducible expression in some special cases
-  if (extent->IsInstance<IntImmNode>()) {
+  if (extent.defined() && extent->IsInstance<IntImmNode>()) {
     node->extent = std::move(extent);
   }
   node->iter_id = iter_id;

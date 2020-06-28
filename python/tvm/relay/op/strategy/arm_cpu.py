@@ -145,7 +145,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.nn.conv2d_nhwc),
                         wrap_topi_schedule(ansor.auto_schedule_topi),
-                        name="ansor")            else:
+                        name="ansor")
+            else:
                 raise RuntimeError("Unsupported kernel layout {} for conv2d NHWC".
                                    format(kernel_layout))
         else:

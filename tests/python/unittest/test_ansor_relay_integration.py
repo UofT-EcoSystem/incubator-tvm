@@ -59,7 +59,7 @@ def test_tune_dense_graph():
         tuner.tune(ansor.TuneOption(n_trials=2, runner=measure_ctx.runner,
                                     measure_callbacks=[ansor.LogToFile(fp.name)]))
         with ansor.apply_history_best(fp.name):
-            with tvm.transform.PassContext(opt_level=3,  disabled_pass={"AlterOpLayout"}):
+            with tvm.transform.PassContext(opt_level=3):
                 graph, lib, opt_params = relay.build_module.build(
                     mod, target=target)
 
@@ -97,13 +97,13 @@ def test_tune_dqn():
     tuner = ansor.SimpleTaskScheduler(tasks)
     measure_ctx = ansor.LocalRPCMeasureContext()
     with tempfile.NamedTemporaryFile() as fp:
-        tuner.tune(ansor.TuneOption(n_trials=len(tasks), runner=measure_ctx.runner,
-                                    measure_callbacks=[ansor.LogToFile('tmp.json')]),
+        tuner.tune(ansor.TuneOption(n_trials=2 * len(tasks), runner=measure_ctx.runner,
+                                    measure_callbacks=[ansor.LogToFile(fp.name)]),
                    search_policy='sketch.random')
-        with ansor.apply_history_best('tmp.json'):
+        with ansor.apply_history_best(fp.name):
             ansor.prepare_layout_rewrite(mod, params, target)
-            with tvm.transform.PassContext(opt_level=3,  disabled_pass={"AlterOpLayout"}):
-                graph, lib, opt_params = relay.build_module.build(mod, target=target)
+            with tvm.transform.PassContext(opt_level=3):
+                graph, lib, opt_params = relay.build_module.build(mod, target=target, params=params)
             ansor.finish_layout_rewrite()
 
     del measure_ctx
