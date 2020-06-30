@@ -1203,7 +1203,7 @@ void GetPerStmtFeaturesWorkerFunc(const SearchTask& task, const State& state,
       // Phase 1
       pass_list.push_back(tir::transform::NarrowDataType(32));
       pass_list.push_back(tir::transform::Simplify());
-      pass_list.push_back(tir::transform::VectorizeLoop(disable_vectorize));
+      pass_list.push_back(tir::transform::VectorizeLoop(!disable_vectorize));
       pass_list.push_back(tir::transform::InjectVirtualThread());
       pass_list.push_back(tir::transform::StorageRewrite());
       pass_list.push_back(tir::transform::Simplify());
@@ -1257,7 +1257,7 @@ void GetPerStmtFeaturesFromStates(const Array<State>& states,
 
   if (error_ct > 0) {
     std::cerr << "Encountered " << error_ct
-              << " errors during feature extraction. Ignored." << std::endl;
+              << " errors during feature extraction, which are savely ignored." << std::endl;
   }
 }
 
@@ -1275,14 +1275,16 @@ void GetPerStmtFeaturesFromStates(const Array<State>& states,
   ThreadPool& pool = ThreadPool::Global();
   pool.BeginBatch(static_cast<int>(states.size()) - skip_first_n_feature_extraction);
   for (size_t i = skip_first_n_feature_extraction; i < states.size(); ++i) {
-    pool.Enqueue(GetPerStmtFeaturesWorkerFunc, tasks[i], states[i],
-        max_n_bufs, &(*features)[i], &error_ct);
+     pool.Enqueue(GetPerStmtFeaturesWorkerFunc, tasks[i], states[i],
+         max_n_bufs, &(*features)[i], &error_ct);
+    // GetPerStmtFeaturesWorkerFunc(tasks[i], states[i],
+    //     max_n_bufs, &(*features)[i], &error_ct);
   }
   pool.WaitBatch();
 
   if (error_ct > 0) {
     std::cerr << "Encountered " << error_ct
-    << " errors during feature extraction. Ignored." << std::endl;
+    << " errors during feature extraction. which are safely ignored." << std::endl;
   }
 }
 

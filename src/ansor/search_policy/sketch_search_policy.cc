@@ -724,8 +724,7 @@ int InitPopulationFillTileSize(const SketchSearchPolicyNode& policy,
   return 0;
 }
 
-int InitPopulationThreadBind(const SketchSearchPolicyNode* policy,
-                             State* state) {
+int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state) {
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
     auto pop = stage->op.as<te::ComputeOpNode>();
@@ -751,10 +750,9 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy,
         to_fuse.push_back(it);
       }
       const auto& fused_it = state->fuse(stage_id, to_fuse);
-      // Set default vthread=1 & threadIdx.x=default_warp_size
-      // EvolutionarySearch will try more possiblity
-      if (GetExtent(fused_it) <=
-          policy->cur_task->hardware_params->warp_size) {
+      // Set default vthread = 1 & threadIdx.x = default_warp_size.
+      // The later EvolutionarySearch will try more possiblity
+      if (GetExtent(fused_it) <= policy->cur_task->hardware_params->warp_size) {
         state->bind_thread(stage_id, fused_it, kThreadX);
       } else {
         const auto& split_its = state->split(stage_id, fused_it,
@@ -775,7 +773,7 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy,
       total_space_extent *= pint->value;
     }
 
-    // TODO(..): Add ThreadBind support for rfactor
+    // TODO(lmzheng): Add ThreadBind support for rfactor
     if (total_space_extent <= policy->cur_task->hardware_params->warp_size) {
       for (const auto& it : (*state)->stages[stage_id]->iters) {
         if (it->iter_type == kReduce) {
@@ -810,8 +808,7 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy,
       to_fuse.push_back((*state)->stages[stage_id]->iters[i]);
     }
     const auto& vthread_it = state->fuse(stage_id, to_fuse);
-    if (GetExtent(vthread_it) >
-        policy->cur_task->hardware_params->max_vthread_extent) {
+    if (GetExtent(vthread_it) > policy->cur_task->hardware_params->max_vthread_extent) {
       return -1;
     }
     state->bind_thread(stage_id, vthread_it, kVThread);
@@ -826,8 +823,7 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy,
       to_fuse.push_back((*state)->stages[stage_id]->iters[i]);
     }
     const auto& threadidx_it = state->fuse(stage_id, to_fuse);
-    if (GetExtent(threadidx_it) <
-        policy->cur_task->hardware_params->warp_size) {
+    if (GetExtent(threadidx_it) < policy->cur_task->hardware_params->warp_size) {
       return -1;
     }
     state->bind_thread(stage_id, threadidx_it, kThreadX);
@@ -864,12 +860,13 @@ int InitPopulationCooperativeFetching(const SketchSearchPolicyNode* policy,
       int target_stage_id = OperationToStage(*consumers.begin(), (*state));
       GetSpaceSplitStepIds((*state), target_stage_id, &spatial_split_step_ids);
 
-      // Fuse all axis to to do cooperative fetching
-      Iterator fused = state->fuse(stage_id,
-                                   (*state)->stages[stage_id]->iters);
-      // Left a vectorized cooperative fetching split placeholder
+      // Fuse all iterators to to do cooperative fetching
+      Iterator fused = state->fuse(stage_id, (*state)->stages[stage_id]->iters);
+
+      // Left an iterator for vectorization
       const auto& iters0 = state->split(stage_id, fused, {1});
       state->vectorize(stage_id, iters0[1]);
+
       // Follow split to keep a same thread extent with the root stage
       const auto& iters1 = state->follow_fused_split(stage_id, iters0[0],
                                                      spatial_split_step_ids,
@@ -1260,12 +1257,14 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
 
 void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sketches,
     int out_size, std::vector<State>* out_states) {
+  auto tic_begin = std::chrono::high_resolution_clock::now();
+
   std::uniform_real_distribution<> dis(0.0, 1.0);
   int fail_ct = 0;
 
-  // TODO(lmzheng,jcf94): Try multi thread here
-  while (static_cast<int>(out_states->size()) < out_size &&
-         fail_ct < out_size * 10) {
+  // TODO(lmzheng, jcf94): Try multi thread here
+  while (static_cast<int>(out_states->size()) < out_size 
+          && fail_ct < static_cast<int>(out_size * 1.2)) {
     State tmp_s = sketches[rand_gen_() % sketches.size()];
 
     InitPopulationFillTileSize(*this, &tmp_s, &rand_gen_, &split_memo_);
@@ -1287,15 +1286,20 @@ void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sket
       InitPopulationParallel(this, &tmp_s);
     }
 
-    InitPopulationVectorization(this, &tmp_s, &rand_gen_);
+    if (cur_task->target->target_name != "cuda") {  // don't explicitly do vectorization for CUDA
+      InitPopulationVectorization(this, &tmp_s, &rand_gen_);
+    }
 
     InitPopulationUnroll(this, &tmp_s, &rand_gen_, this->auto_unroll_configs_);
 
     out_states->push_back(std::move(tmp_s));
   }
 
+  double duration = std::chrono::duration_cast<std::chrono::duration<double> >(
+      std::chrono::high_resolution_clock::now()-  tic_begin).count();
   StdCout(verbose) << "Sample Initial Population\t#s: " << out_states->size()
-                   << "\tfail_ct: " << fail_ct << std::endl;
+                   << "\tfail_ct: " << fail_ct << "\tTime elapsed: "
+                   << std::fixed << std::setprecision(2) << duration << std::endl;
 }
 
 void SketchSearchPolicyNode::EvolutionarySearch(

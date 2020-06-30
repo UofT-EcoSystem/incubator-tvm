@@ -42,3 +42,12 @@
   python3 tune_op_subgraph.py --wkl all --batch-size -1 --target "llvm -mcpu=core-avx2" --tune false
   ```
 
+- NVIDIA GPU
+  ```
+  # tune
+  python3 tune_op_subgraph.py --wkl subgraph --batch-size -1 --target "cuda" --n-trials-per-shape 1000 
+
+  # replay
+  python3 tune_op_subgraph.py --wkl subgraph --batch-size -1 --target "cuda" --tune false
+  ```
+

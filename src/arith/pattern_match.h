@@ -146,6 +146,12 @@ class PEqualChecker<IntImm> {
 };
 
 template <>
+class PEqualChecker<FloatImm> {
+ public:
+  bool operator()(const FloatImm& lhs, const FloatImm& rhs) const { return lhs->value == rhs->value; }
+};
+
+template <>
 class PEqualChecker<tir::Var> {
  public:
   bool operator()(const tir::Var& lhs, const tir::Var& rhs) const { return lhs.same_as(rhs); }
@@ -271,6 +277,8 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
 
   bool Match_(const ObjectRef& node) const {
     if (const tir::IntImmNode* ptr = node.as<tir::IntImmNode>()) {
+      return ptr->value == value_;
+    } else if (const tir::FloatImmNode* ptr = node.as<tir::FloatImmNode>()) {
       return ptr->value == value_;
     } else {
       return false;

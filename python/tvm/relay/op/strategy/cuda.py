@@ -18,11 +18,15 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import topi
 import tvm
+from tvm import ansor
 from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from .generic import *
 from .. import op as _op
 from .... import get_global_func
+
+# Set the priority level to use the Ansor auto-scheduler
+ansor_plevel = 11
 
 @schedule_injective.register(["cuda", "gpu"])
 def schedule_injective_cuda(attrs, outs, target):
@@ -136,6 +140,12 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
                 name="conv2d_nhwc.cuda")
+
+            strategy.add_implementation(wrap_compute_conv2d(topi.nn.conv2d_nhwc),
+                                        wrap_topi_schedule(ansor.auto_schedule_topi),
+                                        name='ansor',
+                                        plevel=ansor_plevel)
+
             N, H, W, _ = get_const_tuple(data.shape)
             KH, KW, CI, CO = get_const_tuple(kernel.shape)
             # Winograd shape related judgment
@@ -452,12 +462,19 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.cuda.dense_small_batch),
             wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
             name="dense_small_batch.cuda")
+
+        strategy.add_implementation(wrap_compute_dense(topi.nn.dense),
+                                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                                    name='ansor',
+                                    plevel=ansor_plevel)
+
         with SpecializedCondition(b >= 32):
             strategy.add_implementation(
                 wrap_compute_dense(topi.cuda.dense_large_batch),
                 wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
                 name="dense_large_batch.cuda",
                 plevel=5)
+
         if target.target_name == "cuda":
             if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
                 if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \

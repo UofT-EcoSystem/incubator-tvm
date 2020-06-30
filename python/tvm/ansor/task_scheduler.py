@@ -146,6 +146,8 @@ class SimpleTaskScheduler(TaskScheduler):
         self.sequential_now_task_idx = 0
         self.sequential_now_task_begin_ct = 0
 
+        assert len(tasks) != 0, "No tasks"
+
         # load best costs from log file
         if load_log_file:
             str_target = str(tasks[0].target)

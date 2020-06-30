@@ -27,7 +27,8 @@ import tvm
 from tvm import ansor, te
 from tvm.ansor.utils import request_remote
 
-from common import get_workload_keys, get_workload_weights, measure_schedule, str2bool
+from common import (get_workload_keys, get_workload_weights, measure_schedule,
+        str2bool, check_correctness)
 from tensor_core_support import tensor_core_meet_condition, tensor_core_apply
 
 def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose,
@@ -86,6 +87,7 @@ def replay_workload(wkl_key, target, target_host, log_file,
 
         s, bufs = dag.apply_steps_from_state(inp.state)
         if show_lower_result:
+            print(dag.infer_bound_from_state(inp.state))
             print("=" * 20 + " Equivalent Python Schedule Code " + "=" * 20)
             print(dag.print_python_code_from_state(inp.state))
             print("=" * 20 + " Lowered TIR " + "=" * 20)
@@ -104,6 +106,10 @@ def replay_workload(wkl_key, target, target_host, log_file,
                                          remote=remote, ndk_cc=ndk_cc)))
         gflops = ansor.ComputeDAG(bufs).flop_ct / cost / 1e9
         print("Best schedule: %.2f GFLOPS\tcost: %.3f ms" % (gflops, cost * 1e3))
+
+        print("=" * 20 + " Check Correctness " + "=" * 20)
+        s_ref, bufs_ref = dag.apply_steps_from_state(dag.get_init_state(), ansor.LayoutRewriteLevel.BOTH_REWRITE)
+        check_correctness(s, bufs, s_ref, bufs_ref, target)
 
     return cost, gflops
 
