@@ -173,6 +173,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
             for i in range(base + 2):
                 filter_channel *= Filter.shape[i]
             channel_multiplier = 1
+        elif len(Filter.shape) == 4:
+            filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
         elif len(Filter.shape) == 3:
             filter_channel, filter_height, filter_width = Filter.shape
             channel_multiplier = 1
