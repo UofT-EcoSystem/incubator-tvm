@@ -426,9 +426,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Vector rules
   if (op->dtype.lanes() != 1) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
+    TVM_TRY_REWRITE(z * broadcast(x, lanes) * broadcast(y, lanes), z * broadcast(x * y, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) * broadcast(x, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) * ramp(b1, s1, lanes), ramp(b1 * x, s1 * x, lanes));
     TVM_TRY_REWRITE_IF(broadcast(c3, lanes) * x, broadcast(c3, lanes), c3.Eval()->value == 0.0f);
+    TVM_TRY_REWRITE_IF(x * broadcast(c3, lanes), broadcast(c3, lanes), c3.Eval()->value == 0.0f);
   }
 
   if (IsIndexType(op->dtype)) {

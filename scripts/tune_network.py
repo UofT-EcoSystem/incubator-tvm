@@ -32,7 +32,7 @@ from tvm.relay import testing
 from tvm.ansor.utils import request_remote
 from tvm.contrib.download import download_testdata
 
-from common import str2bool, extract_tar, log_line, BenchmarkRecord
+from common import str2bool, extract_tar, log_line, BenchmarkRecord, LogFileDatabase
 from tune_test import create_tune_option
 from bert_optimization import optimize_bert
 
@@ -247,14 +247,29 @@ def get_tflite_output(data, model_path):
 
     return tflite_output
 
+def estimate_by_log(log_file, log_n_lines, objective_func, tasks, target):
+    database = LogFileDatabase(log_file, log_n_lines or -1)
+    best_costs = []
+    for i, task in enumerate(tasks):
+        wkl_key = task.workload_key
+        query_key = (target.keys[0], wkl_key)
+        if query_key in database.best_by_targetkey:
+            inp, res = database.best_by_targetkey[query_key]
+            cost = np.mean([x.value for x in res.costs])
+        else:
+            print("Missing log for wkl_key: %s wkl_weight: %d" % (wkl_key, wkl_weights[i]))
+            cost = 0
+        best_costs.append(cost)
+    print("Estimated end-to-end cost: %.2f ms" % (1000 * objective_func(best_costs)))
+
 def tune_and_evaluate(network_arguments, target, target_host,
                       search_policy, task_scheduler_arguments, tune_option_arguments,
-                      tune, debug_profile, check_correctness, log_n_lines, compare_with_tflite):
+                      tune, estimate, debug_profile, check_correctness, log_n_lines, compare_with_tflite):
     # Extract tasks from relay program
     mod, params, input_name, data_shape, data_dtype, out_shape = get_network(**network_arguments)
 
     # Tune all
-    if tune:
+    if tune or estimate:
         print("=============== Extract Workloads ===============")
         workloads, wkl_weights = ansor.extract_from_program(mod, target=target, params=params)
         print("Extract %d workloads in total" % (len(workloads)))
@@ -264,8 +279,14 @@ def tune_and_evaluate(network_arguments, target, target_host,
         tasks = []
         for i, wkl_key in enumerate(workloads):
             dag = ansor.workload_key_to_dag(wkl_key)
-            print("[========= Task %d =========]\n" % i, dag)
+            print("[========= Task %d =========] (key: %s) \n" % (i, wkl_key), dag)
             tasks.append(ansor.SearchTask(dag, wkl_key, target, target_host))
+
+        if estimate:
+            estimate_by_log(tune_option_arguments['log_file'], log_n_lines,
+                lambda costs: sum(c * w for c, w in zip(costs, wkl_weights)),
+                tasks, target)
+            exit()
 
         tuner = ansor.SimpleTaskScheduler(tasks,
             lambda costs: sum(c * w for c, w in zip(costs, wkl_weights)),
@@ -357,6 +378,8 @@ if __name__ == "__main__":
     parser.add_argument("--check-correctness", type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument("--debug-profile", type=str2bool, nargs='?', const=True, default=False)
     parser.add_argument("--tune", type=str2bool, nargs='?', const=True, default=True)
+    parser.add_argument("--estimate", type=str2bool, nargs='?', const=True, default=False,
+            help="Estiamte the end-to-end execution time cost with the costs recroded in the log file")
 
     # Search strategy related arguments
     parser.add_argument("--n-trials", type=int, default=1000)
@@ -447,6 +470,6 @@ if __name__ == "__main__":
 
     tune_and_evaluate(network_arguments, target, args.target_host,
                       search_policy, task_scheduler_parameters, tune_option_arguments,
-                      args.tune, args.debug_profile, args.check_correctness,
+                      args.tune, args.estimate, args.debug_profile, args.check_correctness,
                       args.log_n_lines, args.compare_with_tflite)
 

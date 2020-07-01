@@ -888,15 +888,11 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
   for (int stage_id = static_cast<int>((*state)->stages.size()) - 1; stage_id >= 0; stage_id--) {
     const Stage& stage = (*state)->stages[stage_id];
 
-    if (stage->op_type == kPlaceholder) {
+    if (stage->op_type == kPlaceholder || stage->compute_at == kInlined) {
       continue;
     }
 
-    if (IsTiled(stage) || stage->compute_at == kInlined) {
-      continue;
-    }
-
-    if (NeedsMultilevelTiling(policy->cur_task, (*state), stage->op)) {
+    if (IsTiled(stage) || NeedsMultilevelTiling(policy->cur_task, (*state), stage->op)) {
       continue;
     }
 
@@ -1027,7 +1023,10 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
 
     if (choice == 0) {
       if (!HasReduceIter(stage)) {
-        state->compute_inline(stage_id);
+        const auto& stage_to_attach_iter = (*state)->attach_map->stage_to_attach_iter;
+        if (stage_to_attach_iter.find(stage_id) != stage_to_attach_iter.end()) {
+          state->compute_inline(stage_id);
+        }
       }
     } else if (choice == 1) {
       state->compute_root(stage_id);
@@ -1220,8 +1219,11 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
 
         std::set<std::string> name;
         ExtractOriginalIterators(it->name, &name);
+
         if (name.size() == 1 && to_unroll_name_set.count(*name.begin())) {
-          state->unroll(stage_id, it);
+          if (it->annotation == kNone){
+            state->unroll(stage_id, it);
+          }
         }
 
         n--;

@@ -92,6 +92,7 @@ def replay_workload(wkl_key, target, target_host, log_file,
             print(dag.print_python_code_from_state(inp.state))
             print("=" * 20 + " Lowered TIR " + "=" * 20)
             print(str(tvm.lower(s, bufs, simple_mode=True)) + "\n")
+            exit()
 
         print("=" * 20 + " Evaluate " + "=" * 20)
         if local_measure:

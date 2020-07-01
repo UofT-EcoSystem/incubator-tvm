@@ -269,6 +269,82 @@ def conv2d_capsule_nhwijc(N, H, W, CI, CO, kernel_size, stride=1, padding=0, cap
     )
     return [inputs, weight, output]
 
+@ansor.register_workload_func
+def conv2d_winograd_nhwc_new(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1):
+    # TODO: implement tile_size
+    tile_size = 4 #_infer_tile_size(data, kernel)
+    inputs = te.placeholder((N, H, W, CI), name='inputs')
+    #weight = te.placeholder((kernel_size, kernel_size, CI, CO), name='weight')
+    N, H, W, CI = get_const_tuple(inputs.shape)
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
+
+    KH = KW = kernel_size
+    HPAD, WPAD, _, _ = topi.nn.get_pad_tuple(padding, (KH, KW))
+    HSTR, WSTR = (stride, stride) if isinstance(stride, int) else stride
+    assert HSTR == 1 and WSTR == 1 and KH == KW
+
+    data_pad = topi.nn.pad(inputs, (0, HPAD, WPAD, 0), (0, HPAD, WPAD, 0), name="data_pad")
+
+    r = KW
+    m = tile_size
+    alpha = m + r - 1
+    A, B, G = winograd_transform_matrices(m, r, 'float32')
+
+    H = (H + 2 * HPAD - KH) // HSTR + 1
+    W = (W + 2 * WPAD - KW) // WSTR + 1
+    nH, nW = (H + m - 1) // m, (W + m - 1) // m
+    P = N * nH * nW
+    r_kh = te.reduce_axis((0, KH), name='r_kh')
+    r_kw = te.reduce_axis((0, KW), name='r_kw')
+    kshape = (alpha, alpha, CI, CO)
+    kernel_pack = te.placeholder(kshape, inputs.dtype, name="kernel_pack")
+
+    idxdiv = te.indexdiv
+    idxmod = te.indexmod
+
+    # transform data
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_b')
+    data_pack = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
+        te.sum(data_pad[idxdiv(p, (nH * nW))][idxmod(idxdiv(p, nW), nH) * m + r_a]
+                       [idxmod(p, nW) * m + r_b][ci] * B[r_a][eps] * B[r_b][nu], axis=[r_a, r_b]),
+        name='data_pack',
+        attrs={"ansor_always_unroll_inner": ["r_a", "r_b", 'eps', 'nu']})
+
+    # do batch gemm
+    ci = te.reduce_axis((0, CI), name='ci')
+    bgemm = te.compute((alpha, alpha, P, CO), lambda eps, nu, p, co:
+                        te.sum(data_pack[eps][nu][p][ci] * kernel_pack[eps][nu][ci][co],
+                                axis=[ci]), name='bgemm')
+
+    bgemm_only = False
+    inverse_trans_only = False
+
+    if bgemm_only:
+        return [inputs, kernel_pack, bgemm]
+
+    if inverse_trans_only:
+        bgemm = te.placeholder((alpha, alpha, P, CO), name='bgemm')
+
+    # inverse transform
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_b')
+    output = te.compute((N, H, W, CO), lambda n, h, w, co:
+        te.sum(bgemm[r_a][r_b][n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m)][co] *
+            A[r_a][idxmod(h, m)] * A[r_b][idxmod(w, m)], axis=[r_a, r_b]), 
+        name='conv2d_winograd',
+        attrs={"ansor_always_unroll_inner": ["h", "w", "r_a", "r_b", "h_c", "w_c"]})
+
+    if inverse_trans_only:
+        return [bgemm, output]
+
+    return [inputs, kernel_pack, output]
+
 
 @ansor.register_workload_func
 def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1):
@@ -281,8 +357,9 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
         dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
-    # if dilation_h != 1 or dilation_w != 1:
-    #     weight = topi.nn.dilate(weight, (1, 1, dilation_h, dilation_w))
+
+    assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
+
     KH = KW = kernel_size
     HPAD, WPAD, _, _ = topi.nn.get_pad_tuple(padding, (KH, KW))
     HSTR, WSTR = (stride, stride) if isinstance(stride, int) else stride
@@ -304,7 +381,7 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     # kernel_pack = te.compute((alpha, alpha, CO, CI), lambda eps, nu, co, ci:
     #                           weight[0][0][0][0],
     #                           name='kernel_pack')
-    kshape = (alpha, alpha, CO, CI)
+    kshape = (alpha, alpha, CI, CO)
     kernel_pack = te.placeholder(kshape, inputs.dtype, name="weight")
 
     idxdiv = te.indexdiv
@@ -312,7 +389,7 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     # pack input tile
     input_tile = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
                              data_pad[idxdiv(p, (nH * nW))][idxmod(idxdiv(p, nW), nH) * m + eps]
-                                     [idxmod(p, nW) * m + nu][ci], name='input_tile',)
+                                     [idxmod(p, nW) * m + nu][ci], name='input_tile')
 
     # transform data
     r_a = te.reduce_axis((0, alpha), 'r_a')
@@ -330,7 +407,7 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     ci = te.reduce_axis((0, CI), name='ci')
     bgemm = te.compute((alpha, alpha, P, CO), lambda eps, nu, p, co:
                         te.sum(data_pack[eps][nu][p][ci] *
-                                kernel_pack[eps][nu][co][ci],
+                                kernel_pack[eps][nu][ci][co],
                                 axis=[ci]), name='bgemm')
 
     # inverse transform
@@ -407,7 +484,7 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
                             te.sum(input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
                                     attrs={"ansor_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_no_split_at_outer": ["ci", "p"],
+                                           "ansor_last_split_is_one": ["ci", "p"],
                                            "ansor_always_unroll": ["eps", "nu", "r_a", "r_b"],
                                            "ansor_no_cache_write": "True",
                                            })
@@ -425,9 +502,11 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
     inverse = te.compute((CO, P, m, m), lambda co, p, vh, vw:
                           te.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                          attrs={"ansor_no_split_at_outer": ["co", "p", "vh", "vw", "r_a", "r_b"],
-                                 "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                 "ansor_no_cache_write": "True"})
+                         attrs={"ansor_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
+                                "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
+                                "ansor_last_split_is_one": ["co", "p"],
+                                "ansor_no_cache_write": "True",
+                                })
 
     # output
     output = te.compute((N, CO, H, W), lambda n, co, h, w:
@@ -471,9 +550,10 @@ task_func_dict = {
     'conv2d_bn_relu': conv2d_nhwc_bn_relu,
     'transpose_batch_matmul': transpose_batch_matmul,
 
-    'C2D_NCHW': conv2d_nchw,
+    #'C2DWG_NHWC': conv2d_winograd_nhwc_new,
     'C2DWG_NHWC': conv2d_winograd_nhwc,
-    'C2DWG_NCHW': conv2d_winograd_nchw,
+    #'C2D_NCHW': conv2d_nchw,
+    #'C2DWG_NCHW': conv2d_winograd_nchw,
 }
 
 single_op_eval_wkls = ['GMM', 'C1D', 'C2D', 'C3D', 'GRP', 'DIL', 'DEP', 'T2D', 'CAP', 'NRM']

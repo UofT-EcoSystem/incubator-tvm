@@ -66,7 +66,7 @@ namespace transform {
 Pass FastMath() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(FastMath(f)); };
-  return CreateFunctionPass(pass_func, 4, "FastMath", {"InferType"});
+  return CreateFunctionPass(pass_func, 3, "FastMath", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FastMath").set_body_typed(FastMath);
