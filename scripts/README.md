@@ -51,3 +51,9 @@
   python3 tune_op_subgraph.py --wkl subgraph --batch-size -1 --target "cuda" --tune false
   ```
 
+## Train cost model
+- Standalone unit test
+  ```
+  python3 train_cost_model.py GMM.json --eval-test
+  ```
+

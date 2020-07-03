@@ -191,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument("--load-model", type=str, help="Load pre-trained cost model from this file")
 
     # Measurement related and other arguments
-    parser.add_argument("--num-measure-per-iter", type=int, default=48,
+    parser.add_argument("--num-measure-per-iter", type=int, default=64,
                         help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
     parser.add_argument("--run-timeout", type=int, default=60)

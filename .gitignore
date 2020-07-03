@@ -239,4 +239,5 @@ conda/pkg
 scripts/*.json
 scripts/today_job.sh
 scripts/results.tsv
+*.xgb
 
