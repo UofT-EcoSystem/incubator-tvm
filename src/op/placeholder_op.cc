@@ -59,6 +59,10 @@ Operation PlaceholderOpNode::make(std::string name,
   n->name = name;
   n->shape = shape;
   n->dtype = dtype;
+
+  // <bojian/TVM-AutoDiff> Tensor Unique ID
+  n->unique_id = reinterpret_cast<size_t>(n.get());
+
   return Operation(n);
 }
 

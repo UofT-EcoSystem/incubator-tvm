@@ -61,6 +61,10 @@ class OperationNode : public ir::FunctionBaseNode {
   std::string tag;
   /*! \brief additional attributes of the operation*/
   Map<std::string, NodeRef> attrs;
+
+  // <bojian/TVM-AutoDiff> Tensor Unique ID
+  size_t unique_id = 0;
+
   /*! \return name of the operation */
   const std::string& func_name() const final {
     return name;
@@ -194,6 +198,10 @@ class PlaceholderOpNode : public OperationNode {
     v->Visit("attrs", &attrs);
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);
+
+    // <bojian/TVM-AutoDiff> Tensor Unique ID
+    v->Visit("unique_id", &unique_id);
+
   }
   static Operation make(std::string name,
                         Array<Expr> shape,
