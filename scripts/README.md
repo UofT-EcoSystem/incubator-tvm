@@ -52,8 +52,29 @@
   ```
 
 ## Train cost model
-- Standalone unit test
+- Train an offline cost model and use it for search
+  1.  Get the trainning data (log file).
   ```
-  python3 train_cost_model.py GMM.json --eval-test
+  python3 tune_test.py --wkl matmul-512 --n-trials 1000 --log-file train.json
+  ```
+  This command can give us the log file `train.json`.
+
+  2. Train the offline cost model
+  ```
+  python3 train_cost_model.py train.json
+  ```
+  This command can train a cost model `saved_model.xgb`
+
+  3. Use the model for search
+  ```
+  python3 tune_test.py --wkl matmul-512 --n-trials 0 --load-model saved_model.xgb
+  ```
+  Using `--n-trials 0` means we do not run any measurement and rely on the cost model only.
+  With the pre-trained cost model, we are expected to see a pretty good result even without tuning.
+
+  As a santiy check, we should compare the result against the output from the command below.
+  The command below does not use the cost model, so it is expected to output a bad result.
+  ```
+  python3 tune_test.py --wkl matmul-512 --n-trials 0
   ```
 

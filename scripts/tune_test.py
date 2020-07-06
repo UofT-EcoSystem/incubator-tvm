@@ -87,12 +87,12 @@ def replay_workload(wkl_key, target, target_host, log_file,
 
         s, bufs = dag.apply_steps_from_state(inp.state)
         if show_lower_result:
+            print("=" * 20 + " Best State " + "=" * 20)
             print(dag.infer_bound_from_state(inp.state))
             print("=" * 20 + " Equivalent Python Schedule Code " + "=" * 20)
             print(dag.print_python_code_from_state(inp.state))
             print("=" * 20 + " Lowered TIR " + "=" * 20)
             print(str(tvm.lower(s, bufs, simple_mode=True)) + "\n")
-            exit()
 
         print("=" * 20 + " Evaluate " + "=" * 20)
         if local_measure:
@@ -118,7 +118,6 @@ def replay_workload(wkl_key, target, target_host, log_file,
 def tune_workload(wkl_key, target, target_host, policy, model_type,
                   load_model_file, load_log_file, tune_option):
     """Tune a workload"""
-
     if False:
         # Debug info. Print static analysis results from the access analyzer
         dag = ansor.workload_key_to_dag(wkl_key)
@@ -149,6 +148,25 @@ def tune_workload(wkl_key, target, target_host, policy, model_type,
                                   target=target, target_host=target_host,
                                   search_policy=policy,
                                   tune_option=tune_option)
+
+    if True:
+        print("=" * 20 + " Lowered TIR " + "=" * 20)
+        print(str(tvm.lower(s, bufs, simple_mode=True)) + "\n")
+
+    print("=" * 20 + " Evaluate " + "=" * 20)
+    if local_measure:
+        remote = None
+    else:
+        remote = request_remote(args.rpc_device_key, args.rpc_host, args.rpc_port)
+        if args.rpc_num_threads:
+            config_threadpool = remote.get_function('runtime.config_threadpool')
+            config_threadpool(0, args.rpc_num_threads)
+
+    cost = np.mean((measure_schedule(s, bufs, target, target_host,
+                                     remote=remote, ndk_cc=args.ndk_cc)))
+    gflops = ansor.ComputeDAG(bufs).flop_ct / cost / 1e9
+    print("Best schedule: %.2f GFLOPS\tcost: %.3f ms" % (gflops, cost * 1e3))
+
 
 def tune_workloads_jointly(wkl_keys, weights, task_scheduler, target, target_host,
                            search_policy, model_type, load_model_file, load_log_file,
@@ -251,10 +269,9 @@ if __name__ == "__main__":
                                    tune_option)
         if measure_ctx:
             del measure_ctx
-
-    # Replay the best found schedule
-    if len(wkl_keys) == 1 or not args.tune:
+    else:
         for wkl_key in wkl_keys:
             replay_workload(wkl_key, target, args.target_host, log_file,
                             local_measure, args.rpc_device_key, args.rpc_host,
                             args.rpc_port, args.rpc_num_threads, args.ndk_cc)
+
