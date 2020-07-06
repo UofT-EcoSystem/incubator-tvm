@@ -85,6 +85,11 @@ inline std::set<std::string> GetIterNameSetParam(const Map<String, ObjectRef>& a
   return ret;
 }
 
+// Return whether the search task is targeting a GPU
+inline bool IsGPUTask(const SearchTask& task) {
+  return ((task)->target->device_type == kDLGPU ||(task)->target->device_type == kDLOpenCL);
+}
+
 // Convert operation to stage id
 inline int OperationToStage(const te::Operation& op, const State& state) {
   for (size_t i = 0; i < state->stages.size(); ++i) {
@@ -233,28 +238,30 @@ inline bool NeedsRfactor(const SearchTask& task, const State& state, const te::O
       }
     } else if (cum_reduce_len > 1) {
       // Always try rfactor for reduction ops
-      return cum_reduce_len > task->hardware_params->num_cores;
+      if (IsGPUTask(task)) {
+        return cum_reduce_len > task->hardware_params->warp_size;
+      } else {
+        return cum_reduce_len > task->hardware_params->num_cores;
+      }
     }
   }
 
   return false;
 }
 
-// Return whether the state did cache_write for stage_id
+// Return whether the state does cache_write for stage_id
 inline bool HasCacheWriteStage(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
     if (auto ps = s->transform_steps[i].as<CacheWriteStepNode>()) {
-      if (stage_id > ps->stage_id) {
-        stage_id--;
-      } else if (stage_id == ps->stage_id) {
+      if (stage_id == ps->stage_id) {
         return true;
       }
-    } else if (auto ps = s->transform_steps[i].as<CacheReadStepNode>()) {
-      if (stage_id > ps->stage_id) {
-        stage_id--;
-      }
-    } else if (auto ps = s->transform_steps[i].as<RfactorStepNode>()) {
-      if (stage_id > ps->stage_id) {
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
     }
@@ -262,21 +269,19 @@ inline bool HasCacheWriteStage(const State& s, int stage_id) {
   return false;
 }
 
-// Return whether the state did cache_read for stage_id
+// Return whether the state does cache_read for stage_id
 inline bool HasCacheReadStage(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
-    if (auto ps = s->transform_steps[i].as<CacheWriteStepNode>()) {
-      if (stage_id > ps->stage_id) {
-        stage_id--;
-      }
-    } else if (auto ps = s->transform_steps[i].as<CacheReadStepNode>()) {
-      if (stage_id > ps->stage_id) {
-        stage_id--;
-      } else if (stage_id == ps->stage_id) {
+    if (auto ps = s->transform_steps[i].as<CacheReadStepNode>()) {
+      if (stage_id == ps->stage_id) {
         return true;
       }
-    } else if (auto ps = s->transform_steps[i].as<RfactorStepNode>()) {
-      if (stage_id > ps->stage_id) {
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
         stage_id--;
       }
     }
@@ -284,7 +289,27 @@ inline bool HasCacheReadStage(const State& s, int stage_id) {
   return false;
 }
 
-// Return whether the state did split/follow_split/follow_fused_split in stage_id
+// Return whether the state does rfactor for stage_id
+inline bool HasRfactorStage(const State& s, int stage_id) {
+  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
+    if (auto ps = s->transform_steps[i].as<RfactorStepNode>()) {
+      if (stage_id == ps->stage_id) {
+        return true;
+      }
+    }
+
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (stage_id > s->transform_steps[i]->stage_id) {
+        stage_id--;
+      }
+    }
+  }
+  return false;
+}
+
+// Return whether the state does split/follow_split/follow_fused_split in stage_id
 inline bool HasSplitStep(const State& s, int stage_id) {
   for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
     if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
@@ -436,11 +461,6 @@ inline void PrintAllStates(const std::vector<State>& states) {
     std::cerr << states[i];
     std::cerr << "==============================================" << std::endl;
   }
-}
-
-// Return whether the search task is targeting a GPU
-inline bool IsGPUTask(const SearchTask& task) {
-  return ((task)->target->device_type == kDLGPU ||(task)->target->device_type == kDLOpenCL);
 }
 
 // Get all split steps on spatial iterators for one stage

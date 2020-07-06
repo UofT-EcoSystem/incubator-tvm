@@ -533,6 +533,22 @@ def transpose_batch_matmul(batch, seq_len, n_head, n_dim):
                  name='C')
     return [query, value, out]
 
+@ansor.register_workload_func
+def transpose_batch_matmul_softmax(batch, seq_len, n_head, n_dim):
+    query = te.placeholder((batch, seq_len, n_head, n_dim), name='query')
+    value = te.placeholder((batch, seq_len, n_head, n_dim), name='value')
+    query_T = te.compute((batch, n_head, seq_len, n_dim),
+                      lambda b, h, l, d: query[b, l, h, d], name="query_T")
+    value_T = te.compute((batch, n_head, n_dim, seq_len),
+                      lambda b, h, d, l: value[b, l, h, d], name="value_T")
+    k = te.reduce_axis((0, n_dim), name='k')
+    out = te.compute((batch, n_head, seq_len, seq_len),
+                 lambda b, h, i, j: te.sum(query_T[b][h][i][k] * value_T[b][h][k][j], axis=[k]),
+                 name='C')
+    out = topi.nn.softmax(out)
+    return [query, value, out]
+
+
 # ========================== Tune function & Task dicts ==========================
 
 task_func_dict = {
@@ -549,6 +565,7 @@ task_func_dict = {
 
     'conv2d_bn_relu': conv2d_nhwc_bn_relu,
     'transpose_batch_matmul': transpose_batch_matmul,
+    'transpose_batch_matmul_softmax': transpose_batch_matmul_softmax,
 
     #'C2DWG_NHWC': conv2d_winograd_nhwc_new,
     'C2DWG_NHWC': conv2d_winograd_nhwc,

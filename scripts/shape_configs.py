@@ -163,7 +163,7 @@ conv2d_bn_relu_shapes = [
     (1, 224, 224, 3, 64, 7, 2, 3),
     (1, 56, 56, 64, 128, 3, 2, 1),
     (1, 28, 28, 128, 256, 1, 2, 0),
-    (1, 7, 7, 512, 512, 3, 1, 1, 1),
+    (1, 7, 7, 512, 512, 3, 1, 1),
 ]
 
 transpose_batch_matmul_shapes = [
@@ -187,6 +187,7 @@ shape_dict = {
 
     "conv2d_bn_relu": conv2d_bn_relu_shapes,
     "transpose_batch_matmul": transpose_batch_matmul_shapes,
+    "transpose_batch_matmul_softmax": transpose_batch_matmul_shapes,
 
     'C2DWG_NHWC': conv2d_winograd_nhwc_shapes,
     'C2DWG_NCHW': conv2d_winograd_nchw_shapes,

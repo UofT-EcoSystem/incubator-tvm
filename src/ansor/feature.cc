@@ -1257,7 +1257,7 @@ void GetPerStmtFeaturesFromStates(const Array<State>& states,
 
   if (error_ct > 0) {
     std::cerr << "Encountered " << error_ct
-              << " errors during feature extraction, which are savely ignored." << std::endl;
+              << " errors during feature extraction, which are safely ignored." << std::endl;
   }
 }
 

@@ -279,18 +279,26 @@ static inline bool ShouldBeCacheRead(
   const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
+  // Handle special requirement
   if (HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_read_key)) {
     return false;
   }
 
+  // Don't cache_read a stage if it has multiple consumers
   std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
   GetConsumers(task, state, stage->op, &consumers);
   if (consumers.size() != 1) {
     return false;
   }
 
+  // Don't cache_read a stage if its consumer does not need multi-level tiling
   int target_stage_id = OperationToStage(*consumers.begin(), state);
   if (!NeedsMultilevelTiling(task, state, state->stages[target_stage_id]->op)) {
+    return false;
+  }
+
+  // Don't cache_read a stage if its consumer does rfactor
+  if (HasRfactorStage(state, target_stage_id)) {
     return false;
   }
 
@@ -414,7 +422,11 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
       if (HasCacheWriteStage(state, stage_id)) {  // Always do fusion for cache_write
         return kApplyAndSkipRest;
       } else {
-        return kApply;
+        if (IsGPUTask(task)) {  // Always do fusion for GPU
+          return kApplyAndSkipRest;
+        } else {
+          return kApply;
+        }
       }
     }
 
@@ -475,13 +487,19 @@ class RuleAddCacheWrite : public SketchGenerationRule {
 
     int target_stage_id;
 
+    // Handle special requirement
+    if (HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_write_key)) {
+      return kPass;
+    }
+
     // Add cache write if a stage needs multi-level tiling,
     // but does not have a element-wise matched consumer
-    return NeedsMultilevelTiling(task, state, stage->op) &&
-           !HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_write_key) &&
-           (!HasSingleElementwiseMatchedConsumer(task, state, stage, &target_stage_id) ||
-             (HasCacheReadStage(state, stage_id) && !HasCacheWriteStage(state, stage_id))) ?
-        kApply : kPass;
+    if (NeedsMultilevelTiling(task, state, stage->op) &&
+        !HasSingleElementwiseMatchedConsumer(task, state, stage, &target_stage_id)) {
+      // Always do cache_write on GPU
+      return (IsGPUTask(task) ? kApplyAndSkipRest : kApply);
+    }
+    return kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
@@ -564,26 +582,41 @@ class RuleAddRfactor : public SketchGenerationRule {
       fused_reduce_iter = reduce_iters[0];
     }
 
-    // split reduce iters
-    const auto &split_res = tmp_s.split(stage_id, fused_reduce_iter, {1});
-    int factor_axis_id = static_cast<int>(space_iters.size());
-    State base_state = tmp_s;
-    for (const auto &split_iter : split_res) {
-      tmp_s = base_state;
-      tmp_s.rfactor(stage_id, split_iter, factor_axis_id, task->compute_dag);
+    if (IsGPUTask(task)) {
+      const auto &split_res = tmp_s.split(stage_id, fused_reduce_iter,
+              {task->hardware_params->warp_size});
+      int rstage_id = tmp_s.rfactor(stage_id, split_res[1], 0, task->compute_dag);
+      int tmp_stage_id = stage_id + 1;
 
-      // reorder the space iterator to innermost for vectorization
-      if (split_iter == split_res[1]) {
-        std::vector<Iterator> new_order;
-        for (size_t i = 0; i < tmp_s->stages[stage_id]->iters.size(); ++i) {
-          if (i != space_iters.size()) {
-            new_order.push_back(tmp_s->stages[stage_id]->iters[i]);
+      const Iterator& target_iter = tmp_s->stages[tmp_stage_id]->iters[space_iters.size()];
+      CHECK_EQ(target_iter->iter_type, kReduce);
+      tmp_s.compute_at(rstage_id, tmp_stage_id, target_iter);
+      tmp_s.bind_thread(tmp_stage_id, target_iter, kThreadX);
+
+      ret.emplace_back(std::move(tmp_s), rstage_id - 1);
+    } else {
+      // split reduce iters
+      const auto &split_res = tmp_s.split(stage_id, fused_reduce_iter, {1});
+      int factor_axis_id = static_cast<int>(space_iters.size());
+      State base_state = tmp_s;
+      for (const auto &split_iter : split_res) {
+        tmp_s = base_state;
+        int rstage_id = tmp_s.rfactor(stage_id, split_iter, factor_axis_id, task->compute_dag);
+
+        // reorder the space iterator to innermost for vectorization
+        if (split_iter == split_res[1]) {
+          std::vector<Iterator> new_order;
+          for (size_t i = 0; i < tmp_s->stages[rstage_id]->iters.size(); ++i) {
+            if (i != space_iters.size()) {
+              new_order.push_back(tmp_s->stages[rstage_id]->iters[i]);
+            }
           }
+          new_order.push_back(tmp_s->stages[rstage_id]->iters[space_iters.size()]);
+          tmp_s.reorder(rstage_id, new_order);
         }
-        new_order.push_back(tmp_s->stages[stage_id]->iters[space_iters.size()]);
-        tmp_s.reorder(stage_id, new_order);
+
+        ret.emplace_back(std::move(tmp_s), rstage_id - 1);
       }
-      ret.emplace_back(std::move(tmp_s), stage_id - 1);
     }
 
     return ret;
@@ -616,10 +649,10 @@ std::vector<State> SketchSearchPolicyNode::GenerateSketches() {
     // We may apply and skip the rest when processing some rules.
     // Should take care of the order of rules here
     sketch_rules.push_back(&rule_always_inline);
+    sketch_rules.push_back(&rule_add_rfactor);
     sketch_rules.push_back(&rule_add_cache_write_stage);
     sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
     sketch_rules.push_back(&rule_multi_level_tiling);
-    sketch_rules.push_back(&rule_add_rfactor);
     sketch_rules.push_back(&rule_skip_stage);
 
     if (IsGPUTask(cur_task)) {
@@ -733,12 +766,22 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
       continue;
     }
 
+    std::vector<Iterator> to_fuse;
+
     if (HasAnnotationIter(stage, IteratorAnnotation::kThreadX)) {
-      // Skip if this stage has already done thread bind
+      CHECK(HasRfactorStage(*state, stage_id - 1));
+
+      for (const auto& it : (*state)->stages[stage_id]->iters) {
+        if (it->iter_type == kReduce) {
+          break;
+        }
+        to_fuse.push_back(it);
+      }
+
+      const auto& fused_it = state->fuse(stage_id, to_fuse);
+      state->bind_thread(stage_id, fused_it, kBlockX);
       continue;
     }
-
-    std::vector<Iterator> to_fuse;
 
     // This stage has not been tiled, but in GPU schedule, we must tile it
     // to do thread binding
@@ -765,6 +808,7 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
       continue;
     }
 
+    // The remaining part deals with the thread binding for multi-level tiled stages
     int total_space_extent = 1;
     for (const auto& i : pop->root_iter_vars()) {
       CHECK(i->dom.defined());
@@ -773,7 +817,6 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
       total_space_extent *= pint->value;
     }
 
-    // TODO(lmzheng): Add ThreadBind support for rfactor
     if (total_space_extent <= policy->cur_task->hardware_params->warp_size) {
       for (const auto& it : (*state)->stages[stage_id]->iters) {
         if (it->iter_type == kReduce) {
@@ -1246,7 +1289,15 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
       }
     }
 
-    if (HasReduceIter(stage)) {
+    bool annotate_auto_unroll = HasReduceIter(stage);
+    if (IsGPUTask(policy->cur_task)) {
+      if (!NeedsMultilevelTiling(policy->cur_task, *state, (*state)->stages[stage_id]->op)
+          || HasRfactorStage(*state, stage_id)) {
+        annotate_auto_unroll = false;
+      }
+    }
+
+    if (annotate_auto_unroll) {
       // use auto unroll for multi level tiled stage
       int value = auto_unroll_configs[(*rand_gen)() % auto_unroll_configs.size()];
       state->pragma(stage_id, (*state)->stages[stage_id]->iters[0],

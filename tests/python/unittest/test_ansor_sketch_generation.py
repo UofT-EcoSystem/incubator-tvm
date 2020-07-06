@@ -45,7 +45,10 @@ def test_gpu_matmul_sketch():
         return
 
     sketches = generate_sketches(matmul_ansor_test, (512, 512, 512), 'cuda')
-    assert len(sketches) == 2  # 2 multi-level tiling sketches
+    assert len(sketches) == 1  # 1 multi-level tiling sketch
+
+    sketches = generate_sketches(matmul_ansor_test, (8, 8, 1024), 'cuda')
+    assert len(sketches) == 2  # 1 multi-level tiling sketch + one rfactor sketch
 
 def test_gpu_conv2d_bn_relu_sketch():
     if not tvm.context("cuda", 0).exist:
@@ -53,7 +56,7 @@ def test_gpu_conv2d_bn_relu_sketch():
 
     sketches = generate_sketches(conv2d_nchw_bn_relu_ansor_test,
                                  (1, 56, 56, 512, 512, 3, 1, 1), 'cuda')
-    assert len(sketches) == 2  # 2 multi-level tiling sketches
+    assert len(sketches) == 1  # 1 multi-level tiling sketches
 
 def test_gpu_max_pool2d_sketch():
     if not tvm.context("cuda", 0).exist:
@@ -67,9 +70,11 @@ def test_gpu_softmax_sketch():
         return
 
     # todo(lmzheng): support rfactor for cuda
-    return
-    sketches = generate_sketches(softmax_mn_ansor_test, (1, 1024), 'cuda')
-    assert len(sketches) == 9
+    sketches = generate_sketches(softmax_mn_ansor_test, (2, 1024), 'cuda')
+    assert len(sketches) == 4
+
+    sketches = generate_sketches(softmax_abcd_ansor_test, (1, 12, 128, 128), 'cuda')
+    assert len(sketches) == 4
 
 if __name__ == "__main__":
     test_cpu_matmul_sketch()
