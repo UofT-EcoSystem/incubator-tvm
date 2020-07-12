@@ -437,7 +437,8 @@ Iterator State::DoFuseStep(const FuseStep& step) {
       if (iter_to_attached_stage.find(std::make_pair(
               stage_id, step->fused_ids[i])) != iter_to_attached_stage.end()) {
         LOG(FATAL) << "Invalid Fuse. Because you want to fuse iterators "
-                      "that have been attached by some stages";
+                      "that have been attached by some stages. State before fusion:\n"
+                   << *this;
       }
     }
 

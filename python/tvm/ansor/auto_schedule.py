@@ -108,7 +108,7 @@ class SketchSearchPolicy(SearchPolicy):
             "eps_greedy": 0.05,
 
             'evolutionary_search_population': 2048,
-            'evolutionary_search_num_iters': 15,
+            'evolutionary_search_num_iters': 1,
             "evolutionary_search_mutation_prob": 0.85,
             "evolutionary_search_use_measured_ratio": 0.2,
 

@@ -63,10 +63,10 @@ def softmax_mn(M, N):
 @register_workload_func
 def softmax_abcd(a, b, c, d):
     A = te.placeholder((a, b, c, d), name='A')
-    B = topi.nn.softmax(A, axis=-1)
+    #B = topi.nn.softmax(A, axis=-1)
+    B = topi.nn.fast_softmax(A, axis=-1)
 
     return [A, B]
-
 
 @register_workload_func
 def norm_bmn(B, M, N):
@@ -561,7 +561,7 @@ def get_workload_keys(name: str) -> List[str]:
             return [make_workload_key_func(conv2d_relu_softmax_min,
                                            (1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1), (1, 1)))]
         elif name == 'bert-softmax':
-            return [make_workload_key_func(softmax_abcd, (1, 12, 128, 128))]
+            return [make_workload_key_func(softmax_abcd, (16, 12, 128, 128))]
         else:
             raise ValueError("Invalid workload " + name)
 

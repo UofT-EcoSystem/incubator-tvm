@@ -47,6 +47,7 @@ class AccessAnalyzerNode : public Object {
 
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr> > > > read_from;
   OperationMap<OperationMap<std::vector<std::vector<PrimExpr> > > > read_by;
+  OperationMap<OperationMap<int> > num_common_outer_iterators;
   OperationMap<bool> is_injective;
   OperationMap<bool> is_strict_inlineable;
   OperationMap<bool> needs_multi_level_tiling;
@@ -70,13 +71,20 @@ class AccessAnalyzer : public ObjectRef {
   bool IsStrictInlineable(const te::Operation& op) const;
   bool IsOutput(const te::Operation& op) const;
 
-  // Get all producers of an op
+  // Get all consumers of an op.
+  // This function propagates the relation for inlined ops.
+  void GetConsumers(const State& state, const te::Operation& op,
+      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
+
+  // Get all consumers of an op.
+  // This function propagates the relation for inlined ops.
   void GetProducers(const State& state, const te::Operation& op,
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
 
-  // Get all consumers of an op. This func deals with inlined op correctly.
-  void GetConsumers(const State& state, const te::Operation& op,
-      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* consumers) const;
+  // Get the number of common outer iterators.
+  // This function propagates the relation for chains with multiple ops.
+  int GetNumCommonOuterIterator(const State& state, const te::Operation& op,
+      const te::Operation& target_op) const;
 
   // Check whether two ops are elementwise matched
   // (e.g. conv2d and relu are elementwise matched)

@@ -20,6 +20,7 @@ import logging
 
 import re
 import topi
+from tvm import ansor
 from topi.util import get_const_int, get_const_float, get_const_tuple, get_float_tuple
 from .. import op as _op
 from ....target import generic_func, override_native_generic_func
@@ -127,6 +128,16 @@ def softmax_strategy(attrs, inputs, out_type, target):
         wrap_compute_softmax(topi.nn.softmax),
         wrap_topi_schedule(topi.generic.schedule_softmax),
         name="softmax.generic")
+    return strategy
+
+@override_native_generic_func("fast_softmax_strategy")
+def fast_softmax_strategy(attrs, inputs, out_type, target):
+    """fast_softmax generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.fast_softmax),
+        wrap_topi_schedule(ansor.auto_schedule_topi),
+        name="fast_softmax.generic")
     return strategy
 
 # log_softmax

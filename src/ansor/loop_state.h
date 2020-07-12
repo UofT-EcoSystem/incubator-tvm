@@ -75,7 +75,7 @@ enum IteratorType {
 /*! \brief The type of an iterator's annotation */
 enum IteratorAnnotation {
   kNone, kUnroll, kVectorize, kParallel,
-  kVThread, kBlockX, kThreadX, kBlockY, kThreadY,
+  kVThread, kBlockX, kThreadX, kBlockY, kThreadY, kBlockZ, kThreadZ,
   kTensorized
 };
 

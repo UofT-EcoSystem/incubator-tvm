@@ -545,7 +545,7 @@ def transpose_batch_matmul_softmax(batch, seq_len, n_head, n_dim):
     out = te.compute((batch, n_head, seq_len, seq_len),
                  lambda b, h, i, j: te.sum(query_T[b][h][i][k] * value_T[b][h][k][j], axis=[k]),
                  name='C')
-    out = topi.nn.softmax(out)
+    out = topi.nn.fast_softmax(out)
     return [query, value, out]
 
 

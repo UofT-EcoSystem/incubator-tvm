@@ -263,6 +263,15 @@ inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
   return ret;
 }
 
+/*! \brief  Compute the product of the lengths of axes */
+inline bool GetBoolEnv(const char* name) {
+  const char* env_value = getenv(name);
+  if (env_value == nullptr) {
+    return false;
+  }
+  return strncmp(env_value, "True", 5) == 0 || strncmp(env_value, "true", 5) == 0;
+}
+
 /*! \brief  An empty output stream */
 class NullStream : public std::ostream {
  public:

@@ -2,8 +2,8 @@ import tvm
 from tvm import te, ansor
 
 from test_ansor_common import (matmul_ansor_test, conv2d_nchw_bn_relu_ansor_test,
-                               max_pool2d_ansor_test, softmax_mn_ansor_test,
-                               softmax_abcd_ansor_test)
+                               max_pool2d_ansor_test, min_nm_ansor_test,
+                               softmax_nm_ansor_test, softmax_abcd_ansor_test)
 
 def print_sketches(sketches):
     for i, s in enumerate(sketches):
@@ -33,8 +33,12 @@ def test_cpu_max_pool2d_sketch():
     sketches = generate_sketches(max_pool2d_ansor_test, (1, 56, 56, 512, 1), 'llvm')
     assert len(sketches) == 1
 
+def test_cpu_min_sketch():
+    sketches = generate_sketches(min_nm_ansor_test, (10, 1024), 'llvm')
+    assert len(sketches) == 3
+
 def test_cpu_softmax_sketch():
-    sketches = generate_sketches(softmax_mn_ansor_test, (1, 1024), 'llvm')
+    sketches = generate_sketches(softmax_nm_ansor_test, (1, 1024), 'llvm')
     assert len(sketches) == 9
 
     sketches = generate_sketches(softmax_abcd_ansor_test, (1, 12, 128, 128), 'llvm')
@@ -43,12 +47,11 @@ def test_cpu_softmax_sketch():
 def test_gpu_matmul_sketch():
     if not tvm.context("cuda", 0).exist:
         return
-
     sketches = generate_sketches(matmul_ansor_test, (512, 512, 512), 'cuda')
-    assert len(sketches) == 1  # 1 multi-level tiling sketch
+    assert len(sketches) == 1  # 1 multi-level tiling
 
     sketches = generate_sketches(matmul_ansor_test, (8, 8, 1024), 'cuda')
-    assert len(sketches) == 2  # 1 multi-level tiling sketch + one rfactor sketch
+    assert len(sketches) == 2  # 1 multi-level tiling + 1 cross thread reuction
 
 def test_gpu_conv2d_bn_relu_sketch():
     if not tvm.context("cuda", 0).exist:
@@ -65,12 +68,18 @@ def test_gpu_max_pool2d_sketch():
     sketches = generate_sketches(max_pool2d_ansor_test, (1, 56, 56, 512, 0), 'cuda')
     assert len(sketches) == 1
 
+def test_gpu_min_sketch():
+    if not tvm.context("cuda", 0).exist:
+        return
+
+    sketches = generate_sketches(min_nm_ansor_test, (10, 1024), 'cuda')
+    assert len(sketches) == 2
+
 def test_gpu_softmax_sketch():
     if not tvm.context("cuda", 0).exist:
         return
 
-    # todo(lmzheng): support rfactor for cuda
-    sketches = generate_sketches(softmax_mn_ansor_test, (2, 1024), 'cuda')
+    sketches = generate_sketches(softmax_nm_ansor_test, (2, 1024), 'cuda')
     assert len(sketches) == 4
 
     sketches = generate_sketches(softmax_abcd_ansor_test, (1, 12, 128, 128), 'cuda')
@@ -80,9 +89,11 @@ if __name__ == "__main__":
     test_cpu_matmul_sketch()
     test_cpu_conv2d_bn_relu_sketch()
     test_cpu_max_pool2d_sketch()
+    test_cpu_min_sketch()
     test_cpu_softmax_sketch()
     test_gpu_matmul_sketch()
     test_gpu_conv2d_bn_relu_sketch()
     test_gpu_max_pool2d_sketch()
+    test_gpu_min_sketch()
     test_gpu_softmax_sketch()
 

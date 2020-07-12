@@ -233,7 +233,7 @@ static bool HasExpensiveOp(const PrimExpr& expr) {
   bool found = false;
   PostOrderVisit(expr, [&found](const ObjectRef &node) {
     if (const CallNode* op = node.as<CallNode>()) {
-      if (op->op.as<OpNode>()->name == "exp") {
+      if (op->op.as<OpNode>()->name == "tir.exp") {
         found = true;
       }
     }
@@ -248,6 +248,8 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
   // get all ops
   TopoSortOps(tensors, &node->ops_topo_order);
 
+  arith::Analyzer analyzer;
+
   // build read & write access map
   for (const auto& op : node->ops_topo_order) {
     if (op->IsInstance<te::PlaceholderOpNode>()) {
@@ -259,6 +261,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         extractor.Extract(exp);
       }
 
+      // read_by and read_from map
       for (const auto& iter : extractor.buf_accesses) {
         std::vector<std::vector<PrimExpr> >& accesses =
             node->read_by[iter.first][op];
@@ -268,6 +271,38 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
 
       node->read_from[op] = std::move(extractor.buf_accesses);
       has_branch[op] = extractor.has_branch;
+
+      // compute number of common outer iterators
+      for (const auto& pair: node->read_from[op]) {
+        const te::Operation& producer = pair.first;
+        const std::vector<std::vector<PrimExpr> >& access_list = pair.second;
+        const Array<PrimExpr>& output_shape = op->output_shape(0);
+        const Array<PrimExpr>& producer_shape = producer->output_shape(0);
+
+        int n_common;
+        for (n_common = 0;
+             n_common < static_cast<int>(std::min(output_shape.size(), producer_shape.size()));
+             n_common++) {
+          if (!is_zero(analyzer.Simplify(output_shape[n_common] - producer_shape[n_common]))) {
+            break;
+          }
+
+          bool direct_access = true;
+          for (const auto& access: access_list) {
+            if (!IsConstShiftEqual(cop->axis[n_common]->var, access[n_common])) {
+              direct_access = false;
+              break;
+            }
+          }
+
+          if (!direct_access) {
+            break;
+          }
+        }
+
+        node->num_common_outer_iterators[op][producer] = n_common;
+        node->num_common_outer_iterators[producer][op] = n_common;
+      }
     } else {
       LOG(FATAL) << "Invalid op: " << op;
     }
@@ -314,8 +349,7 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
       }
 
       node->is_injective[op] = is_injective;
-      node->is_strict_inlineable[op] = is_strict_inlineable &&
-                                       !has_expensive_op;
+      node->is_strict_inlineable[op] = is_strict_inlineable && !has_expensive_op;
 
       // check whether the op needs multi-level tiling
       // (see definition in compute_dag.h)
@@ -377,23 +411,38 @@ bool AccessAnalyzer::IsStrictInlineable(const te::Operation &op) const {
 
 void AccessAnalyzer::GetProducers(const State& state, const te::Operation& op,
                                   OperationSet* producers) const {
-  producers->clear();
-  for (const auto& iter : operator->()->read_from.at(op)) {
-    producers->insert(iter.first);
-  }
-}
-
-void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
-                                  OperationSet* consumers) const {
   OperationSet inlined_ops;
-
   for (const auto& stage : state->stages) {
     if (stage->compute_at == kInlined) {
       inlined_ops.insert(stage->op);
     }
   }
-  std::function<void(const te::Operation& op)> collect;
 
+  std::function<void(const te::Operation&)> collect;
+  collect = [this, &collect, &inlined_ops, &producers](const te::Operation& op) {
+    for (const auto& iter : operator->()->read_from.at(op)) {
+      if (inlined_ops.count(iter.first)) {
+        collect(iter.first);
+      } else {
+        producers->insert(iter.first);
+      }
+    }
+  };
+
+  producers->clear();
+  collect(op);
+}
+
+void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
+                                  OperationSet* consumers) const {
+  OperationSet inlined_ops;
+  for (const auto& stage : state->stages) {
+    if (stage->compute_at == kInlined) {
+      inlined_ops.insert(stage->op);
+    }
+  }
+
+  std::function<void(const te::Operation&)> collect;
   collect = [this, &collect, &inlined_ops, &consumers](const te::Operation& op) {
     for (const auto& iter : operator->()->read_by.at(op)) {
       if (inlined_ops.count(iter.first)) {
@@ -406,6 +455,29 @@ void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
 
   consumers->clear();
   collect(op);
+}
+
+int AccessAnalyzer::GetNumCommonOuterIterator(const State& state, const te::Operation& op,
+      const te::Operation& target_op) const {
+  int ret = INT32_MAX;
+  bool meet = false;
+
+  std::function<void(const te::Operation&, int)> traverse;
+  traverse = [this, &traverse, &target_op, &ret, &meet](const te::Operation& cur_op, int cur_num) {
+    if (cur_op == target_op) {
+      ret = std::min(ret, cur_num);
+      meet = true;
+      return;
+    }
+
+    for (const auto& iter : operator->()->read_by.at(cur_op)) {
+      traverse(iter.first, std::min(cur_num, 
+                  operator->()->num_common_outer_iterators.at(cur_op).at(iter.first)));
+    }
+  };
+
+  traverse(op, op->output_shape(0).size());
+  return meet ? ret : 0;
 }
 
 // Return whether two int arrays are elementwise-equal
@@ -1249,7 +1321,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   }
 
   AccessAnalyzer ana = GetRef<AccessAnalyzer>(node);
-
   p->stream << "ElementwiseMatch: \n";
   for (size_t i = 0; i < node->ops_topo_order.size(); ++i) {
     for (size_t j = 0; j < node->ops_topo_order.size(); ++j) {
@@ -1261,6 +1332,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     }
   }
+  p->stream << "==================================================\n";
+
+  p->stream << "NumCommonOuterIterators: \n";
+  for (const auto& src_pair : node->num_common_outer_iterators) {
+    for (const auto& dst_pair: src_pair.second) {
+      p->stream << src_pair.first->name << " " << dst_pair.first->name << " " << dst_pair.second << "\n";
+    }
+  }
+  p->stream << "==================================================\n";
 });
 
 TVM_REGISTER_GLOBAL("ansor.ComputeDAG")

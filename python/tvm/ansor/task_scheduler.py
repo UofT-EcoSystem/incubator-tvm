@@ -157,7 +157,7 @@ class SimpleTaskScheduler(TaskScheduler):
                     continue
                 if res.error_no != 0:
                     continue
-                task_idx = workload_key_to_task_id[inp.task.workload_key]
+                task_idx = workload_key_to_task_id.get(inp.task.workload_key, None)
                 if task_idx is not None:
                     self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
 

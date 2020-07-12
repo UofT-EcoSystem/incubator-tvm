@@ -32,7 +32,7 @@ void GetSpaceSplitStepIds(const State& s, int stage_id, std::vector<int>* spatia
   auto pop = s->stages[stage_id]->op.as<te::ComputeOpNode>();
   CHECK(pop != nullptr);
 
-  const auto& no_split_name_pair = QueryNoSplitAxis(s->stages[stage_id]);
+  const auto& no_split_name_pair = GetNoSplitAxisAttr(s->stages[stage_id]);
   const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
   const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
 
@@ -88,8 +88,8 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
 
   State tmp_s = state;
   const Stage& stage = state->stages[stage_id];
-  const auto& no_split_name_pair = QueryNoSplitAxis(stage);  // handle special split strategy
-  const auto& last_split_is_one_name_set = QueryLastSplitIsOneAxis(stage);
+  const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
+  const auto& last_split_is_one_name_set = GetLastSplitIsOneAxisAttr(stage);
   const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
   const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
 
@@ -205,7 +205,7 @@ State FollowTiling(const State& state, int stage_id,
   auto pop = state->stages[stage_id]->op.as<te::ComputeOpNode>();
   CHECK(pop != nullptr);
   const Stage& stage = state->stages[stage_id];
-  const auto& no_split_name_pair = QueryNoSplitAxis(stage);  // handle special split strategy
+  const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
   const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
   const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
   int no_split_at_inner_name_in_stage_cnt = 0;
@@ -538,12 +538,11 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
   std::vector<int> compute_at_steps;
   for (size_t s = 0; s < old_state->transform_steps.size(); ++s) {
     if (auto ps = old_state->transform_steps[s].as<ComputeAtStepNode>()) {
-      const Stage& stage = old_state->stages[ps->stage_id];
-      if (IsTiled(stage)) {
+      if (IsTiled(old_state->stages[ps->stage_id])) {
         continue;
       }
 
-      if (NeedsMultilevelTiling(task, old_state, stage->op)) {
+      if (NeedsMultilevelTiling(task, old_state, ps->stage_id)) {
         continue;
       }
       compute_at_steps.push_back(s);
@@ -557,7 +556,6 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
   size_t step_id = compute_at_steps[(*random_gen)() % compute_at_steps.size()];
   auto ps = old_state->transform_steps[step_id].as<ComputeAtStepNode>();
   CHECK(ps != nullptr);
-  const Stage& stage = old_state->stages[ps->stage_id];
 
   // Randomly pick one tile level
   int new_compute_at_stage_id;
@@ -565,21 +563,19 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
 
   // Copied from InitPopulationChangeComputeLocation
   {
-    std::unordered_set<te::Operation, ObjectHash, ObjectEqual> consumers;
-    GetConsumers(task, old_state, stage->op, &consumers);
+    const std::set<int>& consumers = GetConsumers(task, old_state, ps->stage_id);
     if (consumers.empty()) {
       return State();
     }
 
     int target_stage_id;
     if (consumers.size() == 1) {
-      target_stage_id = OperationToStage(*consumers.begin(), old_state);
+      target_stage_id = *consumers.begin();
     } else {
       // check all consumers share a common root
       int common_root_id = -1;
       bool mismatch = false;
-      for (const auto& consumer : consumers) {
-        int consumer_stage_id = OperationToStage(consumer, old_state);
+      for (const auto& consumer_stage_id : consumers) {
         int root_id = -1;
         if ((old_state)->stages[consumer_stage_id]->compute_at == kRoot) {
           root_id = consumer_stage_id;

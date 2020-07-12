@@ -161,8 +161,7 @@ def get_network(name, network_path, batch_size, layout):
         import torch
 
         def func(data):
-            B = torch.ones((batch_size, 1024, 1024))
-            C = torch.matmul(data, B)
+            C = torch.softmax(data, -1)
             return C
 
         input_shape = [batch_size, 1024, 1024]
@@ -170,7 +169,8 @@ def get_network(name, network_path, batch_size, layout):
         scripted_model = torch.jit.trace(func, [data])
         shape_list = [('data', input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
-        #mod = optimize_bert(mod, params)
+        mod = optimize_bert(mod, params)
+        #print(mod['main'])
     else:
         raise ValueError("Unsupported network: " + name)
 

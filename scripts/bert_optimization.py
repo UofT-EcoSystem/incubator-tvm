@@ -32,8 +32,23 @@ class ShapeConstDedupMutator(tvm.relay.ExprMutator):
 def ShapeConstDedup(fn, mod, ctx):
     return ShapeConstDedupMutator().visit(fn)
 
+class FastSoftmaxMutator(tvm.relay.ExprMutator):
+    def __init__(self):
+        super().__init__()
+
+    def visit_call(self, call):
+        call = super().visit_call(call)
+        if isinstance(call.op, tvm.ir.Op) and call.op.name == "nn.softmax":
+            return tvm.relay.nn.fast_softmax(call.args[0], call.attrs.axis)
+        return call
+
+@tvm.relay.transform.function_pass(opt_level=1)
+def FastSoftmax(fn, mod, ctx):
+    return FastSoftmaxMutator().visit(fn)
+
 def optimize_bert_worker(mod, params, ret_list):
-    new_mod = ShapeConstDedup(mod)
+    new_mod = FastSoftmax(mod)
+    new_mod = ShapeConstDedup(new_mod)
     new_mod = tvm.relay.transform.EliminateCommonSubexpr()(new_mod)
     BindPass = tvm.relay.transform.function_pass(lambda fn, new_mod, ctx:
             tvm.relay.build_module.bind_params_by_name(fn, params), opt_level=1)
