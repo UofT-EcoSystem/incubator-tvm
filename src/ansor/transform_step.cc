@@ -359,15 +359,7 @@ void AnnotationStepNode::ApplyToSchedule(std::vector<te::Stage> *stages,
     case kVThread:   stage.bind(axes[iter_id], te::thread_axis(Range(), "vthread")); break;
     case kBlockX:    stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.x")); break;
     case kBlockY:    stage.bind(axes[iter_id], te::thread_axis(Range(), "blockIdx.y")); break;
-    case kThreadX:
-      if (axes[iter_id]->iter_type == kCommReduce) {
-        const auto &thread_x = te::thread_axis(Range(), "threadIdx.x");
-        stage.bind(axes[iter_id], thread_x);
-        stage.set_store_predicate(thread_x->var == 0);
-      } else {
-        stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x"));
-      }
-      break;
+    case kThreadX:   stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.x")); break;
     case kThreadY:   stage.bind(axes[iter_id], te::thread_axis(Range(), "threadIdx.y")); break;
     case kNone: break;
     default: LOG(FATAL) << "Invalid Annotation " << annotation; break;
@@ -381,11 +373,6 @@ std::string AnnotationStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   std::stringstream ss;
   const auto& stage = (*stages)[stage_id];
   const auto& iter = (*stage_to_axes)[stage][iter_id];
-
-  bool bind_reduce_iter = iter->iter_type == kCommReduce && annotation == kThreadX;
-  if (bind_reduce_iter) {
-    ss << "thread_x = tvm.thread_axis(\"threadIdx.x\")\n";
-  }
 
   ss << "s[" << CleanName(stage->op->name) << "].";
   switch (annotation) {
@@ -406,22 +393,11 @@ std::string AnnotationStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
     case kVThread:   ss << ", tvm.thread_axis(\"vthread\")"; break;
     case kBlockX:    ss << ", tvm.thread_axis(\"blockIdx.x\")"; break;
     case kBlockY:    ss << ", tvm.thread_axis(\"blockIdy.y\")"; break;
-    case kThreadX:
-      if (bind_reduce_iter) {
-        ss << ", thread_x";
-      } else {
-        ss << ", tvm.thread_axis(\"threadIdx.x\")";
-      }
-      break;
+    case kThreadX:   ss << ", tvm.thread_axis(\"threadIdx.x\")"; break;
     case kThreadY:   ss << ", tvm.thread_axis(\"threadIdx.y\")"; break;
     default:         break;
   }
   ss << ")\n";
-
-  if (bind_reduce_iter) {
-    ss << "s[" << CleanName(stage->op->name) << "]"
-       << ".set_store_predicate(thread_x.var.equal(0))\n";
-  }
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();

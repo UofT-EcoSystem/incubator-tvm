@@ -640,7 +640,7 @@ def check_correctness(s, bufs, s_ref, buf_ref, target, target_host=None, remote=
         ctx = tvm.context(str(target), 0)
         ctx_ref = tvm.cpu()
 
-    np_args = [np.ones(topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
+    np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
     args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
     args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args]
     ctx.sync()
@@ -649,7 +649,7 @@ def check_correctness(s, bufs, s_ref, buf_ref, target, target_host=None, remote=
     func_ref(*args_ref)
 
     for arr, arr_ref in zip(args, args_ref):
-        np.testing.assert_allclose(arr.asnumpy(), arr_ref.asnumpy())
+        np.testing.assert_allclose(arr.asnumpy(), arr_ref.asnumpy(), rtol=5e-4)
 
 
 ############################################################
