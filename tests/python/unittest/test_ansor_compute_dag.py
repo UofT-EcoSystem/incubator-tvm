@@ -19,8 +19,9 @@
 
 import tvm
 from tvm import ansor, te
+import topi
 
-from test_ansor_common import get_tiled_matmul
+from test_ansor_common import get_tiled_matmul, matmul_ansor_test
 
 
 def test_apply_steps():
@@ -45,9 +46,19 @@ def test_infer_bound():
 
 
 def test_estimate_flop():
-    dag, s = get_tiled_matmul()
+    N = 512
+    A, B, C = matmul_ansor_test(N, N, N)
+    dag = ansor.ComputeDAG([A, B, C])
+    assert abs(dag.flop_ct - 2 * N ** 3) < 0.5
 
-    assert abs(dag.flop_ct - 2 * 512 ** 3) < 0.5
+    D = topi.nn.relu(C)
+    dag = ansor.ComputeDAG([A, B, D])
+    assert abs(dag.flop_ct - 2 * N ** 3 - N * N) < 0.5
+
+    # should not count the comparison operations in padding
+    D = topi.nn.pad(C, [1, 1])
+    dag = ansor.ComputeDAG([A, B, D])
+    print(abs(dag.flop_ct - 2 * N ** 3)) < 0.5
 
 
 def test_lower_legalize_invalid_attach():

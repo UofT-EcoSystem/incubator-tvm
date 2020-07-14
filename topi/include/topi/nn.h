@@ -57,7 +57,8 @@ inline tvm::te::Tensor relu(const tvm::te::Tensor& t, T threshold = static_cast<
         auto threshold_const = tvm::tir::make_const(t->dtype, threshold);
         return tvm::max(t(i), threshold_const);
       },
-      name, tag);
+      name, tag,
+      Map<String, ObjectRef>{{String("ansor_task_scheduler_tag"), String("relu")}});
 }
 
 /*!

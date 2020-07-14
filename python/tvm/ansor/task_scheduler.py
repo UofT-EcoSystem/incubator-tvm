@@ -82,6 +82,17 @@ def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: Li
     return search_policies
 
 
+def get_attached_tag(dag):
+    """Get the attached tag for one computation DAG.
+    The DAGs with the same tag are considered similar tasks"""
+    ret = ""
+    for op in dag.ops:
+        tag = op.attrs.get('ansor_task_scheduler_tag', None)
+        if tag:
+            ret += op.attrs['ansor_task_scheduler_tag'] + "_"
+    return ret
+
+
 class SimpleTaskScheduler(TaskScheduler):
     """The default task scheduler with several strategies
 
@@ -160,8 +171,24 @@ class SimpleTaskScheduler(TaskScheduler):
                 task_idx = workload_key_to_task_id.get(inp.task.workload_key, None)
                 if task_idx is not None:
                     self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
-
         self.cur_score = self.compute_score(self.best_costs)
+
+        # build similarity group
+        self.task_tags = []
+        self.tag_to_group_id = {}
+        self.group_task_ids = []
+        self.flop_cts = []
+        for i, task in enumerate(self.tasks):
+            tag = get_attached_tag(task.compute_dag)
+            self.task_tags.append(tag)
+            self.flop_cts.append(task.compute_dag.flop_ct)
+            if tag == "":
+                continue
+
+            if tag not in self.tag_to_group_id:
+                self.tag_to_group_id[tag] = len(self.tag_to_group_id)
+                self.group_task_ids.append([])
+            self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
     def tune(self, tune_option: TuneOption,
              search_policy: Union[str, List[SearchPolicy]] = 'default'):
@@ -182,17 +209,18 @@ class SimpleTaskScheduler(TaskScheduler):
                                             tune_option.measure_callbacks, tune_option.verbose)
         self.ct = 0
         self.tic = time.time()
+        self.sequential_now_task_idx = 0
+        self.sequential_now_task_begin_ct = 0
         # reset num_measure_per_iter to make sure every task is tuned at least once
         self.num_measure_per_iter = min(tune_option.num_measure_per_iter,
                                         tune_option.n_trials // len(self.tasks))
         assert self.num_measure_per_iter > 0, "n_trials is too small"
+
+        # make one search policy for one task
         self.search_policies = get_search_policies(search_policy, self.tasks,
                                                    self.num_measure_per_iter,
                                                    self.load_model_file,
                                                    self.load_log_file)
-        self.sequential_now_task_idx = 0
-        self.sequential_now_task_begin_ct = 0
-
         for i in range(len(self.tasks)):
             search_policy = self.search_policies[i]
             task = self.tasks[i]
@@ -246,8 +274,14 @@ class SimpleTaskScheduler(TaskScheduler):
 
                     # compute (g_i(t_i + \Delta t) - g(t_i)) / (\Delta t)
                     g_next_1 = self.best_costs[i] - (self.best_costs[i] / self.task_cts[i])
-                    # todo(lmzheng): this needs adding attribute to topi.compute for similarity check
-                    g_next_2 = self.beta * 1e20
+
+                    g_next_2 = self.beta * 1e30
+                    group_id = self.tag_to_group_id.get(self.task_tags[i], None)
+                    if group_id is not None and len(self.group_task_ids[group_id]) > 1:
+                        best_flops = max([self.flop_cts[j] / self.best_costs[j]
+                                for j in self.group_task_ids[group_id]])
+                        g_next_2 = self.beta * self.flop_cts[i] / best_flops
+
                     g_next = min(g_next_1, g_next_2)
                     forward_grad = g_next - self.best_costs[i]
 

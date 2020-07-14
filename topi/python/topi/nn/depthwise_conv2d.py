@@ -212,7 +212,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
                     idxmod(c, channel_multiplier)].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc",
-        attrs={"layout_free_placeholders": [Filter]})
+        attrs={"layout_free_placeholders": [Filter],
+               "ansor_task_scheduler_tag": "depthwise_conv2d_%d_%d_%d" % (filter_height, stride_h, pad_top)})
     return Output
 
 def depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape, stride, padding):

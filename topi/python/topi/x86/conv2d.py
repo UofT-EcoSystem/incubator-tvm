@@ -376,7 +376,8 @@ def _conv2d_nhwc_winograd_impl(input, weight, strides, padding, dilation, out_dt
                         te.sum(data_pack[eps][nu][p][ci] *
                                kernel_pack[eps][nu][co][ci],
                                axis=[ci]), name='bgemm',
-                               attrs={"layout_free_placeholders": [kernel_pack]})
+                               attrs={"layout_free_placeholders": [kernel_pack],
+                                      "ansor_task_scheduler_tag": "conv2d_winograd_%d_%d" % (r, m)})
 
     # inverse transform
     r_a = te.reduce_axis((0, alpha), 'r_a')

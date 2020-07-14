@@ -66,11 +66,11 @@ void SearchPolicyNode::PreloadMeasuredStates(const std::string& log_file) {
       }
     }
 
-    StdCout(verbose) << "Successfully load " << measured_states_set_.size()
+    StdCout(verbose) << "SearchPolicy: successfully load " << measured_states_set_.size()
                      << " measurement records from " << log_file
                      << " for " << cur_task->workload_key << std::endl;
   } else {
-    StdCout(verbose) << "No measurement records found in "
+    StdCout(verbose) << "SearchPolicy: no measurement records found in "
                      << log_file << " for " << cur_task->workload_key << std::endl;
   }
 }

@@ -230,8 +230,8 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
             temp[nn, rc, yy * stride_h + ry * dilation_h,
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
-            axis=[rc, ry, rx]), tag="conv2d_nchw")
-
+            axis=[rc, ry, rx]), tag="conv2d_nchw",
+            attrs={"ansor_task_scheduler_tag": 'conv2d_nchw_%d_%d_%d' % (kernel_h, stride_h, pad_top)})
 
 def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Convolution operator in HWCN layout.
@@ -394,7 +394,9 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
                         xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
             Filter[ry, rx, rc, ff].astype(out_dtype)
             , axis=[ry, rx, rc]),
-        name="Conv2dOutput", tag="conv2d_nhwc", attrs={"layout_free_placeholders": [Filter]})
+        name="Conv2dOutput", tag="conv2d_nhwc",
+        attrs={"layout_free_placeholders": [Filter],
+               "ansor_task_scheduler_tag": 'conv2d_nhwc_%d_%d_%d' % (kernel_h, stride_h, pad_top)})
     return Output
 
 

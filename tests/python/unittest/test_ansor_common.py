@@ -63,6 +63,7 @@ def max_pool2d_ansor_test(N, H, W, CI, padding):
 
     return [data, out]
 
+
 @ansor.register_workload_func
 def min_nm_ansor_test(N, M):
     A = te.placeholder((N, M), name='A')
@@ -70,12 +71,14 @@ def min_nm_ansor_test(N, M):
 
     return [A, B]
 
+
 @ansor.register_workload_func
 def softmax_nm_ansor_test(N, M):
     A = te.placeholder((N, M), name='A')
     B = topi.nn.softmax(A, axis=1)
 
     return [A, B]
+
 
 @ansor.register_workload_func
 def softmax_abcd_ansor_test(a, b, c, d):

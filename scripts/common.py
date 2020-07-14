@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 
 import topi
 import tvm
-from tvm import te
+from tvm import te, ansor
 from tvm.ansor import (LogReader, make_workload_key_func,
                        register_workload_func,
                        write_measure_records_to_file)
@@ -577,6 +577,13 @@ def get_workload_weights(name: str) -> List[float]:
     else:
         return np.ones(len(get_workload_keys(name)))
 
+def load_network(network_name, network_path, batch_size, layout):
+    from tune_network import get_network
+    # Extract tasks from relay program
+    print("Load network %s.B%d (%s)..." % (network_name, batch_size, layout))
+    mod, params, input_name, data_shape, data_dtype, out_shape = get_network(
+            network_name, network_path, batch_size, layout)
+    workloads, wkl_weights = ansor.extract_from_program(mod, target='llvm', params=params)
 
 ############################################################
 ######################  Measure Tools   ####################

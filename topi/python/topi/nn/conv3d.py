@@ -178,7 +178,9 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
             PaddedInput[nn, dd * stride_d + rd * dilation_d, hh * stride_h + rh * dilation_h,
                         ww * stride_w + rw * dilation_w, rc].astype(out_dtype) *
             Filter[rd, rh, rw, rc, cc].astype(out_dtype), axis=[rd, rh, rw, rc]),
-        name="Conv3dOutput", tag="conv3d_ndhwc", attrs={"layout_free_placeholders": [Filter]})
+        name="Conv3dOutput", tag="conv3d_ndhwc",
+        attrs={"layout_free_placeholders": [Filter],
+               "ansor_task_scheduler_tag": 'conv3d_%d_%d_%d' % (kernel_h, stride_h, pad_top)})
     return Output
 
 

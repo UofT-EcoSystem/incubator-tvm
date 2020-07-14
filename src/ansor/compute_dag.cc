@@ -546,7 +546,7 @@ bool AccessAnalyzer::ElementWiseMatch(const te::Operation& op,
 }
 
 // Estimate number of float operations in an expression
-class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
+class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
  public:
   double EstimateFlop(const Array<te::Operation>& ops) {
     double ret = 0;
@@ -554,9 +554,10 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
       if (auto pop = op.as<te::ComputeOpNode>()) {
         double num_element = AxisLengthProd(pop->axis);
         if (num_element == -1) {
-          fail = true;
+          fail_ = true;
           break;
         }
+        cur_type_code_ = pop->output_dtype(0).code();
         double op_per_element = 0;
         for (const auto& x : pop->body) {
           op_per_element += VisitExpr(x);
@@ -569,7 +570,7 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
       }
     }
 
-    return fail ? -1 : ret;
+    return fail_ ? -1 : ret;
   }
 
   double VisitExpr_(const ReduceNode* op) final {
@@ -578,7 +579,7 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
       if (auto imm = x->dom->extent.as<IntImmNode>()) {
         num_iter *= imm->value;
       } else {
-        fail = true;
+        fail_ = true;
         num_iter = -1;
       }
     }
@@ -598,40 +599,57 @@ class FlopEstimator: public ExprFunctor<double(const PrimExpr& n)> {
   double VisitExpr_(const VarNode* op) final { return 0.0; }
 
   double VisitExpr_(const SelectNode* op) final {
-    return VisitExpr(op->condition) + std::max(VisitExpr(op->true_value),
-        VisitExpr(op->false_value));
+    return VisitExpr(op->condition) +
+           std::max(VisitExpr(op->true_value), VisitExpr(op->false_value));
   }
 
-#define VisitBinary(Node)                            \
-  double VisitExpr_(const Node* op) final {             \
-    return 1.0 + VisitExpr(op->a) + VisitExpr(op->b);  \
-  }
-#define VisitUnary(Node)                             \
-  double VisitExpr_(const Node* op) final {             \
-    return 1.0 + VisitExpr(op->a);                     \
+#define VisitBinary(Node)                                         \
+  double VisitExpr_(const Node* op) final {                       \
+    double base = op->dtype.code() == cur_type_code_ ? 1.0 : 0.0; \
+    return base + VisitExpr(op->a) + VisitExpr(op->b);            \
   }
 
-  VisitBinary(AddNode); VisitBinary(SubNode); VisitBinary(MulNode)
-  VisitBinary(DivNode); VisitBinary(ModNode); VisitBinary(FloorDivNode)
-  VisitBinary(FloorModNode); VisitBinary(MaxNode); VisitBinary(MinNode);
-  VisitBinary(EQNode); VisitBinary(NENode); VisitBinary(LTNode);
-  VisitBinary(LENode); VisitBinary(GTNode); VisitBinary(GENode);
-  VisitBinary(AndNode); VisitBinary(OrNode); VisitUnary(NotNode);
+#define VisitUnary(Node)                                          \
+  double VisitExpr_(const Node* op) final {                       \
+    double base = op->dtype.code() == cur_type_code_ ? 1.0 : 0.0; \
+    return base + VisitExpr(op->a);                               \
+  }
+
+  VisitBinary(AddNode);
+  VisitBinary(SubNode);
+  VisitBinary(MulNode);
+  VisitBinary(DivNode);
+  VisitBinary(ModNode);
+  VisitBinary(FloorDivNode);
+  VisitBinary(FloorModNode);
+  VisitBinary(MaxNode);
+  VisitBinary(MinNode);
+  VisitBinary(EQNode);
+  VisitBinary(NENode);
+  VisitBinary(LTNode);
+  VisitBinary(LENode);
+  VisitBinary(GTNode);
+  VisitBinary(GENode);
+  VisitBinary(AndNode);
+  VisitBinary(OrNode);
+  VisitUnary(NotNode);
 
   double VisitExpr_(const CallNode* op) final {
     double ret = 0.0;
-    for (const auto&x : op->args) {
+    for (const auto& x : op->args) {
       ret += VisitExpr(x);
     }
     return ret;
   }
 
   double VisitExprDefault_(const Object* op) final {
-    fail = true;
+    fail_ = true;
     return -1.0;
   }
 
-  bool fail{false};
+ private:
+  bool fail_{false};
+  int cur_type_code_;
 };
 
 State ComputeDAG::GetInitState() const {
