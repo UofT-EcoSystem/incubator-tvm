@@ -209,6 +209,9 @@ def auto_schedule_topi(outs):
     io_tensors, has_layout_free = traverse_to_get_io_tensors(outs)
     key = register_workload_bufs(io_tensors)
 
+    # only enable layout rewrite for cpu backend
+    enable_layout_rewrite = "cpu" in tvm.target.Target.current().keys
+
     env = TracingEnvironment.current
     if env is None:  # in the final build mode
         state = DispatchContext.current.query(tvm.target.Target.current(), key)
@@ -218,15 +221,16 @@ def auto_schedule_topi(outs):
         dag = ComputeDAG(io_tensors)
         # Only update compute body, layout_rewrite_level = LayoutRewriteLevel.COMPUTE_REWRITE,
         # Since kernel layout has already been rewritten in relay pass
-        schedule, _ = dag.apply_steps_from_state(
-            state, layout_rewrite_level=LayoutRewriteLevel.COMPUTE_REWRITE)
+        layout_rewrite_level = LayoutRewriteLevel.COMPUTE_REWRITE if enable_layout_rewrite \
+                else LayoutRewriteLevel.NO_REWRITE
+        schedule, _ = dag.apply_steps_from_state(state, layout_rewrite_level=layout_rewrite_level)
         return schedule
     if env.tracing_mode == TracingMode.EXTRACT_TASK:  # in the task extraction mode
         env.add_workload_key(key)
         return te.create_schedule([x.op for x in outs])
-    if env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
+    elif env.tracing_mode == TracingMode.PREPARE_LAYOUT_REWRITE:
         # in prepare_layout_rewrite mode
-        if has_layout_free:
+        if enable_layout_rewrite and has_layout_free:
             # Rewrite the DAG and update the transform history for
             # the new dag in DispatchContext
             dispatch_ctx = DispatchContext.current
@@ -236,8 +240,9 @@ def auto_schedule_topi(outs):
             dag = ComputeDAG(outs)
             new_dag = dag.rewrite_layout_from_state(state)
             new_key = json.dumps((compute_dag_hash(new_dag),))
-            dispatch_ctx.update(tgt, new_key, state)
             if new_key != key:
+                dispatch_ctx.update(tgt, new_key, state)
                 env.layout_rewrite_success_ct += 1
         return te.create_schedule([x.op for x in outs])
     raise ValueError("Invalid tracing mode: " + env.tracing_mode)
+

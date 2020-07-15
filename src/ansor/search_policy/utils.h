@@ -179,6 +179,25 @@ inline std::set<int> GetProducers(const SearchTask& task, const State& state, in
   return ret;
 }
 
+// Get all producers for a stage. This function DOES NOT propagates the relation for inlined ops.
+inline std::set<int> GetDirectProducers(const SearchTask& task, const State& state, int stage_id) {
+  std::unordered_set<te::Operation, ObjectHash, ObjectEqual> producers;
+  std::set<int> ret;
+
+  if (state->task_dag.defined()) {
+    state->task_dag->access_analyzer.GetDirectProducers(state,
+            state->stages[stage_id]->op, &producers);
+  } else {
+    task->compute_dag->access_analyzer.GetDirectProducers(state,
+            state->stages[stage_id]->op, &producers);
+  }
+
+  for (const auto& op : producers) {
+    ret.insert(OperationToStage(op, state));
+  }
+  return ret;
+}
+
 // Get the number of common outer iterators
 // This function propagates the relation for chains with multiple ops.
 inline int GetNumCommonOuterIterator(const SearchTask& task, const State& state,

@@ -38,7 +38,7 @@ def schedule_injective_cuda(attrs, outs, target):
 def schedule_reduce_cuda(attrs, outs, target):
     """schedule reduction ops for cuda"""
     with target:
-        return topi.cuda.schedule_reduce(outs)
+        return ansor.auto_schedule_topi(outs)
 
 @schedule_concatenate.register(["cuda", "gpu"])
 def schedule_concatenate_cuda(attrs, outs, target):
@@ -50,19 +50,19 @@ def schedule_concatenate_cuda(attrs, outs, target):
 def schedule_pool_cuda(attrs, outs, target):
     """schedule pooling ops for cuda"""
     with target:
-        return topi.cuda.schedule_pool(outs, attrs.layout)
+        return ansor.auto_schedule_topi(outs)
 
 @schedule_pool_grad.register(["cuda", "gpu"])
 def schedule_pool_grad_cuda(attrs, outs, target):
     """schedule pooling gradient ops for cuda"""
     with target:
-        return topi.cuda.schedule_pool_grad(outs)
+        return ansor.auto_schedule_topi(outs)
 
 @schedule_adaptive_pool.register(["cuda", "gpu"])
 def schedule_adaptive_pool_cuda(attrs, outs, target):
     """schedule adaptive pooling ops for cuda"""
     with target:
-        return topi.cuda.schedule_adaptive_pool(outs, attrs.layout)
+        return ansor.auto_schedule_topi(outs)
 
 @softmax_strategy.register(["cuda", "gpu"])
 def softmax_strategy_cuda(attrs, inputs, out_type, target):
@@ -70,8 +70,15 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(ansor.auto_schedule_topi),
+        name='ansor',
+        plevel=ansor_plevel)
+
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
         wrap_topi_schedule(topi.cuda.schedule_softmax),
         name="softmax.cuda")
+
     if target.target_name == "cuda" and "cudnn" in target.libs:
         strategy.add_implementation(
             wrap_compute_softmax(topi.cuda.softmax_cudnn),
@@ -136,15 +143,15 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.cuda")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.cuda")
-
             strategy.add_implementation(wrap_compute_conv2d(topi.nn.conv2d_nhwc),
                                         wrap_topi_schedule(ansor.auto_schedule_topi),
                                         name='ansor',
                                         plevel=ansor_plevel)
+
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.cuda")
 
             N, H, W, _ = get_const_tuple(data.shape)
             KH, KW, CI, CO = get_const_tuple(kernel.shape)
@@ -210,6 +217,12 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 name="depthwise_conv2d_nchw.cuda")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
+                wrap_topi_schedule(ansor.auto_schedule_topi),
+                name='ansor',
+                plevel=ansor_plevel)
+
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc),
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nhwc),
@@ -313,14 +326,22 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     layout = attrs.data_layout
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
-    assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.cuda")
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.cuda")
+    else:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nhwc),
+            wrap_topi_schedule(ansor.auto_schedule_topi),
+            name="ansor",
+            plevel=ansor_plevel)
+
     return strategy
 
 
@@ -365,11 +386,17 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                 name="conv3d_ncdhw_winograd.cuda",
                 plevel=5)
     else:  # layout == "NDHWC":
+        strategy.add_implementation(wrap_compute_conv3d(topi.nn.conv3d_ndhwc),
+                                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                                    name='ansor',
+                                    plevel=ansor_plevel)
+
         strategy.add_implementation(
             wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
             wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc),
             name="conv3d_ndhwc.cuda",
             plevel=10)
+
         N, _, _, _, _ = get_const_tuple(data.shape)
         _, _, _, CI, CO = get_const_tuple(kernel.shape)
         if target.target_name == "cuda":
@@ -458,15 +485,15 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.cuda.schedule_dense_int8),
             name="dense_int8.cuda")
     else:
-        strategy.add_implementation(
-            wrap_compute_dense(topi.cuda.dense_small_batch),
-            wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
-            name="dense_small_batch.cuda")
-
         strategy.add_implementation(wrap_compute_dense(topi.nn.dense),
                                     wrap_topi_schedule(ansor.auto_schedule_topi),
                                     name='ansor',
                                     plevel=ansor_plevel)
+
+        strategy.add_implementation(
+            wrap_compute_dense(topi.cuda.dense_small_batch),
+            wrap_topi_schedule(topi.cuda.schedule_dense_small_batch),
+            name="dense_small_batch.cuda")
 
         with SpecializedCondition(b >= 32):
             strategy.add_implementation(
@@ -497,11 +524,19 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
 def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
     """batch_matmul cuda strategy"""
     strategy = _op.OpStrategy()
+
+    strategy.add_implementation(
+        wrap_compute_batch_matmul(topi.nn.batch_matmul),
+        wrap_topi_schedule(ansor.auto_schedule_topi),
+        name="ansor",
+        plevel=ansor_plevel)
+
     strategy.add_implementation(
         wrap_compute_batch_matmul(topi.cuda.batch_matmul),
         wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
         name="batch_matmul.cuda",
         plevel=10)
+
     if target.target_name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),

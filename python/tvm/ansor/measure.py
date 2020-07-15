@@ -325,13 +325,18 @@ def local_build_worker(index):
         inp = measure_inputs[index]
         task = inp.task
 
+        # only enable layout rewrite for cpu backend
+        enable_layout_rewrite = "cpu" in task.target.keys
+        layout_rewrite_level = LayoutRewriteLevel.BOTH_REWRITE if enable_layout_rewrite \
+                else LayoutRewriteLevel.NO_REWRITE
+
         error_no = MeasureErrorNo.NO_ERROR
         error_msg = None
         args = []
 
         try:
             sch, args = task.compute_dag.apply_steps_from_state(
-                inp.state, LayoutRewriteLevel.BOTH_REWRITE)
+                inp.state, layout_rewrite_level)
         except Exception:
             error_no = MeasureErrorNo.INSTANTIATION_ERROR
             error_msg = make_error_msg()
@@ -364,6 +369,10 @@ def local_build_worker(index):
         if verbose >= 1:
             print(".T", end="")  # Build timeout
         res = None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout
+    elif isinstance(res, Exception):
+        if verbose >= 1:
+            print(".E", end="")
+        res = None, [], MeasureErrorNo.UNKNOWN_ERROR, repr(res), timeout
 
     return res
 

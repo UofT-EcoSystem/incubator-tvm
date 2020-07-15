@@ -58,7 +58,7 @@ def test_estimate_flop():
     # should not count the comparison operations in padding
     D = topi.nn.pad(C, [1, 1])
     dag = ansor.ComputeDAG([A, B, D])
-    print(abs(dag.flop_ct - 2 * N ** 3)) < 0.5
+    assert abs(dag.flop_ct - 2 * N ** 3) < 0.5
 
 
 def test_lower_legalize_invalid_attach():

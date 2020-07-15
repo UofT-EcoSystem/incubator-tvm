@@ -67,7 +67,13 @@ def softmax_strategy_cpu(attrs, inputs, out_type, target):
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.softmax),
         wrap_topi_schedule(ansor.auto_schedule_topi),
-        name="ansor")
+        name="ansor",
+        plevel=ansor_plevel)
+
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="softmax.x86")
     return strategy
 
 @schedule_log_softmax.register("cpu")

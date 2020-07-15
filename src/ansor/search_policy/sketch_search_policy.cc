@@ -302,8 +302,8 @@ static inline bool ShouldBeCacheRead(
     return false;
   }
 
-  // Only those directly mapped stages can do CacheRead
-  const std::set<int>& producers = GetProducers(task, state, target_stage_id);
+  // Only direct producers can be cache read
+  const std::set<int>& producers = GetDirectProducers(task, state, target_stage_id);
   if (producers.find(stage_id) == producers.end()) {
     return false;
   }

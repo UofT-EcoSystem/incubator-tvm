@@ -409,30 +409,6 @@ bool AccessAnalyzer::IsStrictInlineable(const te::Operation &op) const {
   return operator->()->is_strict_inlineable.at(op);
 }
 
-void AccessAnalyzer::GetProducers(const State& state, const te::Operation& op,
-                                  OperationSet* producers) const {
-  OperationSet inlined_ops;
-  for (const auto& stage : state->stages) {
-    if (stage->compute_at == kInlined) {
-      inlined_ops.insert(stage->op);
-    }
-  }
-
-  std::function<void(const te::Operation&)> collect;
-  collect = [this, &collect, &inlined_ops, &producers](const te::Operation& op) {
-    for (const auto& iter : operator->()->read_from.at(op)) {
-      if (inlined_ops.count(iter.first)) {
-        collect(iter.first);
-      } else {
-        producers->insert(iter.first);
-      }
-    }
-  };
-
-  producers->clear();
-  collect(op);
-}
-
 void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
                                   OperationSet* consumers) const {
   OperationSet inlined_ops;
@@ -454,6 +430,38 @@ void AccessAnalyzer::GetConsumers(const State& state, const te::Operation& op,
   };
 
   consumers->clear();
+  collect(op);
+}
+
+void AccessAnalyzer::GetDirectProducers(const State& state, const te::Operation& op,
+                                        OperationSet* producers) const {
+  producers->clear();
+  for (const auto& iter : operator->()->read_from.at(op)) {
+    producers->insert(iter.first);
+  }
+}
+
+void AccessAnalyzer::GetProducers(const State& state, const te::Operation& op,
+                                  OperationSet* producers) const {
+  OperationSet inlined_ops;
+  for (const auto& stage : state->stages) {
+    if (stage->compute_at == kInlined) {
+      inlined_ops.insert(stage->op);
+    }
+  }
+
+  std::function<void(const te::Operation&)> collect;
+  collect = [this, &collect, &inlined_ops, &producers](const te::Operation& op) {
+    for (const auto& iter : operator->()->read_from.at(op)) {
+      if (inlined_ops.count(iter.first)) {
+        collect(iter.first);
+      } else {
+        producers->insert(iter.first);
+      }
+    }
+  };
+
+  producers->clear();
   collect(op);
 }
 
@@ -702,51 +710,50 @@ class IndexRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
-      te::Tensor t = Downcast<te::Tensor>(op->producer);
-      auto it = placeholder_new_names_.find(t->op);
-      if (it != placeholder_new_names_.end()) {
-        const std::vector<std::string>& new_names = it->second;
-        const Array<PrimExpr>& new_shape = placeholder_new_shapes_.at(t->op);
-        std::unordered_map<std::string, PrimExpr> name_to_arg;
-        for (const auto& arg : op->indices) {
-          std::string axis_name;
-          if (const auto* pimm = arg.as<IntImmNode>()) {
-              CHECK_EQ(pimm->value, 0);
-            axis_name = "IntImm";
-          } else {
-            axis_name = BaseName(CleanName(Downcast<Var>(arg)->name_hint));
-            CHECK_EQ(name_to_arg.count(axis_name), 0);
-            name_to_arg[axis_name] = arg;
-          }
+    te::Tensor t = Downcast<te::Tensor>(op->producer);
+    auto it = placeholder_new_names_.find(t->op);
+    if (it != placeholder_new_names_.end()) {
+      const std::vector<std::string>& new_names = it->second;
+      const Array<PrimExpr>& new_shape = placeholder_new_shapes_.at(t->op);
+      std::unordered_map<std::string, PrimExpr> name_to_arg;
+      for (const auto& arg : op->indices) {
+        std::string axis_name;
+        if (const auto* pimm = arg.as<IntImmNode>()) {
+            CHECK_EQ(pimm->value, 0);
+          axis_name = "IntImm";
+        } else {
+          axis_name = BaseName(CleanName(Downcast<Var>(arg)->name_hint));
+          CHECK_EQ(name_to_arg.count(axis_name), 0);
+          name_to_arg[axis_name] = arg;
         }
-
-        std::unordered_map<std::string, PrimExpr> div_factors;
-        std::vector<PrimExpr> r_new_args;
-        for (int i = new_names.size() - 1; i >= 0; --i) {
-          auto ori_iter_name = new_names[i];
-          auto name_it = name_to_arg.find(ori_iter_name);
-          CHECK(name_it != name_to_arg.end());
-          PrimExpr ori_arg = name_it->second;
-
-          PrimExpr mod_factor = new_shape[i];
-
-          PrimExpr div_factor = 1;
-          if (div_factors.count(ori_iter_name)) {
-            div_factor = div_factors[ori_iter_name];
-          }
-          div_factors[ori_iter_name] = div_factor * new_shape[i];
-
-          PrimExpr new_arg = indexmod(indexdiv(ori_arg, div_factor), mod_factor);
-
-          r_new_args.push_back(new_arg);
-        }
-
-        Array<PrimExpr> new_args(std::make_move_iterator(r_new_args.rbegin()),
-                             std::make_move_iterator(r_new_args.rend()));
-
-        return ProducerLoad(op->producer, new_args);
       }
-      return GetRef<PrimExpr>(op);
+  
+      std::unordered_map<std::string, PrimExpr> div_factors;
+      std::vector<PrimExpr> r_new_args;
+      for (int i = new_names.size() - 1; i >= 0; --i) {
+        auto ori_iter_name = new_names[i];
+        auto name_it = name_to_arg.find(ori_iter_name);
+        CHECK(name_it != name_to_arg.end());
+        PrimExpr ori_arg = name_it->second;
+  
+        PrimExpr mod_factor = new_shape[i];
+  
+        PrimExpr div_factor = 1;
+        if (div_factors.count(ori_iter_name)) {
+          div_factor = div_factors[ori_iter_name];
+        }
+        div_factors[ori_iter_name] = div_factor * new_shape[i];
+  
+        PrimExpr new_arg = indexmod(indexdiv(ori_arg, div_factor), mod_factor);
+  
+        r_new_args.push_back(new_arg);
+      }
+ 
+      Array<PrimExpr> new_args(std::make_move_iterator(r_new_args.rbegin()),
+                               std::make_move_iterator(r_new_args.rend()));
+      return ProducerLoad(op->producer, new_args);
+    }
+    return GetRef<PrimExpr>(op);
   }
 
  private:
@@ -755,8 +762,8 @@ class IndexRewriter : public StmtExprMutator {
 };
 
 void ComputeDAG::RewriteLayout(
-    const std::vector<Step> &transform_steps, LayoutRewriteLevel layout_rewrite_level) const {
-  ComputeDAGNode* pdag = const_cast<ComputeDAG*>(this)->CopyOnWrite();
+    const std::vector<Step> &transform_steps, LayoutRewriteLevel layout_rewrite_level) {
+  ComputeDAGNode* pdag = this->CopyOnWrite();
   const State& state = ReplayAndInferBound(transform_steps);
 
   OperationMap<std::vector<std::string> > placeholder_new_names;
@@ -1002,10 +1009,9 @@ void ComputeDAG::RewriteLayout(
           }
         }  // end for placeholder
       }
-    }
+    }  // end for compute op
   }  // end for stage
 }
-
 
 void UpdateStageAxis(const te::Stage& stage, StageToAxesMap *stage_to_axes) {
   if (auto pop = stage->op.as<te::ComputeOpNode>()) {

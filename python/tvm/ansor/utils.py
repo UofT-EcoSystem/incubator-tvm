@@ -152,10 +152,14 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 def call_func_with_timeout(timeout, func, args=(), kwargs=None):
     """Call a function with timeout"""
     def func_wrapper(que):
-        if kwargs:
-            que.put(func(*args, **kwargs))
-        else:
-            que.put(func(*args))
+        try:
+            if kwargs:
+                res = func(*args, **kwargs)
+            else:
+                res = func(*args)
+        except Exception as e:
+            res = e
+        que.put(res)
 
     que = multiprocessing.Queue(2)
     process = multiprocessing.Process(target=func_wrapper, args=(que,))

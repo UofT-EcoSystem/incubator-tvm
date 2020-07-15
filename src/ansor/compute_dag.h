@@ -81,6 +81,11 @@ class AccessAnalyzer : public ObjectRef {
   void GetProducers(const State& state, const te::Operation& op,
       std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
 
+  // Get all consumers of an op.
+  // This function DOES NOT propagate the relation for inlined ops.
+  void GetDirectProducers(const State& state, const te::Operation& op,
+      std::unordered_set<te::Operation, ObjectHash, ObjectEqual>* producers) const;
+
   // Get the number of common outer iterators.
   // This function propagates the relation for chains with multiple ops.
   int GetNumCommonOuterIterator(const State& state, const te::Operation& op,
@@ -158,7 +163,7 @@ class ComputeDAG: public ObjectRef {
 
   // Rewrite the the layout of "layout free" placeholders according to transform steps
   void RewriteLayout(const std::vector<Step>& transform_steps,
-                     LayoutRewriteLevel layout_rewrite_level = kNoRewrite) const;
+                     LayoutRewriteLevel layout_rewrite_level = kNoRewrite);
 
   // Print transform steps as equivalent python schedule API
   std::string PrintStepsAsPython(const std::vector<Step>& steps) const;

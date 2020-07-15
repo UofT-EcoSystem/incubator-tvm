@@ -326,7 +326,7 @@ def tune_and_evaluate(network_arguments, target, target_host,
 
         # Evaluate
         print("========== Evaluate ==========")
-        ftimer = module.module.time_evaluator("run", ctx, number=10, repeat=3)
+        ftimer = module.module.time_evaluator("run", ctx, number=10, repeat=3, min_repeat_ms=500)
         prof_res = np.array(ftimer().results)
 
         # display profile information
