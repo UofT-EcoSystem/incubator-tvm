@@ -164,7 +164,10 @@ def create_updater_06_to_07():
         "Ramp": [_rename("tir.Ramp")],
         "Broadcast": [_rename("tir.Broadcast")],
         "Shuffle": [_rename("tir.Shuffle")],
-        "Call": [_rename("tir.Call"), _update_from_std_str("name")],
+        "Call": [_rename("tir.Call")
+                # <bojian/TVM-AutoDiff> Removed the name update.
+                #  , _update_from_std_str("name")
+                 ],
         "Let": [_rename("tir.Let")],
         "Any": [_rename("tir.Any")],
         "LetStmt": [_rename("tir.LetStmt")],
