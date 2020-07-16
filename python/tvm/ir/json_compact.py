@@ -186,6 +186,8 @@ def create_updater_06_to_07():
 
         # <bojian/TVM-AutoDiff> Added the conversion from UIntImm to IntImm.
         "UIntImm" : _rename("IntImm"),
+        # <bojian/TVM-AutoDiff> Added the convertion from IterVar to tir.IterVar.
+        "IterVar" : _rename("tir.IterVar"),
     }
     return create_updater(node_map, "0.6", "0.7")
 
