@@ -139,9 +139,37 @@ def workload_key_to_tensors(workload_key: str) -> List[Tensor]:
     name = workload[0]
     lookup = WORKLOAD_FUNC_REGISTRY[name]
 
+
+    # <bojian/TVM-AutoDiff> Added the logging of the workload function for 
+    #                       debugging purposes.
+    print("Workload function to lookup: ", name)
+
+
     if callable(lookup):
         args = deserialize_args(workload[1:])
-        return lookup(*args)
+
+        # <bojian/TVM-AutoDiff> 
+        print("Starting to do tensor lookup ...")
+        # print(args)
+
+        tensors = lookup(*args)
+
+        # <bojian/TVM-AutoDiff>
+        print("Loaded Tensors: ", tensors)
+        # <bojian/TVM-AutoDiff> Per Cody's advice, directly lowering the compute
+        #                       schedule here.
+        from ..te import create_schedule
+        compute_ops = list(filter(lambda op: op.type_key != 'PlaceholderOp',
+                                  [t.op for t in tensors]))
+        # print(compute_ops)
+        sched = create_schedule(compute_ops)
+        module = tvm.build(sched, tensors)
+        print("""Backward Schedule: 
+{}""".format(tvm.lower(sched, tensors, simple_mode=True)))
+
+        # <bojian/TVM-AutoDiff>
+        # return lookup(*args)
+        return tensors
     return lookup
 
 
