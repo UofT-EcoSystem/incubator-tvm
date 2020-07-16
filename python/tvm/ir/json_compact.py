@@ -180,6 +180,9 @@ def create_updater_06_to_07():
         "Layout": [_rename("tir.Layout"), _update_from_std_str("name")],
         "Buffer": [
             _rename("tir.Buffer"), _update_from_std_str("name"), _update_from_std_str("scope")],
+
+        # <bojian/TVM-AutoDiff> Added the conversion from UIntImm to IntImm.
+        "UIntImm" : _rename("IntImm"),
     }
     return create_updater(node_map, "0.6", "0.7")
 
