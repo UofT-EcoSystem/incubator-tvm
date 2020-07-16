@@ -857,6 +857,35 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
           break;
         }
         to_fuse.push_back(it);
+
+        // <bojian/TVM-AutoDiff> Avoid fusing iterators that have been attached
+        //                       to certain stage.
+        const auto& iter_to_attached_stage = 
+            (*state)->attach_map->iter_to_attached_stages;
+        std::vector<int> indices;
+        GetIndices((*state)->stages[stage_id]->iters,
+                   to_fuse, &indices);
+        bool iter_already_attached = false;
+        for (size_t i = 0; i < indices.size(); ++i) {
+          if (i == indices.size() - 1) continue;
+          if (iter_to_attached_stage.find(std::make_pair(stage_id, indices[i])) !=
+              iter_to_attached_stage.end()) {
+            iter_already_attached = true;
+            break;
+            // LOG(INFO) << "iter_var (" << stage_id << ", "
+            //           << (*state)->stages[stage_id]->iters[i] << ") "
+            //              "is already attached to certain stage";
+            // LOG(INFO) << "iter_to_attached_stage: ";
+            // for (const auto& kv : iter_to_attached_stage) {
+            //   LOG(INFO) << "\t" "(" << kv.first.first << ", "
+            //             << (*state)->stages[kv.first.first]->iters[kv.first.second] << ")";
+            // }
+          }
+        }
+        if (iter_already_attached) {
+          to_fuse.pop_back();
+          break;
+        }
       }
 
       const auto& fused_it = state->fuse(stage_id, to_fuse);
