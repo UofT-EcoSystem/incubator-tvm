@@ -189,6 +189,7 @@ def create_updater_06_to_07():
         # <bojian/TVM-AutoDiff> Added the conversion to TIR.
         "IterVar" : _rename("tir.IterVar"),
         "Reduce"  : _rename("tir.Reduce"),
+        "CommReducer" : _rename("tir.CommReducer"),
     }
     return create_updater(node_map, "0.6", "0.7")
 
