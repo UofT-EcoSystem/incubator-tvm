@@ -82,14 +82,16 @@ def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: Li
     return search_policies
 
 
-def get_attached_tag(dag):
-    """Get the attached tag for one computation DAG.
-    The DAGs with the same tag are considered similar tasks"""
+def derive_similarity_tag(dag):
+    """Derive the tag for similarity check from one computation DAG.
+    The DAGs with the same tag are considered as similar tasks"""
     ret = ""
     for op in dag.ops:
         tag = op.attrs.get('ansor_task_scheduler_tag', None)
         if tag:
             ret += op.attrs['ansor_task_scheduler_tag'] + "_"
+    if ret != "":
+        ret += "%d" % int(dag.flop_ct / 1e6)
     return ret
 
 
@@ -130,7 +132,7 @@ class SimpleTaskScheduler(TaskScheduler):
                  eps_random: float = 0.05,
                  verbose: int = 1,
                  alpha: float = 0.2,
-                 beta: float = 2,
+                 beta: float = 4,
                  gamma: float = 0.5,
                  backward_window_size: int = 3,
                  use_debug_measurement_simulator=None):
@@ -179,7 +181,7 @@ class SimpleTaskScheduler(TaskScheduler):
         self.group_task_ids = []
         self.flop_cts = []
         for i, task in enumerate(self.tasks):
-            tag = get_attached_tag(task.compute_dag)
+            tag = derive_similarity_tag(task.compute_dag)
             self.task_tags.append(tag)
             self.flop_cts.append(task.compute_dag.flop_ct)
             if tag == "":

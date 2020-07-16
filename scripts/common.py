@@ -663,6 +663,19 @@ def check_correctness(s, bufs, s_ref, buf_ref, target, target_host=None, remote=
 #####################  Other Utilities  ####################
 ############################################################
 
+def verify_gpu_code(stmt):
+    check_gpu = {
+	#"max_shared_memory_per_block": ctx.max_shared_memory_per_block,
+	#"max_threads_per_block": ctx.max_threads_per_block,
+	#"max_thread_x": max_dims[0],
+	#"max_thread_y": max_dims[1],
+	#"max_thread_z": max_dims[2]
+        'max_vector_bytes': 16,
+    }
+    valid = tvm.tir.analysis.verify_gpu_code(stmt['main'], check_gpu)
+    print("Valid : %s" % valid)
+    exit()
+
 
 def geomean(xs):
     """Compute geometric mean"""

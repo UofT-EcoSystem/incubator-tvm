@@ -8,16 +8,9 @@ import numpy as np
 
 import tvm
 from tvm import ansor, relay
+from tvm.ansor.task_scheduler import derive_similarity_tag
 
 from common import load_network, to_str_round
-
-def get_task_scheduler_tag(dag):
-    ret = ""
-    for op in dag.ops:
-        tag = op.attrs.get('ansor_task_scheduler_tag', None)
-        if tag:
-            ret += op.attrs['ansor_task_scheduler_tag'] + "_"
-    return ret
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -45,7 +38,7 @@ if __name__ == "__main__":
         gflops = dag.flop_ct / cost / 1e9
         print("GFLOPS: %.2f\tTime: %.2f ms\tFLOP: %0.f" % 
                 (gflops, cost * 1000, dag.flop_ct))
-        tag = get_task_scheduler_tag(dag)
+        tag = derive_similarity_tag(dag)
         dag_list.append(dag)
         gflops_list.append(gflops)
         dag_tag_list.append(tag)

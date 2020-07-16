@@ -135,23 +135,15 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitExpr_(const LoadNode* op) {
-    // Currently not able to check out: If the index expression failed
-    // to be simplified to a RampNode
-    if (op->index->IsInstance<RampNode>()) {
-      if (op->dtype.lanes() > 1) {
-        valid_ &= static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) <= max_vector_bytes_;
-      }
+    if (op->dtype.lanes() > 1) {
+      valid_ &= static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) <= max_vector_bytes_;
     }
     ExprVisitor::VisitExpr_(op);
   }
 
   void VisitStmt_(const StoreNode* op) {
-    // Currently not able to check out: If the index expression failed
-    // to be simplified to a RampNode
-    if (op->index->IsInstance<RampNode>()) {
-      if (op->index->dtype.lanes() > 1) {
-        valid_ &= static_cast<size_t>(op->index->dtype.lanes() * op->index->dtype.bytes()) <= max_vector_bytes_;
-      }
+    if (op->index->dtype.lanes() > 1) {
+      valid_ &= static_cast<size_t>(op->index->dtype.lanes() * op->index->dtype.bytes()) <= max_vector_bytes_;
     }
     StmtVisitor::VisitStmt_(op);
   }
