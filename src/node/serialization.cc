@@ -31,6 +31,15 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+
+// <bojian/TVM-AutoDiff> Newly-Added Headers
+#include <tvm/te/operation.h>
+#include <tvm/te/tensor.h>
+#include <tvm/tir/expr.h>
+#include <dmlc/parameter.h>  // GetEnv
+#include <sstream>
+
+
 #include <cctype>
 #include <map>
 #include <string>
@@ -535,6 +544,16 @@ std::string SaveJSON(const ObjectRef& n) {
   return os.str();
 }
 
+
+// <bojian/TVM-AutoDiff> The upstream implementation only returns the root
+//                       operation that is deserialized from the JSON string.
+//
+//                       However, this creates endless nightmare as it
+//                       implicitly instantiates operations such as placeholders
+//                       that can neither be connected to previously created
+//                       placeholder operations nor be referenced by the Python
+//                       frontend. Hence, I changed the interface to return ALL
+//                       the tensors deserialized from thee JSON string.
 ObjectRef LoadJSON(std::string json_str) {
   ReflectionVTable* reflection = ReflectionVTable::Global();
   JSONGraph jgraph;
@@ -557,6 +576,76 @@ ObjectRef LoadJSON(std::string json_str) {
       tensors.emplace_back(std::move(temp));
     }
   }
+
+  // <bojian/TVM-AutoDiff> Use worklist algorithm to map Halide-style CallNode's
+  //                       to Tensors (which are generated from OpeartionNode's).
+  // create a mapping for looking up all the placeholder nodes
+  std::unordered_map<std::string, size_t> ph_name2index_map;
+  for (size_t i = 0; i < jgraph.nodes.size(); ++i) {
+    const JSONNode& jnode = jgraph.nodes[i];
+    if (jnode.type_key == ::tvm::te::PlaceholderOpNode::_type_key) {
+      ph_name2index_map[jnode.attrs.at("name")] = i;
+    }  // if (jnode.type_key == "PlaceholderOp")
+  }  // for (jnode ∈ jgraph.nodes)
+
+  bool jnodes_changed;
+  do {
+    jnodes_changed = false;
+    for (JSONNode& jnode : jgraph.nodes) {
+      if (jnode.type_key == ::tvm::tir::CallNode::_type_key) {
+        // make a copy of the CallNode's attributes
+        const std::string callnode_calltype = jnode.attrs.at("call_type"),
+                          callnode_args = jnode.attrs.at("args"),
+                          callnode_name = jnode.attrs.at("name"),
+                          callnode_dtype = jnode.attrs.at("dtype"),
+                          callnode_valueidx = jnode.attrs.at("value_index");
+
+        if (callnode_calltype == "3") {
+          LOG(INFO) << "Halide-style CallNode (" << callnode_name
+                    << ") encountered. " 
+                       "Modifying the nodes for backward compatibility.";
+          auto ph_n2imap_iter = ph_name2index_map.find(callnode_name);
+
+          if (ph_n2imap_iter != ph_name2index_map.end()) {
+            const size_t& ph_index = ph_n2imap_iter->second;
+            const JSONNode& ph_node = jgraph.nodes[ph_index];
+            JSONNode tensor_node;
+
+            if (ph_node.attrs.at("dtype") != callnode_dtype) {
+              LOG(WARNING) << "Placeholder's data type does not match CallNode's data type: ("
+                           << ph_node.attrs.at("dtype") << " != " << callnode_dtype << ").";
+            }
+
+            tensor_node.type_key = ::tvm::te::TensorNode::_type_key;
+            tensor_node.attrs["op"] = std::to_string(ph_index);
+            // copy the shape and data type attributes from the placeholder to the tensor
+            tensor_node.attrs["shape"] = ph_node.attrs.at("shape");
+            tensor_node.attrs["dtype"] = ph_node.attrs.at("dtype");
+            // Assume that the value_index is always 0. Would this be a problem?
+            tensor_node.attrs["value_index"] = callnode_valueidx;
+
+            // insert the newly created TensorNode to the end of the jgraph.nodes
+            jgraph.nodes.emplace_back(std::move(tensor_node));
+
+            // now, modify the jnode to be "ProducerLoad" node
+            jnode.type_key = ::tvm::tir::ProducerLoadNode::_type_key;
+            jnode.attrs.clear();
+            jnode.attrs["producer"] = std::to_string(jgraph.nodes.size() - 1);
+            jnode.attrs["indices"]  = callnode_args;
+            jnode.attrs["dtype"]    = callnode_dtype;
+
+            // set the changed flag and break out of the loop
+            jnodes_changed = true;
+            break;
+          } else {  // if (ph_n2imap_iter != ph_name2index_map.end())
+            LOG(FATAL) << "Unknown CallNode function name ("
+                       << callnode_name << ").";
+          }  // if (ph_n2imap_iter != ph_name2index_map.end())
+        }  // if (jnode_attr_call_type_iter->second == "3")
+      }  // if (jnode.type_key == "Call")
+    }  // for (jnode ∈ jgraph.nodes)
+  } while (jnodes_changed);
+
   // Pass 1: create all non-container objects
   std::vector<ObjectPtr<Object>> nodes(n_nodes, nullptr);
   for (size_t i = 0; i < n_nodes; ++i) {
@@ -574,6 +663,12 @@ ObjectRef LoadJSON(std::string json_str) {
   }
   // Pass 3: topo sort
   std::vector<size_t> topo_order = jgraph.TopoSort();
+
+  // <bojian/TVM-AutoDiff> Record all the TensorNode's.
+  using ::tvm::te::Tensor;
+  using ::tvm::te::TensorNode;
+  std::vector<size_t> tensor_node_idxs;
+
   // Pass 4: set all values
   {
     JSONAttrSetter setter;
@@ -581,9 +676,55 @@ ObjectRef LoadJSON(std::string json_str) {
     setter.tensor_list_ = &tensors;
     for (size_t i : topo_order) {
       setter.Set(&nodes[i], &jgraph.nodes[i]);
+
+      // <bojian/TVM-AutoDiff> Record all the TensorNode's.
+      if (nodes[i] != nullptr &&
+          nodes[i]->IsInstance<::tvm::te::TensorNode>()) {
+        bool tensor_idx_recorded_before = false;
+        for (const size_t idx : tensor_node_idxs) {
+          if (Tensor(nodes[idx]) == Tensor(nodes[i])) {
+            tensor_idx_recorded_before = true;
+          }
+        }
+        if (tensor_idx_recorded_before) {
+          continue;
+        }
+        // LOG(INFO) << "Recording Tensor node " << ObjectRef(nodes[i]);
+        tensor_node_idxs.emplace_back(i);
+      }
     }
   }
+ 
+  if (!dmlc::GetEnv("TVM_LOAD_JSON_RET_ALL_TENSORS", false) || 
+      tensor_node_idxs.size() == 0) {
+    return ObjectRef(nodes.at(jgraph.root)); 
+  }
+
+  std::ostringstream strout;
+  strout << "[";
+  for (const size_t& idx : tensor_node_idxs) {
+    const ObjectPtr<Object> node = nodes[idx];
+    TensorNode* pnode = static_cast<TensorNode*>(node.get());
+    strout << pnode->op->name << ", ";
+  }
   return ObjectRef(nodes.at(jgraph.root));
+  strout << "]";
+
+  LOG(INFO) << "Returning all the TensorNode's recorded: " << strout.str();
+  // <bojian/TVM-AutoDiff> Added the logging on the object returned.
+  // LOG(INFO) << "Total number of recorded TensorNode's: "
+  //           << tensor_node_idxs.size();
+  ObjectPtr<ArrayNode> ret
+      = ArrayNode::CreateRepeated(tensor_node_idxs.size(), ObjectRef(nullptr));
+  for (size_t i = 0; i < tensor_node_idxs.size(); ++i) {
+    (*ret)[i] = ObjectRef(nodes[tensor_node_idxs[i]]);
+  }
+
+  // <bojian/TVM-AutoDiff> Changed the return value to include all the
+  //                       TensorNode's. Please refer to the comment on top of
+  //                       LoadJSON for more information.
+  // return ObjectRef(nodes.at(jgraph.root));
+  return ObjectRef(ret);
 }
 
 TVM_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
