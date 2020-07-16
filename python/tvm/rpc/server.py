@@ -345,7 +345,16 @@ class Server(object):
             logger.setLevel(logging.ERROR)
 
         if use_popen:
-            cmd = [sys.executable,
+            # <bojian/TVM-AutoDiff> Added the Ansor to the PYTHONPATH.
+            ansor_root = os.environ['ANSOR_ROOT']
+            print("ANSOR_ROOT: ", ansor_root)
+            cmd = ["env",
+                   "PYTHONPATH=%s:%s" % (
+                       os.path.join(ansor_root, "python/build/lib.linux-x86_64-3.6"),
+                       os.path.join(ansor_root, "topi/python/build/lib")),
+                   "LD_LIBRARY_PATH=%s" % os.path.join(ansor_root, "build"),
+                   sys.executable,
+            # cmd = [sys.executable,
                    "-m", "tvm.exec.rpc_server",
                    "--host=%s" % host,
                    "--port=%s" % port,
