@@ -304,6 +304,12 @@ class FieldDependencyFinder : public AttrVisitor {
   template <typename T>
   void ParseValue(const char* key, T* value) const {
     std::istringstream is(GetValue(key));
+
+    // <bojian/TVM-AutoDiff> Added the check on EOF.
+    if (is.eof()) {
+      return;  // It is possible for the field to be empty
+    }
+
     is >> *value;
     if (is.fail()) {
       LOG(FATAL) << "Wrong value format for field " << key;
