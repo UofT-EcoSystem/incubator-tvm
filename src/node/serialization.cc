@@ -306,14 +306,16 @@ class FieldDependencyFinder : public AttrVisitor {
     std::istringstream is(GetValue(key));
 
     // <bojian/TVM-AutoDiff> Added the check on EOF.
-    if (is.eof()) {
-      return;  // It is possible for the field to be empty
-    }
+    // if (is.eof()) {
+    //   return;  // It is possible for the field to be empty
+    // }
 
     is >> *value;
-    if (is.fail()) {
-      LOG(FATAL) << "Wrong value format for field " << key;
-    }
+
+    // <bojian/TVM-AutoDiff> Removed the check on string buffer failure.
+    // if (is.fail()) {
+    //   LOG(FATAL) << "Wrong value format for field " << key;
+    // }
   }
   void Visit(const char* key, double* value) final {}
   void Visit(const char* key, int64_t* value) final {}
