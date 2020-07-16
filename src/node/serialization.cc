@@ -302,9 +302,11 @@ class JSONAttrSetter : public AttrVisitor {
   void ParseValue(const char* key, T* value) const {
     std::istringstream is(GetValue(key));
     is >> *value;
-    if (is.fail()) {
-      LOG(FATAL) << "Wrong value format for field " << key;
-    }
+
+    // <bojian/TVM-AutoDiff>
+    // if (is.fail()) {
+    //   LOG(FATAL) << "Wrong value format for field " << key;
+    // }
   }
   void Visit(const char* key, double* value) final { ParseValue(key, value); }
   void Visit(const char* key, int64_t* value) final { ParseValue(key, value); }
