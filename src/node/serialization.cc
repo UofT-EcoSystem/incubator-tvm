@@ -303,7 +303,9 @@ class JSONAttrSetter : public AttrVisitor {
     std::istringstream is(GetValue(key));
     is >> *value;
 
-    // <bojian/TVM-AutoDiff>
+    // <bojian/TVM-AutoDiff> Removed the check on field format. The reason is
+    //                       because the type for tir.IterVar has been changed
+    //                       from std::string to String.
     // if (is.fail()) {
     //   LOG(FATAL) << "Wrong value format for field " << key;
     // }
