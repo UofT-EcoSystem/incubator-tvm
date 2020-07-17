@@ -629,12 +629,6 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
     } else if (op->op.same_as(builtin::reinterpret())) {
-      // generate (*( TYPE *)(&(ARG)))
-      // os << "(*(";
-      // this->PrintType(op->dtype, os);
-      // os << " *)(&(";
-      // this->PrintExpr(op->args[0], os);
-      // os << ")))";
       int ssa_scope = BeginScope();
       std::string rhs = SSAGetID(PrintExpr(op->args[0]), op->args[0]->dtype);
       os << "(*(";

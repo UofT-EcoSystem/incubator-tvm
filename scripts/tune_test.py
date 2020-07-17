@@ -39,7 +39,7 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
     if local_measure:
         builder = ansor.LocalBuilder(timeout=build_timeout)
         if target.target_name == "cuda":
-            measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400)
+            measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400, timeout=run_timeout)
             runner = measure_ctx.runner
         else:
             if auto_cache_flush:

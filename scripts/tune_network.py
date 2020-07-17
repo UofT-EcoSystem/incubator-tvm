@@ -401,7 +401,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-measure-per-iter", type=int, default=64,
                         help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
-    parser.add_argument("--run-timeout", type=int, default=25)
+    parser.add_argument("--run-timeout", type=int, default=30)
     parser.add_argument("--early-stopping", type=int, default=-1)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--rpc-device-key", type=str, default=None)

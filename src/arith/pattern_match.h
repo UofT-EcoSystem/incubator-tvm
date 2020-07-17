@@ -69,6 +69,7 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 
+#include <cmath>
 #include <tuple>
 
 #include "const_fold.h"
@@ -148,7 +149,9 @@ class PEqualChecker<IntImm> {
 template <>
 class PEqualChecker<FloatImm> {
  public:
-  bool operator()(const FloatImm& lhs, const FloatImm& rhs) const { return lhs->value == rhs->value; }
+  bool operator()(const FloatImm& lhs, const FloatImm& rhs) const {
+    return std::fabs(lhs->value - rhs->value) < 1e-20;
+  }
 };
 
 template <>
@@ -277,8 +280,6 @@ class PConstWithTypeLike : public Pattern<PConstWithTypeLike<TA>> {
 
   bool Match_(const ObjectRef& node) const {
     if (const tir::IntImmNode* ptr = node.as<tir::IntImmNode>()) {
-      return ptr->value == value_;
-    } else if (const tir::FloatImmNode* ptr = node.as<tir::FloatImmNode>()) {
       return ptr->value == value_;
     } else {
       return false;

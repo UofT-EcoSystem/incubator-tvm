@@ -253,7 +253,7 @@ class LocalRPCMeasureContext:
                  priority=1,
                  n_parallel=1,
                  timeout=10,
-                 number=10,
+                 number=1,
                  repeat=1,
                  min_repeat_ms=0,
                  cooldown_interval=0.0):
