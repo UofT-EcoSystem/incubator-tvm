@@ -91,7 +91,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
     int ct = 0;
 
     // <bojian/TVM-AutoDiff> Added period for checkpointing.
-    constexpr int C_CKPT_PERIOD = 200;
+    constexpr int C_CKPT_PERIOD = 10;
     int ckpt = C_CKPT_PERIOD;
 
     while (ct < n_trials) {
