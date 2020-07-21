@@ -81,6 +81,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
 
     // <bojian/TVM-AutoDiff> Added period for checkpointing.
     constexpr int C_CKPT_PERIOD = 10;
+    int ckpt = C_CKPT_PERIOD;
 
     while (ct < n_trials) {
       if (!inputs.empty()) {
@@ -125,8 +126,12 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
       // <bojian/TVM-AutoDiff> Checkpoint as the number of trails reaches
       //                       certain period.
       // LOG(INFO) << "Current Number of Trails: " << ct;
-      if (((ct + 1) % C_CKPT_PERIOD) == 0) {
+
+      // We cannot naively do module check here, the reason is because the
+      // trial number is NOT incremented one by one, but by the input size.
+      if (ct > ckpt) {
         LOG(INFO) << "Auto-Checkpointing is triggered on the current trail: " << ct;
+        ckpt += C_CKPT_PERIOD;
       }
 
     }  // while (ct < n_trials)
