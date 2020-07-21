@@ -91,9 +91,19 @@ TVM_REGISTER_GLOBAL("ansor.TuneOption")
 .set_body_typed([](int n_trials, int early_stopping,
                    int num_measure_per_iter, int verbose, Builder builder,
                    Runner runner, Array<MeasureCallback> measure_callbacks,
-                   Array<SearchCallback> pre_search_callbacks) {
+                   Array<SearchCallback> pre_search_callbacks
+                   
+                   // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+                 , String ckpt_file_prefix
+                   
+                   ) {
   return TuneOption(n_trials, early_stopping, num_measure_per_iter, verbose,
-                    builder, runner, measure_callbacks, pre_search_callbacks);
+                    builder, runner, measure_callbacks, pre_search_callbacks
+                    
+                    // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+                  , ckpt_file_prefix
+
+                    );
 });
 
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")
