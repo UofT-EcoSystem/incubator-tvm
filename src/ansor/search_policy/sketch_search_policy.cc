@@ -117,7 +117,12 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
       for (const auto& res : results) {
         measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
       }
-    }
+
+      // <bojian/TVM-AutoDiff> Checkpoint after the number of trails passess
+      //                       certain threshold.
+      LOG(INFO) << "Current Number of Trails: " << ct;
+
+    }  // while (ct < n_trials)
     PrintTitle("Done", verbose);
 
     return measurer->best_state[cur_task->workload_key];
