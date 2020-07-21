@@ -87,7 +87,12 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   State Search(SearchTask task, int n_trials,
                int early_stopping, int num_measure_per_iter,
                int verbose, ProgramMeasurer measurer,
-               Array<SearchCallback> pre_search_callbacks) final;
+               Array<SearchCallback> pre_search_callbacks
+               
+               // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+             , String ckpt_file_prefix
+               
+               ) final;
 
   /*! \brief Continue search for one round. This is used by JointTuner
    * \returns the measurement pairs */

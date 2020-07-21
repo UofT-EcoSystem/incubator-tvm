@@ -60,7 +60,12 @@ SketchSearchPolicy::SketchSearchPolicy(CostModel program_cost_model,
 
 State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
     int early_stopping, int num_measure_per_iter, int verbose,
-    ProgramMeasurer measurer, Array<SearchCallback> pre_search_callbacks) {
+    ProgramMeasurer measurer, Array<SearchCallback> pre_search_callbacks
+
+    // <bojian/TVM-AutoDiff> Added checkpoint file prefix.  
+  , String ckpt_file_prefix
+    
+    ) {
   std::vector<State> best_states, random_states;
   this->cur_task = task;
   this->verbose = verbose;

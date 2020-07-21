@@ -87,7 +87,12 @@ class SearchPolicyNode : public Object {
   virtual State Search(SearchTask task, int n_trials,
                        int early_stopping, int num_measure_per_iter,
                        int verbose, ProgramMeasurer measurer,
-                       Array<SearchCallback> pre_search_callbacks) = 0;
+                       Array<SearchCallback> pre_search_callbacks
+                       
+                       // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+                     , String ckpt_file_prefix
+
+                       ) = 0;
 
   // Continue search one round for a task.
   // This is used in the task scheduler for searching for multiple tasks together.

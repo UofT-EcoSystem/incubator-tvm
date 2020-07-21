@@ -70,7 +70,12 @@ std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(SearchTask task,
   State state = search_policy->Search(
       task, tune_option->n_trials, tune_option->early_stopping,
       tune_option->num_measure_per_iter, tune_option->verbose, measurer,
-      tune_option->pre_search_callbacks);
+      tune_option->pre_search_callbacks
+      
+      // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+    , tune_option->ckpt_file_prefix
+      
+      );
 
   return task->compute_dag.ApplySteps(state->transform_steps);
 }
