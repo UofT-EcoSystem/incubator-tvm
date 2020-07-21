@@ -158,7 +158,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
             measurer->best_sched[cur_task->workload_key].second);
 
         std::string ckpt_filename
-            = ckpt_file_prefix + std::to_string(ct) + ".log";
+            = ckpt_file_prefix + std::to_string(ct) + ".json";
         std::ofstream fout(ckpt_filename.c_str());
         fout << SaveJSON(ObjectRef(ckpt_item));
 
