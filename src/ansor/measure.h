@@ -300,7 +300,9 @@ class ProgramMeasurerNode: public Object {
 
   // <bojian/TVM-AutoDiff> Extra Logging Information
   std::unordered_map<std::string, double> best_cost;
-  std::unordered_map<std::string, te::Schedule> best_sched;
+  std::unordered_map<std::string,
+                     std::pair<te::Schedule, Array<te::Tensor> > > 
+      best_sched;
 
   Builder builder;
   Runner runner;

@@ -46,6 +46,9 @@ class TuneOptionNode : public Object {
   Array<SearchCallback> pre_search_callbacks;  // SearchCallback functions
                                                // run before search
 
+  // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+  String ckpt_file_prefix;
+
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("n_trials", &n_trials);
     v->Visit("early_stopping", &early_stopping);
@@ -70,7 +73,12 @@ class TuneOption : public ObjectRef {
   TuneOption(int n_trials, int early_stopping, int num_measure_per_iter,
              int verbose, Builder builder, Runner runner,
              Array<MeasureCallback> measure_callbacks,
-             Array<SearchCallback> pre_search_callbacks);
+             Array<SearchCallback> pre_search_callbacks
+             
+             // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+           , String ckpt_file_prefix
+
+             );
 
   TVM_DEFINE_OBJECT_REF_METHODS(TuneOption, ObjectRef, TuneOptionNode);
 };

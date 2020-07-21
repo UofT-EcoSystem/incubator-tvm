@@ -205,7 +205,12 @@ class TuneOption(Object):
     """
     def __init__(self, n_trials=0, early_stopping=-1, num_measure_per_iter=64,
                  verbose=1, builder='local', runner='local', measure_callbacks=None,
-                 pre_search_callbacks=None):
+                 pre_search_callbacks=None
+                 
+                 # <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+               , ckpt_file_prefix='ansor_ckpt_'
+                 
+                 ):
         if isinstance(builder, str):
             if builder == 'local':
                 builder = LocalBuilder()
@@ -226,7 +231,12 @@ class TuneOption(Object):
 
         self.__init_handle_by_constructor__(
             _ffi_api.TuneOption, n_trials, early_stopping, num_measure_per_iter,
-            verbose, builder, runner, measure_callbacks, pre_search_callbacks)
+            verbose, builder, runner, measure_callbacks, pre_search_callbacks
+            
+            # <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+          , ckpt_file_prefix
+            
+            )
 
 
 def auto_schedule(workload, target=None,

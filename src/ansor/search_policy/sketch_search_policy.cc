@@ -139,7 +139,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
         LOG(INFO) << "Optimal Performance " <<
             measurer->best_cost[cur_task->workload_key];
         LOG(INFO) << "Optimal Schedule " << 
-            measurer->best_sched[cur_task->workload_key];
+            measurer->best_sched[cur_task->workload_key].first;
         ckpt += C_CKPT_PERIOD;
       }
 

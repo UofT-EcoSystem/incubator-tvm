@@ -36,7 +36,12 @@ TVM_REGISTER_NODE_TYPE(TuneOptionNode);
 TuneOption::TuneOption(int n_trials, int early_stopping,
                        int num_measure_per_iter, int verbose, Builder builder,
                        Runner runner, Array<MeasureCallback> measure_callbacks,
-                       Array<SearchCallback> pre_search_callbacks) {
+                       Array<SearchCallback> pre_search_callbacks
+
+                       // <bojian/TVM-AutoDiff> Added checkpoint file prefix.  
+                     , String ckpt_file_prefix
+
+                       ) {
   auto node = make_object<TuneOptionNode>();
   node->n_trials = n_trials;
   node->early_stopping = early_stopping;
@@ -46,6 +51,11 @@ TuneOption::TuneOption(int n_trials, int early_stopping,
   node->runner = std::move(runner);
   node->measure_callbacks = std::move(measure_callbacks);
   node->pre_search_callbacks = std::move(pre_search_callbacks);
+
+  // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
+  node->ckpt_file_prefix = std::move(ckpt_file_prefix);
+  LOG(INFO) << "Checkpoint file prefix initialized to " << node->ckpt_file_prefix;
+
   data_ = std::move(node);
 }
 

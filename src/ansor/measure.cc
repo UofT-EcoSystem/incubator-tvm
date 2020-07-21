@@ -254,7 +254,7 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
         best_cost[workload_key] = FloatArrayMean(result_batch[j]->costs);
         best_sched[workload_key] =
             task->compute_dag.ApplySteps(
-              input_batch[j]->state->transform_steps).first;
+              input_batch[j]->state->transform_steps);
       }
 
       ct++;
