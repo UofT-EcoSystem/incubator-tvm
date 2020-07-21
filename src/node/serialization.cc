@@ -363,12 +363,18 @@ class JSONAttrSetter : public AttrVisitor {
       if (node_->keys.empty()) {
         CHECK_EQ(node_->data.size() % 2, 0U);
         for (size_t i = 0; i < node_->data.size(); i += 2) {
+
+          LOG(INFO) << "Looking up for " << ObjectRef(node_list_->at(node_->data[i]));
+
           (*n).at(ObjectRef(node_list_->at(node_->data[i]))) =
               ObjectRef(node_list_->at(node_->data[i + 1]));
         }
       } else {
         CHECK_EQ(node_->data.size(), node_->keys.size());
         for (size_t i = 0; i < node_->data.size(); ++i) {
+
+          LOG(INFO) << "Looking up for " << String(node_->keys[i]);
+
           (*n).at(String(node_->keys[i])) = ObjectRef(node_list_->at(node_->data[i]));
         }
       }  // if (node_->keys.empty())
