@@ -37,6 +37,11 @@
 #include <utility>
 #include "utils.h"
 
+
+// <bojian/TVM-AutoDiff> Added the header for serialization.
+#include <tvm/node/serialization.h>
+
+
 namespace tvm {
 namespace ansor {
 
@@ -82,7 +87,6 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
     // <bojian/TVM-AutoDiff> Added period for checkpointing.
     constexpr int C_CKPT_PERIOD = 10;
     int ckpt = C_CKPT_PERIOD;
-    double min_cost = 0.;  // minimal cost (runtime)
 
     while (ct < n_trials) {
       if (!inputs.empty()) {
@@ -130,16 +134,12 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
 
       // We cannot naively do module check here, the reason is because the
       // trial number is NOT incremented one by one, but by the input size.
-      for (const MeasureResult& res : results) {
-        double avg_cost = FloatArrayMean(res->costs);
-        if (min_cost == 0. || 
-            avg_cost < min_cost) {
-          min_cost = avg_cost;
-        }
-      }
       if (ct >= ckpt) {
         LOG(INFO) << "Auto-Checkpointing is triggered on the current trail " << ct;
-        LOG(INFO) << "Optimal Performance " << min_cost;
+        LOG(INFO) << "Optimal Performance " <<
+            measurer->best_cost[cur_task->workload_key];
+        LOG(INFO) << "Optimal Schedule " << 
+            measurer->best_sched[cur_task->workload_key];
         ckpt += C_CKPT_PERIOD;
       }
 

@@ -249,6 +249,12 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
         best_flops[workload_key] = flops;
         best_state[workload_key] = input_batch[j]->state;
         best_ct[workload_key] = ct;
+
+        // <bojian/TVM-AutoDiff> Extra Logging Information
+        best_cost[workload_key] = FloatArrayMean(result_batch[j]->costs);
+        best_sched[workload_key] =
+            task->compute_dag.ApplySteps(
+              input_batch[j]->state->transform_steps).first;
       }
 
       ct++;

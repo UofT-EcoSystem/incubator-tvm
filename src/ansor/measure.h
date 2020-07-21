@@ -298,6 +298,10 @@ class ProgramMeasurerNode: public Object {
   std::unordered_map<std::string, State> best_state;
   std::unordered_map<std::string, int> best_ct;
 
+  // <bojian/TVM-AutoDiff> Extra Logging Information
+  std::unordered_map<std::string, double> best_cost;
+  std::unordered_map<std::string, te::Schedule> best_sched;
+
   Builder builder;
   Runner runner;
   Array<MeasureCallback> callbacks;
