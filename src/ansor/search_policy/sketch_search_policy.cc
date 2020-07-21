@@ -39,6 +39,7 @@
 
 
 // <bojian/TVM-AutoDiff> Added the header for serialization.
+#include <fstream>
 #include <tvm/node/serialization.h>
 
 
@@ -141,10 +142,26 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
       // trial number is NOT incremented one by one, but by the input size.
       if (ct >= ckpt) {
         LOG(INFO) << "Auto-Checkpointing is triggered on the current trail " << ct;
-        LOG(INFO) << "Optimal Performance " <<
-            measurer->best_cost[cur_task->workload_key];
-        LOG(INFO) << "Optimal Schedule " << 
-            measurer->best_sched[cur_task->workload_key].first;
+        // LOG(INFO) << "Optimal Performance " <<
+        //     measurer->best_cost[cur_task->workload_key];
+        // LOG(INFO) << "Optimal Schedule " << 
+        //     measurer->best_sched[cur_task->workload_key].first;
+        ObjectPtr<ArrayNode> ckpt_item
+            = ArrayNode::CreateRepeated(3, ObjectRef(nullptr));
+        ObjectPtr<FloatImmNode> cost = make_object<FloatImmNode>();
+        cost->dtype = DataType(2, 32, 1);
+        cost->value = measurer->best_cost[cur_task->workload_key];
+        (*ckpt_item)[0] = ObjectRef(cost);
+        (*ckpt_item)[1] = ObjectRef(
+            measurer->best_sched[cur_task->workload_key].first);
+        (*ckpt_item)[2] = ObjectRef(
+            measurer->best_sched[cur_task->workload_key].second);
+
+        std::string ckpt_filename
+            = ckpt_file_prefix + std::to_string(ct) + ".log";
+        std::ofstream fout(ckpt_filename.c_str());
+        fout << SaveJSON(ObjectRef(ckpt_item));
+
         ckpt += C_CKPT_PERIOD;
       }
 
