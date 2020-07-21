@@ -78,6 +78,10 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
     early_stopping = early_stopping < 0 ? std::numeric_limits<int>::max() >> 1 : early_stopping;
 
     int ct = 0;
+
+    // <bojian/TVM-AutoDiff> Added period for checkpointing.
+    constexpr int C_CKPT_PERIOD = 10;
+
     while (ct < n_trials) {
       if (!inputs.empty()) {
         // retrain cost models
@@ -118,9 +122,12 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
         measured_states_throughputs_.push_back(1.0 / FloatArrayMean(res->costs));
       }
 
-      // <bojian/TVM-AutoDiff> Checkpoint after the number of trails passess
-      //                       certain threshold.
-      LOG(INFO) << "Current Number of Trails: " << ct;
+      // <bojian/TVM-AutoDiff> Checkpoint as the number of trails reaches
+      //                       certain period.
+      // LOG(INFO) << "Current Number of Trails: " << ct;
+      if (((ct + 1) % C_CKPT_PERIOD) == 0) {
+        LOG(INFO) << "Auto-Checkpointing is triggered on the current trail: " << ct;
+      }
 
     }  // while (ct < n_trials)
     PrintTitle("Done", verbose);
