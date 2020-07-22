@@ -365,6 +365,7 @@ class JSONAttrSetter : public AttrVisitor {
         for (size_t i = 0; i < node_->data.size(); i += 2) {
 
           LOG(INFO) << "Looking up for " << ObjectRef(node_list_->at(node_->data[i]));
+          LOG(INFO) << "Map Size " << n->size();
           for (const auto& kv : (*n)) {
             LOG(INFO) << kv.first << " : " << kv.second;
           }
