@@ -104,8 +104,10 @@ def ckpt_measure_pair_in_file(
             best_cost, best_input, best_result = cost, input, result
         
         if (i % ckpt_period) == 0:
+            from .workload_registry import workload_key_to_dag
+
             ckpt_costs.append(best_cost)
-            dag = ansor.workload_key_to_dag(best_input.task.workload_key)
+            dag = workload_key_to_dag(best_input.task.workload_key)
             sched, in_args = dag.apply_steps_from_state(best_input.state)
             cuda_kernel = tvm.build(sched, in_args, target=target)
             with open(ckpt_filename + ('%d_sched.log' % i), 'w') as fout:
