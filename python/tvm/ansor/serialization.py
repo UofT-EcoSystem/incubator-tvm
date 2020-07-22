@@ -96,7 +96,7 @@ def ckpt_measure_pair_in_file(
         if result.error_no != MeasureErrorNo.NO_ERROR:
             continue
         costs = []
-        for value in res.costs:
+        for value in result.costs:
             costs.append(value.value)
         cost = np.mean(costs)
 
