@@ -90,7 +90,7 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
                Array<SearchCallback> pre_search_callbacks
                
                // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
-             , String ckpt_file_prefix
+             , std::vector<ObjectRef>* const tune_ckpts
                
                ) final;
 

@@ -211,10 +211,8 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   arith::Analyzer analyzer;
 
   for (Operation op : sch->outputs) {
-    LOG(INFO) << "Looking for operation "  << op;
     roots.push_back(sch->stage_map[op]->op);
   }
-  LOG(INFO) << "Lookup finished";
 
   ctx.feed_graph = CreateFeedGraph(CreateReadGraph(roots));
 
