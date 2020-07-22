@@ -64,7 +64,7 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
     ProgramMeasurer measurer, Array<SearchCallback> pre_search_callbacks
 
     // <bojian/TVM-AutoDiff> Added checkpoint file prefix.  
-  , std::vector<ObjectRef>* const tune_ckpts
+    // , std::vector<ObjectRef>* const tune_ckpts
     
     ) {
   std::vector<State> best_states, random_states;
@@ -91,8 +91,8 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
     int ct = 0;
 
     // <bojian/TVM-AutoDiff> Added period for checkpointing.
-    constexpr int C_CKPT_PERIOD = 10;
-    int ckpt = C_CKPT_PERIOD;
+    // constexpr int C_CKPT_PERIOD = 10;
+    // int ckpt = C_CKPT_PERIOD;
 
     while (ct < n_trials) {
       if (!inputs.empty()) {
@@ -140,31 +140,31 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
 
       // We cannot naively do module check here, the reason is because the
       // trial number is NOT incremented one by one, but by the input size.
-      if (ct >= ckpt) {
-        LOG(INFO) << "Auto-Checkpointing is triggered on the current trail " << ct;
-        // LOG(INFO) << "Optimal Performance " <<
-        //     measurer->best_cost[cur_task->workload_key];
-        // LOG(INFO) << "Optimal Schedule " << 
-        //     measurer->best_sched[cur_task->workload_key].first;
-        ObjectPtr<ArrayNode> ckpt_item
-            = ArrayNode::CreateRepeated(3, ObjectRef(nullptr));
-        ObjectPtr<FloatImmNode> cost = make_object<FloatImmNode>();
-        cost->dtype = DataType(2, 32, 1);
-        cost->value = measurer->best_cost[cur_task->workload_key];
-        (*ckpt_item)[0] = ObjectRef(cost);
-        (*ckpt_item)[1] = ObjectRef(
-            measurer->best_sched[cur_task->workload_key].first);
-        (*ckpt_item)[2] = ObjectRef(
-            measurer->best_sched[cur_task->workload_key].second);
+      // if (ct >= ckpt) {
+      //   LOG(INFO) << "Auto-Checkpointing is triggered on the current trail " << ct;
+      //   // LOG(INFO) << "Optimal Performance " <<
+      //   //     measurer->best_cost[cur_task->workload_key];
+      //   // LOG(INFO) << "Optimal Schedule " << 
+      //   //     measurer->best_sched[cur_task->workload_key].first;
+      //   ObjectPtr<ArrayNode> ckpt_item
+      //       = ArrayNode::CreateRepeated(3, ObjectRef(nullptr));
+      //   ObjectPtr<FloatImmNode> cost = make_object<FloatImmNode>();
+      //   cost->dtype = DataType(2, 32, 1);
+      //   cost->value = measurer->best_cost[cur_task->workload_key];
+      //   (*ckpt_item)[0] = ObjectRef(cost);
+      //   (*ckpt_item)[1] = ObjectRef(
+      //       measurer->best_sched[cur_task->workload_key].first);
+      //   (*ckpt_item)[2] = ObjectRef(
+      //       measurer->best_sched[cur_task->workload_key].second);
 
-        // std::string ckpt_filename
-        //     = ckpt_file_prefix + std::to_string(ct) + ".json";
-        // std::ofstream fout(ckpt_filename.c_str());
-        // fout << SaveJSON(ObjectRef(ckpt_item));
-        tune_ckpts->emplace_back(ckpt_item);
+      //   // std::string ckpt_filename
+      //   //     = ckpt_file_prefix + std::to_string(ct) + ".json";
+      //   // std::ofstream fout(ckpt_filename.c_str());
+      //   // fout << SaveJSON(ObjectRef(ckpt_item));
+      //   tune_ckpts->emplace_back(ckpt_item);
 
-        ckpt = ct + C_CKPT_PERIOD;
-      }
+      //   ckpt = ct + C_CKPT_PERIOD;
+      // }
 
     }  // while (ct < n_trials)
     PrintTitle("Done", verbose);

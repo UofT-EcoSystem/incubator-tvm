@@ -59,8 +59,8 @@ TuneOption::TuneOption(int n_trials, int early_stopping,
   data_ = std::move(node);
 }
 
-// std::pair<te::Schedule, Array<te::Tensor> > 
-Array<ObjectRef>
+std::pair<te::Schedule, Array<te::Tensor> > 
+// Array<ObjectRef>
 AutoSchedule(SearchTask task,
     SearchPolicy search_policy, TuneOption tune_option) {
   // Search for the best schedule
@@ -77,17 +77,17 @@ AutoSchedule(SearchTask task,
       tune_option->pre_search_callbacks
       
       // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
-    // , tune_option->ckpt_file_prefix
-       , &tune_ckpts
+      // , tune_option->ckpt_file_prefix
+      // , &tune_ckpts
       
       );
 
-  // return task->compute_dag.ApplySteps(state->transform_steps);
-  return Array<ObjectRef>(tune_ckpts);
+  return task->compute_dag.ApplySteps(state->transform_steps);
+  // return Array<ObjectRef>(tune_ckpts);
 }
 
-// std::pair<te::Schedule, Array<te::Tensor> > 
-Array<ObjectRef>
+std::pair<te::Schedule, Array<te::Tensor> > 
+// Array<ObjectRef>
 AutoSchedule(
     std::string workload_key, Target target, Target target_host,
     SearchPolicy search_policy, HardwareParams hardware_params,
@@ -122,27 +122,27 @@ TVM_REGISTER_GLOBAL("ansor.TuneOption")
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")
 .set_body_typed([](SearchTask task, SearchPolicy search_policy,
                    TuneOption tune_option) {
-  // te::Schedule sch;
-  // Array<te::Tensor> return_tensors;
-  // std::tie(sch, return_tensors) = AutoSchedule(task, search_policy, tune_option);
+  te::Schedule sch;
+  Array<te::Tensor> return_tensors;
+  std::tie(sch, return_tensors) = AutoSchedule(task, search_policy, tune_option);
 
-  // return Array<ObjectRef>{sch, return_tensors};
-  return AutoSchedule(task, search_policy, tune_option);
+  return Array<ObjectRef>{sch, return_tensors};
+  // return AutoSchedule(task, search_policy, tune_option);
 });
 
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleByWorkloadKey")
 .set_body_typed([](std::string workload_key, Target target,
                    Target target_host, SearchPolicy search_policy,
                    HardwareParams hardware_params, TuneOption tune_option) {
-  // te::Schedule sch;
-  // Array<te::Tensor> return_tensors;
-  // std::tie(sch, return_tensors) =
-  //     AutoSchedule(workload_key, target, target_host, search_policy,
-  //                  hardware_params, tune_option);
+  te::Schedule sch;
+  Array<te::Tensor> return_tensors;
+  std::tie(sch, return_tensors) =
+      AutoSchedule(workload_key, target, target_host, search_policy,
+                   hardware_params, tune_option);
 
-  // return Array<ObjectRef>{sch, return_tensors};
-  return AutoSchedule(workload_key, target, target_host, search_policy,
-                      hardware_params, tune_option);
+  return Array<ObjectRef>{sch, return_tensors};
+  // return AutoSchedule(workload_key, target, target_host, search_policy,
+  //                     hardware_params, tune_option);
 });
 
 }  // namespace ansor
