@@ -93,16 +93,6 @@ def ckpt_measure_pair_in_file(
     ckpt_costs = []
 
     for i, (input, result) in enumerate(log_reader):
-        if result.error_no != MeasureErrorNo.NO_ERROR:
-            continue
-        costs = []
-        for value in result.costs:
-            costs.append(value.value)
-        cost = np.mean(costs)
-
-        if cost < best_cost:
-            best_cost, best_input, best_result = cost, input, result
-        
         if ((i + 1) % ckpt_period) == 0:
             from .workload_registry import workload_key_to_dag
 
@@ -115,6 +105,16 @@ def ckpt_measure_pair_in_file(
                         tvm.lower(sched, in_args, simple_mode=True)))
             with open(ckpt_file_prefix + ('%d_cuda_kernel.log' % (i + 1)), 'w') as fout:
                 fout.write('{}'.format(cuda_kernel.get_source()))
+
+        if result.error_no != MeasureErrorNo.NO_ERROR:
+            continue
+        costs = []
+        for value in result.costs:
+            costs.append(value.value)
+        cost = np.mean(costs)
+
+        if cost < best_cost:
+            best_cost, best_input, best_result = cost, input, result
     with open(ckpt_file_prefix + 'costs.log', 'w') as fout:
         fout.write('{}'.format(ckpt_costs))
 
