@@ -110,12 +110,12 @@ def ckpt_measure_pair_in_file(
             dag = workload_key_to_dag(best_input.task.workload_key)
             sched, in_args = dag.apply_steps_from_state(best_input.state)
             cuda_kernel = tvm.build(sched, in_args, target=target)
-            with open(ckpt_filename + ('%d_sched.log' % i), 'w') as fout:
+            with open(ckpt_file_prefix + ('%d_sched.log' % i), 'w') as fout:
                 fout.write('{}'.format(
                         tvm.lower(sched, in_args, simple_mode=True)))
-            with open(ckpt_filename + ('%d_cuda_kernel.log' % i), 'w') as fout:
+            with open(ckpt_file_prefix + ('%d_cuda_kernel.log' % i), 'w') as fout:
                 fout.write('{}'.format(cuda_kernel.get_source()))
-    with open(ckpt_filename + ('%d_costs.log' % i), 'w') as fout:
+    with open(ckpt_file_prefix + ('%d_costs.log' % i), 'w') as fout:
         fout.write('{}'.format(ckpt_costs))
 
 
