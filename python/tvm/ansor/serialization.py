@@ -115,7 +115,7 @@ def ckpt_measure_pair_in_file(
                         tvm.lower(sched, in_args, simple_mode=True)))
             with open(ckpt_file_prefix + ('%d_cuda_kernel.log' % i), 'w') as fout:
                 fout.write('{}'.format(cuda_kernel.get_source()))
-    with open(ckpt_file_prefix + '_costs.log', 'w') as fout:
+    with open(ckpt_file_prefix + 'costs.log', 'w') as fout:
         fout.write('{}'.format(ckpt_costs))
 
 
