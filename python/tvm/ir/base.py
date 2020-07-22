@@ -114,7 +114,9 @@ class EnvFunc(Object):
         return _ffi_api.EnvFuncGet(name)
 
 
-def load_json(json_str):
+def load_json(json_str
+        # <bojian/TVM-AutoDiff> Added an extra flag for returning all the tensors.
+      , ret_all_tensors=False):
     """Load tvm object from json_str.
 
     Parameters
@@ -129,10 +131,14 @@ def load_json(json_str):
     """
 
     try:
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str
+                # <bojian/TVM-AutoDiff> Added an extra flag for returning all the tensors.
+              , ret_all_tensors)
     except tvm.error.TVMError:
         json_str = json_compact.upgrade_json(json_str)
-        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str
+                # <bojian/TVM-AutoDiff> Added an extra flag for returning all the tensors.
+              , ret_all_tensors)
 
 
 def save_json(node):

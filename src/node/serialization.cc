@@ -476,7 +476,10 @@ std::string SaveJSON(const ObjectRef& n) {
 //                       placeholder operations nor be referenced by the Python
 //                       frontend. Hence, I changed the interface to return ALL
 //                       the tensors deserialized from thee JSON string.
-ObjectRef LoadJSON(std::string json_str) {
+ObjectRef LoadJSON(std::string json_str
+    // <bojian/TVM-AutoDiff> Added an extra flag for returning all the tensors.
+  , bool ret_all_tensors
+    ) {
 
   // <bojian/TVM-AutoDiff> Added logging when loading the JSON string.
   // LOG(INFO) << "Loading JSON";
@@ -703,7 +706,7 @@ ObjectRef LoadJSON(std::string json_str) {
   } while (nodes_changed);
    */
 
-  if (!dmlc::GetEnv("TVM_LOAD_JSON_RET_ALL_TENSORS", false) || 
+  if (ret_all_tensors || 
       tensor_node_idxs.size() == 0) {
     return ObjectRef(nodes.at(jgraph.root)); 
   }

@@ -45,7 +45,10 @@ TVM_DLL std::string SaveJSON(const runtime::ObjectRef& node);
  *
  * \return The shared_ptr of the Node.
  */
-TVM_DLL runtime::ObjectRef LoadJSON(std::string json_str);
+TVM_DLL runtime::ObjectRef LoadJSON(std::string json_str
+    // <bojian/TVM-AutoDiff> Added an extra flag for returning all the tensors.
+  , bool ret_all_tensors = false
+    );
 
 }  // namespace tvm
 #endif  // TVM_NODE_SERIALIZATION_H_
