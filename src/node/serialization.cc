@@ -706,8 +706,10 @@ ObjectRef LoadJSON(std::string json_str
   } while (nodes_changed);
    */
 
-  if (ret_all_tensors || 
+  if (!ret_all_tensors || 
       tensor_node_idxs.size() == 0) {
+    LOG(INFO) << "Returning the head JSON node "
+              << ObjectRef(nodes.at(jgraph.root));
     return ObjectRef(nodes.at(jgraph.root)); 
   }
 
