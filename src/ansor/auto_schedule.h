@@ -84,11 +84,15 @@ class TuneOption : public ObjectRef {
 };
 
 /*! \brief Auto schedule for a compute declaration */
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
+// std::pair<te::Schedule, Array<te::Tensor> > 
+Array<ObjectRef>
+AutoSchedule(
     SearchTask task, SearchPolicy search_policy, TuneOption tune_option);
 
 /*! \brief Auto schedule for a compute declaration */
-std::pair<te::Schedule, Array<te::Tensor> > AutoSchedule(
+// std::pair<te::Schedule, Array<te::Tensor> > 
+Array<ObjectRef>
+AutoSchedule(
     std::string workload_key, Target target, Target target_host,
     SearchPolicy search_policy, HardwareParams hardware_params,
     TuneOption tune_option);
