@@ -103,7 +103,7 @@ def ckpt_measure_pair_in_file(
         if cost < best_cost:
             best_cost, best_input, best_result = cost, input, result
         
-        if (i % ckpt_period) == 0:
+        if ((i + 1) % ckpt_period) == 0:
             from .workload_registry import workload_key_to_dag
 
             ckpt_costs.append(best_cost)
@@ -115,7 +115,7 @@ def ckpt_measure_pair_in_file(
                         tvm.lower(sched, in_args, simple_mode=True)))
             with open(ckpt_file_prefix + ('%d_cuda_kernel.log' % i), 'w') as fout:
                 fout.write('{}'.format(cuda_kernel.get_source()))
-    with open(ckpt_file_prefix + ('%d_costs.log' % i), 'w') as fout:
+    with open(ckpt_file_prefix + '_costs.log', 'w') as fout:
         fout.write('{}'.format(ckpt_costs))
 
 
