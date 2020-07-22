@@ -83,7 +83,12 @@ class Object(ObjectBase):
         self.handle = None
         if handle is not None:
             self.__init_handle_by_constructor__(
-                _ffi_node_api.LoadJSON, handle)
+                _ffi_node_api.LoadJSON, 
+                
+                # <bojian/TVM-AutoDiff> Added an extra flag for returning all the tensors.
+                handle, True
+                
+                )
 
     def _move(self):
         """Create an RValue reference to the object and mark the object as moved.
