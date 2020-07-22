@@ -81,6 +81,42 @@ def get_states_from_measure_inputs(inputs, task):
     return [State(s, task.compute_dag) for s in state_objects]
 
 
+
+def ckpt_measure_pair_in_file(
+        log_file,
+        ckpt_file_prefix,
+        ckpt_period=10,
+        target=tvm.target.cuda()):
+    log_reader = LogReader(log_file)
+    best_cost, best_input, best_result = 1e30, None, None
+
+    ckpt_costs = []
+
+    for i, (input, result) in enumerate(log_reader):
+        if result.error_no != MeasureErrorNo.NO_ERROR:
+            continue
+        costs = []
+        for value in res.costs:
+            costs.append(value.value)
+        cost = np.mean(costs)
+
+        if cost < best_cost:
+            best_cost, best_input, best_result = cost, input, result
+        
+        if (i % ckpt_period) == 0:
+            ckpt_costs.append(best_cost)
+            dag = ansor.workload_key_to_dag(best_input.task.workload_key)
+            sched, in_args = dag.apply_steps_from_state(best_input.state)
+            cuda_kernel = tvm.build(sched, in_args, target=target)
+            with open(ckpt_filename + ('%d_sched.log' % i), 'w') as fout:
+                fout.write('{}'.format(
+                        tvm.lower(sched, in_args, simple_mode=True)))
+            with open(ckpt_filename + ('%d_cuda_kernel.log' % i), 'w') as fout:
+                fout.write('{}'.format(cuda_kernel.get_source()))
+    with open(ckpt_filename + ('%d_costs.log' % i), 'w') as fout:
+        fout.write('{}'.format(ckpt_costs))
+
+
 def best_measure_pair_in_file(filename, workload_key=None, target=None):
     """ Return the best measurement pair form a log file
 
