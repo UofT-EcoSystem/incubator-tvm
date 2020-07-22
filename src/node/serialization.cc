@@ -37,6 +37,7 @@
 #include <tvm/tir/expr.h>
 #include <dmlc/parameter.h>  // GetEnv
 #include <sstream>
+#include "../runtime/object_internal.h"
 
 #include <cctype>
 #include <map>
@@ -336,7 +337,10 @@ class JSONAttrSetter : public AttrVisitor {
     *value = ObjectRef(node_list_->at(index));
   }
   // set node to be current JSONNode
-  void Set(Object* node) {
+  // <bojian/TVM-AutoDiff> Fix for MapNode construction.
+  // void Set(Object* node) {
+  void Set(ObjectPtr<Object>* pnode) {
+    Object* const node = pnode->get();
     if (node == nullptr) return;
 
     // <bojian/TVM-AutoDiff> Added logging on the JSON node type key.
@@ -359,29 +363,36 @@ class JSONAttrSetter : public AttrVisitor {
         n->SetItem(i++, ObjectRef(node_list_->at(index)));
       }
     } else if (node->IsInstance<MapNode>()) {
-      MapNode* n = static_cast<MapNode*>(node);
+
+      // <bojian/TVM-AutoDiff> Fix for MapNode construction.
+      // MapNode* n = static_cast<MapNode*>(node);
+      std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> container;
+
       if (node_->keys.empty()) {
         CHECK_EQ(node_->data.size() % 2, 0U);
         for (size_t i = 0; i < node_->data.size(); i += 2) {
 
-          LOG(INFO) << "Looking up for " << ObjectRef(node_list_->at(node_->data[i]));
-          LOG(INFO) << "Map Size " << n->size();
-          for (const auto& kv : (*n)) {
-            LOG(INFO) << kv.first << " : " << kv.second;
-          }
-
-          (*n).at(ObjectRef(node_list_->at(node_->data[i]))) =
-              ObjectRef(node_list_->at(node_->data[i + 1]));
+          // <bojian/TVM-AutoDiff> Fix for MapNode construction.
+          // (*n).at(ObjectRef(node_list_->at(node_->data[i]))) =
+          //         ObjectRef(node_list_->at(node_->data[i + 1]));
+          container[ObjectRef(node_list_->at(node_->data[i]))] =
+                    ObjectRef(node_list_->at(node_->data[i + 1]));
         }
       } else {
         CHECK_EQ(node_->data.size(), node_->keys.size());
         for (size_t i = 0; i < node_->data.size(); ++i) {
 
-          LOG(INFO) << "Looking up for " << String(node_->keys[i]);
-
-          (*n).at(String(node_->keys[i])) = ObjectRef(node_list_->at(node_->data[i]));
+          // <bojian/TVM-AutoDiff> Fix for MapNode construction.
+          // (*n).at(String(node_->keys[i])) = ObjectRef(node_list_->at(node_->data[i]));
+          container[String(node_->keys[i])]
+              = ObjectRef(node_list_->at(node_->data[i]));
         }
       }  // if (node_->keys.empty())
+
+      // <bojian/TVM-AutoDiff> Fix for MapNode construction.
+      Map<ObjectRef, ObjectRef> map(container);
+      *pnode = ::tvm::runtime::ObjectInternal::MoveObjectPtr(&map);
+
     } else {
       reflection_->VisitAttrs(node, this);
     }  // if (node->IsInstance<ArrayNode>())
@@ -603,7 +614,9 @@ ObjectRef LoadJSON(std::string json_str) {
     // where the repr bytes itself is an empty string "".
     if (setter.node_->repr_bytes.length() == 0 && nodes[i] != nullptr &&
         !reflection->GetReprBytes(nodes[i].get(), nullptr)) {
-      setter.Set(nodes[i].get());
+      // <bojian/TVM-AutoDiff> Fix for MapNode construction.
+      // setter.Set(nodes[i].get());
+      setter.Set(&nodes[i]);
     }
 
     // <bojian/TVM-AutoDiff> Record all the TensorNode's.
