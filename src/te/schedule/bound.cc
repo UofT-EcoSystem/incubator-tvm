@@ -210,10 +210,14 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
   Array<Operation> roots;
   arith::Analyzer analyzer;
 
+  LOG(INFO) << "Checkpoint 1";
+
   for (Operation op : sch->outputs) {
     roots.push_back(sch->stage_map[op]->op);
   }
   ctx.feed_graph = CreateFeedGraph(CreateReadGraph(roots));
+
+  LOG(INFO) << "Checkpoint 2";
 
   for (Stage stage : sch->stages) {
     for (auto kv : stage->iter_var_attrs) {
@@ -225,6 +229,9 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
     ctx.op2stage_[stage->op.get()] = stage;
   }
   ctx.attach_path = CreateAttachPath(sch);
+
+  LOG(INFO) << "Checkpoint 3";
+
   // Run inference.
   std::unordered_map<IterVar, Range> ret;
   for (size_t i = sch->stages.size(); i != 0; --i) {
@@ -246,10 +253,16 @@ Map<IterVar, Range> InferBound(const Schedule& sch) {
       ret[iv] = iv->dom;
     }
   }
+
+  LOG(INFO) << "Checkpoint 4";
+
   for (auto& p : ret) {
     ret[p.first] = Range::make_by_min_extent(analyzer.Simplify(p.second->min),
                                              analyzer.Simplify(p.second->extent));
   }
+
+  LOG(INFO) << "Checkpoint 5";
+
   return Map<IterVar, Range>(ret.begin(), ret.end());
 }
 
