@@ -33,7 +33,9 @@ from .auto_schedule import SearchTask, SketchSearchPolicy, TuneOption, HardwareP
 from .measure import MeasureInput, LocalBuilder, LocalRunner, RPCRunner, LocalRPCMeasureContext
 from .cost_model import RandomModel
 from .cost_model.xgb_model import XGBModel
-from .serialization import LogToFile, LogReader, best_measure_pair_in_file, \
+from .serialization import LogToFile, LogReader, \
+    ckpt_measure_pair_in_file, \
+    best_measure_pair_in_file, \
     load_from_file, write_measure_records_to_file
 from .workload_registry import register_workload_func, \
     workload_key_to_dag, make_workload_key_func
