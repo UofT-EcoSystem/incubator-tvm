@@ -1157,7 +1157,7 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
 
-    if (stage->compute_at != kRoot || stage->op_type == kPlaceholder) {
+    if (stage->compute_at == kInlined || stage->op_type == kPlaceholder) {
       continue;
     }
 
@@ -1235,7 +1235,7 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
 
-    if (stage->op_type == kPlaceholder) {
+    if (stage->compute_at == kInlined || stage->op_type == kPlaceholder) {
       continue;
     }
 
