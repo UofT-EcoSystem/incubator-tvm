@@ -691,9 +691,9 @@ std::vector<State> SketchSearchPolicyNode::GenerateSketches() {
     // Should take care of the order of rules here
     
     if (IsGPUTask(cur_task)) {
+      sketch_rules.push_back(&rule_add_cache_read_stage);
       sketch_rules.push_back(&rule_always_inline);
       sketch_rules.push_back(&rule_cross_thread_reduction);
-      sketch_rules.push_back(&rule_add_cache_read_stage);
       sketch_rules.push_back(&rule_add_cache_write_stage);
       sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
       sketch_rules.push_back(&rule_multi_level_tiling);
@@ -1317,7 +1317,7 @@ void SketchSearchPolicyNode::SampleInitPopulation(const std::vector<State>& sket
 
   // TODO(lmzheng, jcf94): Try to parallel this while loop
   while (static_cast<int>(out_states->size()) < out_size 
-          && fail_ct < static_cast<int>(out_size * 1.2)) {
+          && fail_ct < static_cast<int>(out_size)) {
     State tmp_s = sketches[rand_gen_() % sketches.size()];
 
     InitPopulationFillTileSize(*this, &tmp_s, &rand_gen_, &split_memo_);

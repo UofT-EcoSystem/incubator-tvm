@@ -51,21 +51,19 @@ class BatchMatmulWeightTransposeMutator : public ExprMutator {
         auto new_attrs = make_object<BatchMatmulAttrs>();
         new_attrs->weight_transposed = false;
 
-        // Case 1: if the rhs is a transpose, then we can remove this transpose
         const auto* trans = call->args[1].as<CallNode>();
         if (trans && trans->op.as<OpNode>() &&
             trans->op.as<OpNode>()->name == "transpose") {
+          // Case 1: if the rhs is a transpose, then we can remove this transpose
           const auto* transpose_attrs = trans->attrs.as<TransposeAttrs>();
           if (transpose_attrs->axes.size() == 3 && transpose_attrs->axes[0] == 0 &&
               transpose_attrs->axes[1] == 2 && transpose_attrs->axes[2] == 1) {
             Array<Expr> new_args = {call->args[0], trans->args[0]};
             new_n = Call(call->op, new_args, Attrs(new_attrs));
           }
-        }
-
-        // Case 2: if the rhs is a constant, then we can add a transpose and
-        // rely on FoldConstant to transform the weight
-        if (call->args[1]->IsInstance<ConstantNode>()) {
+        } else if (call->args[1]->IsInstance<ConstantNode>()) {
+          // Case 2: if the rhs is a constant, then we can add a transpose and
+          // rely on FoldConstant to transform the weight
           Expr transposed_arg = MakeTranspose(call->args[1], Array<Integer>{0, 2, 1});
           Array<Expr> new_args = {call->args[0], transposed_arg};
           new_n = Call(call->op, new_args, Attrs(new_attrs));
@@ -97,3 +95,4 @@ TVM_REGISTER_GLOBAL("relay._transform.BatchMatmulWeightTranspose")
 
 }  // namespace relay
 }  // namespace tvm
+
