@@ -507,12 +507,6 @@ inline const Iterator& GetLastReduceIteratorInOutermostReduceTile(const Stage& s
 
   auto no_split_name_pair = GetNoSplitAxisAttr(stage);
   std::set<std::string> no_split_at_inner_name_set = no_split_name_pair.first;
-  size_t axis_size = 0;
-  for (const auto axis : pop->axis) {
-    if (!no_split_at_inner_name_set.count(axis->var->name_hint)) {
-      axis_size++;
-    }
-  }
   size_t reduce_axis_size = 0;
   for (const auto axis : pop->reduce_axis) {
     if (!no_split_at_inner_name_set.count(axis->var->name_hint)) {
@@ -522,16 +516,52 @@ inline const Iterator& GetLastReduceIteratorInOutermostReduceTile(const Stage& s
 
   if (reduce_axis_size) {
     for (const auto& iter : stage->iters) {
-      ExtractOriginalIterators(iter->name, &original_names);
-      if (original_names.size() == axis_size + reduce_axis_size) {
-        return iter;
+      if (iter->iter_type == kReduce) {
+        ExtractOriginalIterators(iter->name, &original_names);
+        if (original_names.size() == reduce_axis_size) {
+          return iter;
+        }
       }
     }
-  } else {
-    for (size_t i = 0; i < stage->iters.size(); i++) {
-      ExtractOriginalIterators(stage->iters[i]->name, &original_names);
-      if (original_names.size() == axis_size + 1) {
-        return stage->iters[i-1];
+  }
+
+  LOG(FATAL) << "Cannot find the iterator.";
+  return stage->iters[0];
+}
+
+// Get the last reduce iterator in the outermost reduce tile
+inline const Iterator& GetLastReduceIteratorInSecondOutermostReduceTile(const Stage& stage) {
+  auto pop = stage->op.as<te::ComputeOpNode>();
+  CHECK(pop != nullptr);
+  std::set<std::string> original_names;
+
+  auto no_split_name_pair = GetNoSplitAxisAttr(stage);
+  std::set<std::string> no_split_at_inner_name_set = no_split_name_pair.first;
+  size_t reduce_axis_size = 0;
+  for (const auto axis : pop->reduce_axis) {
+    if (!no_split_at_inner_name_set.count(axis->var->name_hint)) {
+      reduce_axis_size++;
+    }
+  }
+
+  if (reduce_axis_size) {
+    size_t i = 0;
+    for (; i < stage->iters.size(); ++i) {
+      if (stage->iters[i]->iter_type == kReduce) {
+        ExtractOriginalIterators(stage->iters[i]->name, &original_names);
+        if (original_names.size() == reduce_axis_size) {
+          ++i;
+          break;
+        }
+      }
+    }
+    original_names.clear();
+    for (; i < stage->iters.size(); ++i) {
+      if (stage->iters[i]->iter_type == kReduce) {
+        ExtractOriginalIterators(stage->iters[i]->name, &original_names);
+        if (original_names.size() == reduce_axis_size) {
+          return stage->iters[i];
+        }
       }
     }
   }
