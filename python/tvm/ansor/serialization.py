@@ -104,7 +104,7 @@ def ckpt_measure_pair_in_file(
                 fout.write('{}'.format(
                         tvm.lower(sched, in_args, simple_mode=True)))
             with open(ckpt_file_prefix + ('%d_cuda_kernel.log' % (i + 1)), 'w') as fout:
-                fout.write('{}'.format(cuda_kernel.get_source()))
+                fout.write('{}'.format(cuda_kernel.imported_modules[0].get_source()))
 
         if result.error_no != MeasureErrorNo.NO_ERROR:
             continue
