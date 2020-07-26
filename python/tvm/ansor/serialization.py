@@ -101,7 +101,8 @@ def ckpt_measure_pair_in_file(
 
             if cost < best_cost:
                 best_cost, best_input, best_result = cost, input, result
-        if ((i + 1) % ckpt_period) == 0:
+        if ((i + 1) % ckpt_period) == 0 or \
+           ((i + 1) == len(log_reader)):
             from .workload_registry import workload_key_to_dag
 
             ckpt_costs.append(best_cost)
