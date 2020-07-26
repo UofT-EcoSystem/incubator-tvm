@@ -92,7 +92,22 @@ def ckpt_measure_pair_in_file(
 
     ckpt_costs = []
 
+    def ckpt(ckpt_file_suffix):
+        from .workload_registry import workload_key_to_dag
+        ckpt_costs.append(best_cost)
+        dag = workload_key_to_dag(best_input.task.workload_key)
+        sched, in_args = dag.apply_steps_from_state(best_input.state)
+        cuda_kernel = tvm.build(sched, in_args, target=target)
+        with open(ckpt_file_prefix + 
+                  ('%s_sched.log' % ckpt_file_suffix), 'w') as fout:
+            fout.write('{}'.format(tvm.lower(sched, in_args, simple_mode=True)))
+        with open(ckpt_file_prefix + 
+                  ('%s_cuda_kernel.log' % ckpt_file_suffix), 'w') as fout:
+            fout.write('{}'.format(cuda_kernel.imported_modules[0].get_source()))
+
+    ckpt_last_iter = False
     for i, (input, result) in enumerate(log_reader):
+        ckpt_last_iter = False
         if result.error_no == MeasureErrorNo.NO_ERROR:
             costs = []
             for value in result.costs:
@@ -101,19 +116,11 @@ def ckpt_measure_pair_in_file(
 
             if cost < best_cost:
                 best_cost, best_input, best_result = cost, input, result
-        if ((i + 1) % ckpt_period) == 0 or \
-           ((i + 1) == len(log_reader)):
-            from .workload_registry import workload_key_to_dag
-
-            ckpt_costs.append(best_cost)
-            dag = workload_key_to_dag(best_input.task.workload_key)
-            sched, in_args = dag.apply_steps_from_state(best_input.state)
-            cuda_kernel = tvm.build(sched, in_args, target=target)
-            with open(ckpt_file_prefix + ('%d_sched.log' % (i + 1)), 'w') as fout:
-                fout.write('{}'.format(
-                        tvm.lower(sched, in_args, simple_mode=True)))
-            with open(ckpt_file_prefix + ('%d_cuda_kernel.log' % (i + 1)), 'w') as fout:
-                fout.write('{}'.format(cuda_kernel.imported_modules[0].get_source()))
+        if ((i + 1) % ckpt_period) == 0:
+            ckpt_last_iter = True
+            ckpt(ckpt_file_suffix=str(i + 1))
+    if not ckpt_last_iter:
+        ckpt(ckpt_file_suffix='final')
     with open(ckpt_file_prefix + 'costs.log', 'w') as fout:
         fout.write('{}'.format(ckpt_costs))
 
