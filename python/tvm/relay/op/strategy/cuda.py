@@ -123,6 +123,11 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_int8),
                     name="conv2d_nchw_int8.cuda")
             else:
+                strategy.add_implementation(wrap_compute_conv2d(topi.nn.conv2d_nchw),
+                                            wrap_topi_schedule(ansor.auto_schedule_topi),
+                                            name='ansor',
+                                            plevel=ansor_plevel)
+
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
@@ -211,6 +216,12 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.nn.depthwise_conv2d_nchw),
+                wrap_topi_schedule(ansor.auto_schedule_topi),
+                name='ansor',
+                plevel=ansor_plevel)
+
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.cuda.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
@@ -502,16 +513,16 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 name="dense_large_batch.cuda",
                 plevel=5)
 
-        if target.target_name == "cuda":
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-                if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
-                        or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
-                        or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0):
-                    strategy.add_implementation(
-                        wrap_compute_dense(topi.cuda.dense_tensorcore),
-                        wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
-                        name="dense_tensorcore.cuda",
-                        plevel=20)
+        #if target.target_name == "cuda":
+        #    if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+        #        if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
+        #                or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
+        #                or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0):
+        #            strategy.add_implementation(
+        #                wrap_compute_dense(topi.cuda.dense_tensorcore),
+        #                wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
+        #                name="dense_tensorcore.cuda",
+        #                plevel=20)
     if target.target_name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_cublas),

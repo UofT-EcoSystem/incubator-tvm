@@ -1,0 +1,66 @@
+DEBUG:ansor:Finish loading 360 records
+==10565== NVPROF is profiling process 10565, command: python3.6 tune_network.py --network resnet-50 --target cuda --batch-size 1 --tune false --log-file all.best.json
+=============== Compile ===============
+=============== Compile Finish ===============
+========== Evaluate ==========
+Mean inference time (std dev): 2.03 ms (0.00 ms)
+==10565== Profiling application: python3.6 tune_network.py --network resnet-50 --target cuda --batch-size 1 --tune false --log-file all.best.json
+==10565== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   14.43%  718.93ms     15132  47.510us  40.064us  89.120us  fused_nn_conv2d_add_nn_relu_36_kernel0
+                   12.15%  605.60ms      7566  80.041us  74.623us  98.336us  fused_nn_conv2d_add_nn_relu_33_kernel0
+                   10.36%  516.25ms     12610  40.939us  39.264us  48.448us  fused_nn_conv2d_add_nn_relu_37_kernel0
+                    6.66%  331.66ms     10088  32.876us  30.463us  44.095us  fused_nn_conv2d_add_nn_relu_39_kernel0
+                    5.93%  295.55ms      5044  58.594us  57.151us  68.671us  fused_nn_conv2d_add_nn_relu_34_kernel0
+                    5.63%  280.74ms     12610  22.262us  21.184us  27.328us  fused_nn_conv2d_add_13_kernel0
+                    4.53%  225.87ms      7566  29.853us  28.096us  37.120us  fused_nn_conv2d_add_nn_relu_40_kernel0
+                    4.22%  210.09ms      7566  27.767us  25.632us  35.232us  fused_nn_conv2d_add_nn_relu_42_kernel0
+                    3.52%  175.56ms      5044  34.805us  33.344us  41.120us  fused_nn_conv2d_add_12_kernel0
+                    3.39%  168.70ms      2522  66.892us  65.023us  77.952us  fused_nn_conv2d_7_kernel0
+                    2.83%  141.23ms      7566  18.666us  16.576us  25.504us  fused_nn_conv2d_add_14_kernel0
+                    2.74%  136.50ms      5044  27.061us  22.719us  35.135us  fused_nn_conv2d_add_nn_relu_43_kernel0
+                    2.68%  133.40ms      2522  52.893us  51.776us  59.007us  fused_nn_dense_add_1_kernel0
+                    2.18%  108.87ms      2522  43.168us  42.112us  49.824us  fused_nn_conv2d_6_kernel0
+                    1.78%  88.616ms      5044  17.568us  16.352us  20.928us  fused_nn_conv2d_add_15_kernel0
+                    1.78%  88.598ms      2522  35.130us  34.208us  40.768us  fused_nn_conv2d_5_kernel0
+                    1.70%  84.537ms      2522  33.519us  32.768us  39.168us  fused_nn_conv2d_add_multiply_add_nn_relu_1_kernel0
+                    1.61%  80.190ms      2522  31.796us  31.040us  37.760us  fused_nn_conv2d_add_nn_relu_35_kernel0
+                    1.25%  62.434ms      2522  24.755us  24.128us  28.896us  fused_nn_conv2d_add_nn_relu_45_kernel0
+                    1.24%  62.011ms      2522  24.588us  23.968us  28.224us  fused_nn_conv2d_add_add_nn_relu_3_kernel0
+                    1.21%  60.309ms      2522  23.913us  23.040us  27.232us  fused_nn_conv2d_add_nn_relu_41_kernel0
+                    1.16%  57.616ms      2522  22.845us  22.079us  26.176us  fused_nn_conv2d_add_nn_relu_38_kernel0
+                    1.14%  56.756ms      2522  22.504us  21.823us  26.112us  fused_nn_conv2d_add_add_nn_relu_4_kernel0
+                    0.92%  45.637ms      2522  18.095us  17.344us  20.896us  fused_nn_conv2d_add_add_nn_relu_5_kernel0
+                    0.84%  42.051ms      2522  16.673us  16.256us  19.520us  fused_nn_conv2d_4_kernel0
+                    0.74%  36.742ms     12610  2.9130us  2.6880us  3.7120us  fused_add_nn_relu_13_kernel0
+                    0.58%  28.922ms      2522  11.467us  11.040us  12.992us  fused_nn_conv2d_add_nn_relu_44_kernel0
+                    0.57%  28.553ms      5044  5.6600us  4.9600us  6.9120us  fused_add_nn_relu_15_kernel0
+                    0.53%  26.182ms      7566  3.4600us  3.2000us  4.3840us  fused_add_nn_relu_14_kernel0
+                    0.35%  17.334ms      2522  6.8730us  6.6550us  7.8720us  fused_nn_softmax_1_kernel0
+                    0.33%  16.303ms      2522  6.4640us  6.3350us  7.6800us  fused_nn_max_pool2d_add_nn_relu_1_kernel0
+                    0.23%  11.559ms       108  107.03us  1.4720us  1.1187ms  [CUDA memcpy HtoD]
+                    0.22%  10.813ms      5044  2.1430us  1.8880us  2.8480us  fused_add_nn_relu_12_kernel0
+                    0.15%  7.3782ms      2522  2.9250us  2.8470us  3.4880us  fused_nn_global_avg_pool2d_1_kernel0
+                    0.13%  6.6707ms      2522  2.6450us  2.4320us  3.5520us  fused_add_117_kernel0
+                    0.13%  6.4273ms      2522  2.5480us  2.4640us  3.1040us  fused_nn_max_pool2d_add_nn_relu_1_kernel1
+                    0.10%  5.1034ms      2522  2.0230us  1.9830us  2.4320us  fused_nn_global_avg_pool2d_1_kernel1
+                    0.07%  3.6276ms      2522  1.4380us  1.4070us  1.8240us  fused_nn_batch_flatten_1_kernel0
+                    0.00%  3.1040us         1  3.1040us  3.1040us  3.1040us  [CUDA memcpy DtoD]
+      API calls:   61.97%  4.04477s    184106  21.969us  5.2000us  612.03us  cuLaunchKernel
+                   26.00%  1.69704s         1  1.69704s  1.69704s  1.69704s  cuModuleLoadData
+                    3.95%  258.00ms       117  2.2051ms  2.9680us  253.57ms  cudaMalloc
+                    3.04%  198.14ms    179412  1.1040us     965ns  547.07us  cudaSetDevice
+                    2.69%  175.71ms    184106     954ns     901ns  539.43us  cudaGetDevice
+                    1.99%  129.75ms         6  21.624ms  1.2363ms  28.424ms  cudaStreamSynchronize
+                    0.25%  16.109ms       109  147.78us  10.117us  1.1888ms  cudaMemcpy
+                    0.08%  5.3194ms       117  45.464us  3.4820us  323.58us  cudaFree
+                    0.02%  1.5097ms         1  1.5097ms  1.5097ms  1.5097ms  cuModuleUnload
+                    0.01%  708.74us         1  708.74us  708.74us  708.74us  cuDeviceTotalMem
+                    0.00%  291.13us        96  3.0320us     736ns  73.505us  cuDeviceGetAttribute
+                    0.00%  42.555us        37  1.1500us     965ns  3.0030us  cuModuleGetFunction
+                    0.00%  21.111us         1  21.111us  21.111us  21.111us  cuDeviceGetName
+                    0.00%  20.213us         7  2.8870us  1.0050us  6.5680us  cudaDeviceGetAttribute
+                    0.00%  3.7970us         3  1.2650us     744ns  1.8780us  cuDeviceGetCount
+                    0.00%  3.6130us         1  3.6130us  3.6130us  3.6130us  cuDeviceGetPCIBusId
+                    0.00%  2.0090us         2  1.0040us     769ns  1.2400us  cuDeviceGet
+                    0.00%     935ns         1     935ns     935ns     935ns  cuDeviceGetUuid

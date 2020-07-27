@@ -18,6 +18,7 @@
 """TaskScheduler that allocates the time resources when tuning multiple tasks together"""
 from typing import List, Union, Callable
 import time
+import math
 
 import numpy as np
 
@@ -82,7 +83,7 @@ def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: Li
     return search_policies
 
 
-def derive_similarity_tag(dag):
+def derive_similarity_tag(dag, log_base=1.618):
     """Derive the tag for similarity check from one computation DAG.
     The DAGs with the same tag are considered as similar tasks"""
     ret = ""
@@ -91,7 +92,7 @@ def derive_similarity_tag(dag):
         if tag:
             ret += op.attrs['ansor_task_scheduler_tag'] + "_"
     if ret != "":
-        ret += "%d" % int(dag.flop_ct / 1e6)
+        ret += "%d" % int(math.log(dag.flop_ct + 1, log_base))
     return ret
 
 
@@ -132,7 +133,7 @@ class SimpleTaskScheduler(TaskScheduler):
                  eps_random: float = 0.05,
                  verbose: int = 1,
                  alpha: float = 0.2,
-                 beta: float = 4,
+                 beta: float = 2,
                  gamma: float = 0.5,
                  backward_window_size: int = 3,
                  use_debug_measurement_simulator=None):
@@ -300,6 +301,7 @@ class SimpleTaskScheduler(TaskScheduler):
                 raise ValueError("Invalid strategy: " + self.strategy)
 
             self.tune_task(task_idx)
+            self.adjust_similarity_group(task_idx)
 
     def tune_task(self, task_idx):
         if self.verbose >= 1:
@@ -339,8 +341,21 @@ class SimpleTaskScheduler(TaskScheduler):
                    to_str_round(self.best_costs * 1e3, decimal=3),
                    self.task_cts))
 
-    def remove_dead_task(self, prob):
-        for idx in self.dead_tasks:
-            prob[idx] = 0
-        return prob / prob.sum()
+    def adjust_similarity_group(self, task_idx):
+        group_id = self.tag_to_group_id.get(self.task_tags[task_idx], None)
+        if group_id is None or len(self.group_task_ids[group_id]) <= 1:
+            return
 
+        group_ids = self.group_task_ids[group_id]
+        best_group_flops = max([self.flop_cts[j] / self.best_costs[j] for j in group_ids])
+        cur_flops = self.flop_cts[task_idx] / self.best_costs[task_idx]
+ 
+        # if we tune a task for many times but it still cannot achieve
+        # a similar speed to the fastest one in its group, this means this task
+        # is actually not similar to other tasks in its group.
+        # So we will reomve it from its original group.
+        if (cur_flops < best_group_flops / self.beta and 
+            self.task_cts[task_idx] > 5 + max(self.task_cts[j] for j in group_ids if j != task_idx)):
+            self.task_tags[task_idx] = None
+            group_ids.remove(task_idx)
+  

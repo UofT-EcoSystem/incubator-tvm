@@ -14,7 +14,7 @@ class ShapeConstDedupMutator(tvm.relay.ExprMutator):
 
     def visit_call(self, call):
         if (isinstance(call.op, tvm.ir.Op) and call.op.name == "reshape"
-            and isinstance(call.args[1], tvm.relay.Constant)):
+            and len(call.args) > 1 and isinstance(call.args[1], tvm.relay.Constant)):
             assert list(call.attrs.newshape) == list(call.args[1].data.asnumpy())
             new_fn = self.visit(call.op)
             new_args = [self.visit(arg) for arg in call.args]

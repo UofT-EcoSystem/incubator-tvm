@@ -127,7 +127,7 @@ def get_network(name, network_path, batch_size, layout):
         scripted_model = torch.jit.trace(model, input_data).eval()
 
         input_name = 'input0'
-        shape_list = {input_name: input_shape}
+        shape_list = [(input_name, input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model,
                                                   shape_list)
     elif name == 'bert':
@@ -326,7 +326,7 @@ def tune_and_evaluate(network_arguments, target, target_host,
 
         # Evaluate
         print("========== Evaluate ==========")
-        ftimer = module.module.time_evaluator("run", ctx, number=10, repeat=3, min_repeat_ms=500)
+        ftimer = module.module.time_evaluator("run", ctx, number=10, repeat=3, min_repeat_ms=1000)
         prof_res = np.array(ftimer().results)
 
         # display profile information
@@ -401,7 +401,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-measure-per-iter", type=int, default=64,
                         help="The number of programs to be measured at each iteration")
     parser.add_argument("--build-timeout", type=int, default=10)
-    parser.add_argument("--run-timeout", type=int, default=30)
+    parser.add_argument("--run-timeout", type=int, default=25)
     parser.add_argument("--early-stopping", type=int, default=-1)
     parser.add_argument("--verbose", type=int, default=1)
     parser.add_argument("--rpc-device-key", type=str, default=None)

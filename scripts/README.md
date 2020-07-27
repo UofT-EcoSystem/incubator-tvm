@@ -78,3 +78,14 @@
   python3 tune_test.py --wkl matmul-512 --n-trials 0
   ```
 
+## Evaluate all networks
+The results will be saved to `results.tsv`
+- Intel CPU
+  ```
+  python3 evaluate_all_networks.py --backend intel-cpu --log-file ~/Ansor-exp/saved_logs/2020-06-30-ansor-network-cpu.json
+  ```
+- Nvidia GPU
+  ```
+  python3 evaluate_all_networks.py --backend nvidia-gpu --log-file ~/Ansor-exp/saved_logs/2020-07-17-ansor-network-gpu.json
+  ```
+

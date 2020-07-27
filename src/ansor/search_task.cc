@@ -81,7 +81,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     p_hardware_params->warp_size = ret;
 
     // Manually set now
-    p_hardware_params->max_vthread_extent = 4;
+    p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
 
     return hardware_params;
   } else if (target->device_type == kDLOpenCL) {
@@ -108,7 +108,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     p_hardware_params->warp_size = ret;
 
     // Manually set now
-    p_hardware_params->max_vthread_extent = 4;
+    p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
 
     return hardware_params;
   } else {

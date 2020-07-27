@@ -692,6 +692,12 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+def run_cmd(cmd):
+    print(cmd)
+    ret = os.system(cmd)
+    if ret != 0:
+        exit(ret)
+
 
 global last_tic
 last_tic = None
@@ -824,9 +830,14 @@ class LogFileDatabase:
                     self.best_by_model[key] = (inp, res)
 
     def write_best(self, filename: str):
-        best_records = list(self.best_by_targetkey.values())
-        inputs = [x[0] for x in best_records]
-        results = [x[1] for x in best_records]
+        visited = set()
+        inputs, results = [], []
+        for inp, res in self.best_by_targetkey.values():
+            if inp in visited:
+                continue
+            visited.add(inp)
+            inputs.append(inp)
+            results.append(res)
         write_measure_records_to_file(filename, inputs, results)
 
 

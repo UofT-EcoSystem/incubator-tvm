@@ -30,9 +30,14 @@ if __name__ == "__main__":
     dag_group = []
     tag_to_group = {}
 
-    for i, (inp, res) in enumerate(ansor.LogReader(args.log_file)):
+    i = 0
+    visited = set()
+    for inp, res in ansor.LogReader(args.log_file):
         print(20 * "=" + " Line %d " % i + 20 * "=")
         print("Workload key: %s " % inp.task.workload_key)
+        if inp.task.workload_key in visited:
+            continue
+        visited.add(inp.task.workload_key)
         cost = ansor.utils.array_mean(res.costs)
         dag = ansor.workload_key_to_dag(inp.task.workload_key)
         gflops = dag.flop_ct / cost / 1e9
@@ -49,6 +54,7 @@ if __name__ == "__main__":
                 dag_group.append([])
             idx = tag_to_group[tag] 
             dag_group[idx].append(i)
+        i += 1
 
     print("\n\n\n")
 
