@@ -528,15 +528,14 @@ class RuleAddCacheRead : public SketchGenerationRule {
     tmp_s.compute_at(added_stage_id, target_stage_id, share_read_pos);
     ret.push_back(std::make_pair(tmp_s, stage_id));
 
-    // Cache read add local memory
-    added_stage_id = tmp_s.cache_read(added_stage_id, "local",
-                                      {target_stage_id}, task->compute_dag);
-    target_stage_id++;
-    const auto& local_read_pos = GetLastReduceIteratorInSecondOutermostReduceTile(
-        tmp_s->stages[target_stage_id]);
-    tmp_s.compute_at(added_stage_id, target_stage_id, local_read_pos);
-    ret.push_back(std::make_pair(tmp_s, stage_id));
-
+    //// Cache read add local memory
+    //added_stage_id = tmp_s.cache_read(added_stage_id, "local",
+    //                                  {target_stage_id}, task->compute_dag);
+    //target_stage_id++;
+    //const auto& local_read_pos = GetLastReduceIteratorInSecondOutermostReduceTile(
+    //    tmp_s->stages[target_stage_id]);
+    //tmp_s.compute_at(added_stage_id, target_stage_id, local_read_pos);
+    //ret.push_back(std::make_pair(tmp_s, stage_id));
     return ret;
   }
 };
