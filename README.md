@@ -84,6 +84,7 @@ primfn(A_1: handle, B_1: handle, C_1: handle) -> ()
 
 ==================== Evaluate ====================
 Best schedule: 262.09 GFLOPS	cost: 1.024 ms
+==================== Check Correctness ====================
 ```
 
 ### Tune a network on cpu

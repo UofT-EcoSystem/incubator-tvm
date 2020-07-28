@@ -656,7 +656,7 @@ def check_correctness(s, bufs, s_ref, buf_ref, target, target_host=None, remote=
     func_ref(*args_ref)
 
     for arr, arr_ref in zip(args, args_ref):
-        np.testing.assert_allclose(arr.asnumpy(), arr_ref.asnumpy(), rtol=5e-4)
+        np.testing.assert_allclose(arr.asnumpy(), arr_ref.asnumpy(), rtol=1e-4, atol=1e-4)
 
 
 ############################################################
