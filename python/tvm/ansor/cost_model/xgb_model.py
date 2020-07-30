@@ -156,7 +156,7 @@ class XGBModel(PythonBasedModel):
 
     def load_log_file(self, file_name, n_lines=-1):
         inputs, results = LogReader(file_name).read_lines(n_lines)
-        logger.info("XGBModel: Loaded %s lines of history log from %s", len(inputs), file_name)
+        logger.info("XGBModel: Loaded %s measurement records from %s", len(inputs), file_name)
         self.update(inputs, results)
 
     def save(self, file_name: str):

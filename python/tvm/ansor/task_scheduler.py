@@ -19,6 +19,7 @@
 from typing import List, Union, Callable
 import time
 import math
+import logging
 
 import numpy as np
 
@@ -28,6 +29,7 @@ from .measure import ProgramMeasurer
 from .utils import array_mean, to_str_round
 from .serialization import LogReader
 
+logger = logging.getLogger('ansor')
 
 class TaskScheduler:
     """Allocate the time resources when tuning multiple tasks together"""
@@ -51,7 +53,7 @@ def get_search_policies(search_policy: Union[str, List[SearchPolicy]], tasks: Li
         if model_type == 'xgb':
             cost_model = XGBModel(num_warmup_sample=len(tasks) * num_measure_per_iter)
             if load_model_file:
-                print("Load pretrained model...")
+                logger.info("Load pretrained model...")
                 cost_model.load(load_model_file)
             elif load_log_file:
                 cost_model.load_log_file(load_log_file)
@@ -151,9 +153,15 @@ class SimpleTaskScheduler(TaskScheduler):
 
         assert self.strategy in ['round-robin', 'gradient']
 
+        # task_cts[i] saves how many times task i is tuned
         self.task_cts = [0 for _ in range(len(self.tasks))]
+
+        # task_costs_history[i] saves the latency history of task i
         self.task_costs_history = [[] for _ in range(len(self.tasks))]
+
+        # best_costs[i] saves the best latency of task i
         self.best_costs = 1e10 * np.ones(len(self.tasks))
+
         self.tune_option = self.measurer = self.search_policies = self.ct = self.tic = None
         self.num_measure_per_iter = None
         self.dead_tasks = set()
@@ -161,20 +169,6 @@ class SimpleTaskScheduler(TaskScheduler):
         self.sequential_now_task_begin_ct = 0
 
         assert len(tasks) != 0, "No tasks"
-
-        # load best costs from log file
-        if load_log_file:
-            str_target = str(tasks[0].target)
-            workload_key_to_task_id = {t.workload_key : i for i, t in enumerate(tasks)}
-            for inp, res in LogReader(load_log_file):
-                if str(inp.task.target) != str_target:
-                    continue
-                if res.error_no != 0:
-                    continue
-                task_idx = workload_key_to_task_id.get(inp.task.workload_key, None)
-                if task_idx is not None:
-                    self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
-        self.cur_score = self.compute_score(self.best_costs)
 
         # build similarity group
         self.task_tags = []
@@ -218,6 +212,9 @@ class SimpleTaskScheduler(TaskScheduler):
         self.num_measure_per_iter = min(tune_option.num_measure_per_iter,
                                         tune_option.n_trials // len(self.tasks))
         assert self.num_measure_per_iter > 0, "n_trials is too small"
+
+        # restore the status of the task scheduler from a log file
+        self.restore_status(self.load_log_file, self.num_measure_per_iter)
 
         # make one search policy for one task
         self.search_policies = get_search_policies(search_policy, self.tasks,
@@ -268,7 +265,8 @@ class SimpleTaskScheduler(TaskScheduler):
                     chain_grad = (self.compute_score(self.best_costs) - self.compute_score(new_costs)) / delta
 
                     # compute (g_i(t_i) - g(t_i - \Delta t)) / (\Delta t)
-                    if self.task_cts[i] - 1 - self.backward_window_size >= 0:
+                    if (self.task_cts[i] - 1 < len(self.task_costs_history[i]) and
+                        self.task_cts[i] - 1 - self.backward_window_size >= 0):
                         backward_grad = (self.task_costs_history[i][self.task_cts[i] - 1]
                                          - self.task_costs_history[i][self.task_cts[i] - 1 - self.backward_window_size]) \
                                         / self.backward_window_size
@@ -305,7 +303,7 @@ class SimpleTaskScheduler(TaskScheduler):
 
     def tune_task(self, task_idx):
         if self.verbose >= 1:
-            print("TaskScheduler\ttask id:\t%d" % task_idx)
+            logger.info("TaskScheduler: task id:\t%d" % task_idx)
         if self.use_debug_measurement_simulator is not None:
             measure_inputs, measure_results = \
                 self.use_debug_measurement_simulator.get_next_batch(
@@ -335,11 +333,11 @@ class SimpleTaskScheduler(TaskScheduler):
         self.cur_score = self.compute_score(self.best_costs)
 
         if self.verbose >= 1:
-            print(("TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t" +
-                   "best_costs (ms): %s\ttask_ct: %s") %
-                  (self.ct, self.cur_score * 1e3, time.time() - self.tic,
-                   to_str_round(self.best_costs * 1e3, decimal=3),
-                   self.task_cts))
+            logger.info(("TaskScheduler\tct: %d\testimated cost (ms): %.3f\ttime elapsed: %.2f\t" +
+                        "best_costs (ms): %s\ttask_ct: %s") %
+                        (self.ct, self.cur_score * 1e3, time.time() - self.tic,
+                         to_str_round(self.best_costs * 1e3, decimal=3),
+                         self.task_cts))
 
     def adjust_similarity_group(self, task_idx):
         group_id = self.tag_to_group_id.get(self.task_tags[task_idx], None)
@@ -358,4 +356,35 @@ class SimpleTaskScheduler(TaskScheduler):
             self.task_cts[task_idx] > 5 + max(self.task_cts[j] for j in group_ids if j != task_idx)):
             self.task_tags[task_idx] = None
             group_ids.remove(task_idx)
-  
+
+    def restore_status(self, log_file, num_measure_per_iter):
+        # restore task_cts and best_costs from a log file
+        if log_file:
+            str_target = str(self.tasks[0].target)
+            workload_key_to_task_id = {t.workload_key : i for i, t in enumerate(self.tasks)}
+            total_ct = -1
+
+            for total_ct, (inp, res) in enumerate(LogReader(log_file)):
+                if str(inp.task.target) != str_target:
+                    continue
+                task_idx = workload_key_to_task_id.get(inp.task.workload_key, None)
+                if task_idx is None:
+                    continue
+
+                if res.error_no == 0:
+                    self.best_costs[task_idx] = min(self.best_costs[task_idx], array_mean(res.costs))
+
+                self.task_cts[task_idx] += 1
+
+            for i in range(len(self.tasks)):
+                # The computation of taks_cts is just an estimation.
+                # The estimation may not be accurate if the log file is changed externally or
+                # `num_measure_per_iter` is different from the last tuning.
+                self.task_cts[i] = int(self.task_cts[i] / num_measure_per_iter + 0.5)
+                self.task_costs_history[i].append(self.best_costs[i])
+
+            logger.info("TaskScheduler: Loaded %d measurement records from %s",
+                        total_ct + 1, log_file)
+
+        self.cur_score = self.compute_score(self.best_costs)
+

@@ -275,12 +275,10 @@ def tune_and_evaluate(network_arguments, target, target_host,
         workloads, wkl_weights = ansor.extract_from_program(mod, target=target, params=params)
         print("Extract %d workloads in total" % (len(workloads)))
 
-        # Tune workloads with auto scheduler
-        print("=============== Tune ===============")
         tasks = []
         for i, wkl_key in enumerate(workloads):
             dag = ansor.workload_key_to_dag(wkl_key)
-            print("[========= Task %d =========] (key: %s) \n" % (i, wkl_key), dag)
+            print("---------- Task %d ---------- (key: %s) \n" % (i, wkl_key), dag)
             tasks.append(ansor.SearchTask(dag, wkl_key, target, target_host))
 
         if estimate:
@@ -289,6 +287,8 @@ def tune_and_evaluate(network_arguments, target, target_host,
                 tasks, target)
             exit()
 
+        # Tune workloads with auto scheduler
+        print("=============== Tune ===============")
         tuner = ansor.SimpleTaskScheduler(tasks,
             lambda costs: sum(c * w for c, w in zip(costs, wkl_weights)),
             **task_scheduler_arguments)
