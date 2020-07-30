@@ -701,6 +701,21 @@ inline void GetSplitStepIds(const State& s, int stage_id, std::vector<int>* spli
   }
 }
 
+// Get the new target stage id for the current step in the new state
+inline int GetTargetStageIDInState(const State&s, int step_id) {
+  int stage_inc = 0;  
+
+  for (size_t i = step_id + 1; i < s->transform_steps.size(); ++i) {
+    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
+        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
+        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
+      if (s->transform_steps[i]->stage_id <= s->transform_steps[step_id]->stage_id + stage_inc)
+        stage_inc++;
+    }
+  }
+  return s->transform_steps[step_id]->stage_id + stage_inc;
+}
+
 // Get all split steps on spatial iterators for one multi-level tiled stage
 void GetSpaceSplitStepIds(const State& s, int stage_id, std::vector<int>* spatial_split_step_ids);
 

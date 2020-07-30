@@ -538,11 +538,13 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
   std::vector<int> compute_at_steps;
   for (size_t s = 0; s < old_state->transform_steps.size(); ++s) {
     if (auto ps = old_state->transform_steps[s].as<ComputeAtStepNode>()) {
-      if (IsTiled(old_state->stages[ps->stage_id])) {
+      int stage_inc = GetTargetStageIDInState(old_state, s) - ps->stage_id;
+
+      if (IsTiled(old_state->stages[ps->stage_id + stage_inc])) {
         continue;
       }
 
-      if (NeedsMultilevelTiling(task, old_state, ps->stage_id)) {
+      if (NeedsMultilevelTiling(task, old_state, ps->stage_id + stage_inc)) {
         continue;
       }
       compute_at_steps.push_back(s);
@@ -555,6 +557,7 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
   // Randomly pick one step
   size_t step_id = compute_at_steps[(*random_gen)() % compute_at_steps.size()];
   auto ps = old_state->transform_steps[step_id].as<ComputeAtStepNode>();
+  int stage_inc = GetTargetStageIDInState(old_state, step_id) - ps->stage_id;
   CHECK(ps != nullptr);
 
   // Randomly pick one tile level
@@ -563,7 +566,7 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
 
   // Copied from InitPopulationChangeComputeLocation
   {
-    const std::set<int>& consumers = GetConsumers(task, old_state, ps->stage_id);
+    const std::set<int>& consumers = GetConsumers(task, old_state, ps->stage_id + stage_inc);
     if (consumers.empty()) {
       return State();
     }
@@ -698,7 +701,7 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
   for (size_t s = 0; s < old_state->transform_steps.size(); ++s) {
     if (s == step_id) {
       tmp_s.CopyOnWrite()->transform_steps.push_back(
-          ComputeAtStep(ps->stage_id, new_compute_at_stage_id, new_compute_at_iter_id));
+          ComputeAtStep(ps->stage_id, new_compute_at_stage_id - stage_inc, new_compute_at_iter_id));
     } else {
       tmp_s.CopyOnWrite()->transform_steps.push_back(old_state->transform_steps[s]);
     }
