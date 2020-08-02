@@ -715,12 +715,57 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
   return tmp_s;
 }
 
-void PruneUndefined(std::vector<State>* states) {
+// Return whether a state has nested parallel, which is invalid on CPUs
+bool HasNestedParallel(const State& state) {
+  std::function<void(int stage_id, size_t*)> count_parallel_ct;
+
+  count_parallel_ct = [&state, &count_parallel_ct](int stage_id, size_t* parallel_ct) {
+    const Stage& stage = state->stages[stage_id];
+
+    if (stage->compute_at == kInlined) {
+      return;
+    }
+
+    for (size_t i = 0; i < stage->iters.size(); ++i) {
+      if (stage->iters[i]->annotation == kParallel) {
+        (*parallel_ct)++;
+      }
+
+      AttachMap::IterKey iter_key(stage_id, i);
+      auto pair = state->attach_map->iter_to_attached_stages.find(iter_key);
+      if (pair != state->attach_map->iter_to_attached_stages.end()) {
+        for (const auto& attach_stage_id : pair->second) {
+          count_parallel_ct(attach_stage_id, parallel_ct);
+        }
+      }
+    }
+  };
+  
+  for (size_t stage_id = 0; stage_id < state->stages.size(); ++stage_id) {
+    size_t parallel_ct = 0;
+
+    if (state->stages[stage_id]->compute_at == kRoot) {
+      count_parallel_ct(stage_id, &parallel_ct);
+      if (parallel_ct >= 2) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+void PruneInvalidState(const SearchTask& task, std::vector<State>* states) {
   size_t pt = 0;
   for (size_t i = 0; i < states->size(); ++i) {
     if (!(*states)[i].defined()) {
       continue;
     }
+
+    if (!IsGPUTask(task) && HasNestedParallel((*states)[i])) {
+      continue;
+    }
+
     if (i != pt) {
       (*states)[pt] = std::move((*states)[i]);
     }

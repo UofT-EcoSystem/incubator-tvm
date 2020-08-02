@@ -752,8 +752,8 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
 // GA: Crossover two states
 State CrossOverState(const State& p1, const State& p2);
 
-// Prune undefined states.
-void PruneUndefined(std::vector<State>* states);
+// Prune invalid states and return the results in-place.
+void PruneInvalidState(const SearchTask& task, std::vector<State>* states);
 
 }  // namespace ansor
 }  // namespace tvm

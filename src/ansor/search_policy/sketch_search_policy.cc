@@ -1398,7 +1398,7 @@ void SketchSearchPolicyNode::EvolutionarySearch(
   for (int k = 0; k < num_iters + 1; ++k) {
     // Maintain the heap
     cur_task->compute_dag.InferBound(pnow);
-    PruneUndefined(pnow);
+    PruneInvalidState(cur_task, pnow);
     cost_model->Predict(cur_task, *pnow, &scores);
 
     for (size_t i = 0; i < pnow->size(); ++i) {
