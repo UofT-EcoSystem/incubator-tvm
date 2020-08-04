@@ -52,6 +52,8 @@ def schedule_sparse_dense(outs):
                 s[y_reshape].compute_at(s[outs[0]], y_o)
                 s[outs[0].op].parallel(y_o)
                 s[outs[0].op].vectorize(y_i)
+                #nn, mm = s[outs[0]].op.axis
+                #s[outs[0]].parallel(nn)
             else:
                 m_o_noo = s[y_reshape].fuse(m_o, noo)
                 s[y_reshape].parallel(m_o_noo)

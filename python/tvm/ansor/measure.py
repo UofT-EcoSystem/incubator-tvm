@@ -22,7 +22,7 @@ remote devices, recording the running time costs, and checking the correctness o
 
 We implement these in python to utilize python's multiprocessing and error handling
 """
-from typing import List
+from typing import List, Union
 import os
 import time
 import shutil
@@ -30,6 +30,8 @@ import logging
 import traceback
 import tempfile
 import multiprocessing
+
+import numpy as np
 
 import tvm._ffi
 from tvm.runtime import Object, module, ndarray
@@ -460,8 +462,13 @@ def rpc_run_worker(index):
 
         if error_no == 0:
             try:
-                args = [ndarray.non_empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
-                        build_res.args]
+                # creat input / output buffers for measurement
+                args = []
+                for arg in build_res.args:
+                    if get_special_buffer(arg.name) is not None:
+                        args.append(ndarray.array(get_special_buffer(arg.name)))
+                    else:
+                        args.append(ndarray.non_empty(get_const_tuple(arg.shape), arg.dtype, ctx))
                 ctx.sync()
 
                 costs = time_f(*args).results
@@ -520,8 +527,13 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
 
         if error_no == 0:
             try:
-                args = [ndarray.non_empty(get_const_tuple(x.shape), x.dtype, ctx) for x in
-                        build_res.args]
+                # creat input / output buffers for measurement
+                args = []
+                for arg in build_res.args:
+                    if get_special_buffer(arg.name) is not None:
+                        args.append(ndarray.array(get_special_buffer(arg.name)))
+                    else:
+                        args.append(ndarray.non_empty(get_const_tuple(arg.shape), arg.dtype, ctx))
                 ctx.sync()
 
                 costs = time_f(*args).results
@@ -562,3 +574,22 @@ def local_run(inputs: List[MeasureInput], build_results: List[BuildResult],
         print("")
 
     return measure_results
+
+
+# The map stores special registered buffer for measurement
+#  This can be used for sparse workloads when we cannot use random tensors for measurment.
+global special_buffer_table
+special_buffer_table = {}
+
+def register_special_buffer(tensor_name: str, data: np.array):
+    """Register special buffer for measurement
+    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    """
+    special_buffer_table[tensor_name] = data
+
+def get_special_buffer(tensor_name: str) -> Union[np.array, None]:
+    """Get special buffer for measurement.
+    This can be used for sparse workloads when we cannot use random tensors for measurment.
+    The buffers are registered by `register_special_buffer`.
+    """
+    return special_buffer_table.get(tensor_name, None)

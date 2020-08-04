@@ -21,6 +21,7 @@ import math
 import os
 import re
 import time
+import itertools
 from collections import defaultdict, namedtuple
 from typing import Dict, List, Tuple
 
@@ -32,8 +33,9 @@ import tvm
 from tvm import te, ansor
 from tvm.ansor import (LogReader, make_workload_key_func,
                        register_workload_func,
-                       write_measure_records_to_file)
+                       write_measure_records_to_file, measure)
 from tvm.contrib import ndk, util
+from topi.util import get_const_tuple
 
 ############################################################
 ######################  Test Workloads  ####################
@@ -136,6 +138,81 @@ def add_min_relu(M, N):
     D = topi.min(C, axis=1)
     out = topi.nn.relu(D)
     return [A, B, out]
+
+def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
+    import itertools
+    import scipy.sparse as sp
+    np.random.seed(42)
+    Y = np.zeros((M, N), dtype=dtype)
+    assert M % BS_R == 0
+    assert N % BS_C == 0
+    nnz = int(density * M * N)
+    num_blocks = int(nnz / (BS_R * BS_C)) + 1
+    candidate_blocks = np.asarray(list(itertools.product(range(0, M, BS_R), range(0, N, BS_C))))
+    assert candidate_blocks.shape[0] == M // BS_R * N // BS_C
+    chosen_blocks = candidate_blocks[np.random.choice(candidate_blocks.shape[0], size=num_blocks, replace=False)]
+    for i in range(len(chosen_blocks)):
+        r, c = chosen_blocks[i]
+        Y[r:r + BS_R, c:c + BS_C] = np.random.randn(BS_R, BS_C)
+    s = sp.bsr_matrix(Y, blocksize=(BS_R, BS_C))
+    assert s.data.shape == (num_blocks, BS_R, BS_C)
+    assert s.indices.shape == (num_blocks, )
+    assert s.indptr.shape == (M // BS_R + 1, )
+    return s
+
+
+def sparse_dense_bsr_compute(data, weight_data, weight_indices, weight_indptr):
+    (m, k) = get_const_tuple(data.shape)
+    (_, bs_r, bs_c) = get_const_tuple(weight_data.shape)
+    (num_block_row_plus_1, ) = get_const_tuple(weight_indptr.shape)
+    num_block_row = num_block_row_plus_1 - 1
+
+    def body_func(i, j):
+        block_j = j // bs_r
+        jj = j % bs_r
+
+        row_start = weight_indptr[block_j]
+        row_end = weight_indptr[block_j + 1]
+        block_offset = te.reduce_axis((0, row_end - row_start), name='block_offset')
+        kk = te.reduce_axis((0, bs_c), name='kk')
+        block_idx = row_start + block_offset
+
+        return te.sum(data[i, weight_indices[block_idx] * bs_c + kk] * \
+                      weight_data[block_idx, jj, kk], axis=[block_offset, kk],)
+
+    out = te.compute((m, num_block_row * bs_r), lambda i, j : body_func(i, j),
+                     attrs={"ansor_no_split_at_inner": ["block_offset", "kk"],
+                            "FLOP": 2 * m * num_block_row * bs_r * k},
+                     name='sparse_dense')
+
+    return out
+
+@register_workload_func
+def sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
+    dtype = "float32"
+    W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype=dtype)
+
+    # register these special buffers for measurement
+    prefix = "sparse_dense_bsr_%d_%d_%d_%d_%d_%.2f_" % (M, N, K, BS_R, BS_C, density)
+    measure.register_special_buffer(prefix + "W_data", W_sp_np.data)
+    measure.register_special_buffer(prefix + "W_indices", W_sp_np.indices)
+    measure.register_special_buffer(prefix + "W_indptr", W_sp_np.indptr)
+
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype),
+                            name=prefix + "W_data")
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype),
+                               name=prefix + "W_indices")
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype),
+                              name=prefix + "W_indptr")
+    X = te.placeholder(shape=(M, K), dtype=dtype, name='X')
+    bufs = X, W_data, W_indices, W_indptr
+
+    Y = sparse_dense_bsr_compute(X, W_data, W_indices, W_indptr)
+
+    if use_relu:
+        Y = topi.nn.relu(Y)
+
+    return [X, W_data, W_indices, W_indptr, Y]
 
 @register_workload_func
 def conv2d_relu_softmax_min(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
@@ -419,7 +496,7 @@ def parse_workload_name(name: str) -> List[str]:
         batch_size = 1 if res.group(4) is None else int(res.group(4))
         return ['resnet-%s.C%d.B%d' % (n_layers, i, batch_size) for i in idx_list]
     elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite', 'depthwise-conv2d-rewrite',
-                  'bert-softmax']:
+                  'bert-softmax', 'sparse-dense']:
         return [name]
     else:
         raise ValueError("Invalid workload " + name)
@@ -562,6 +639,8 @@ def get_workload_keys(name: str) -> List[str]:
                                            (1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1), (1, 1)))]
         elif name == 'bert-softmax':
             return [make_workload_key_func(softmax_abcd, (16, 12, 128, 128))]
+        elif name == 'sparse-dense':
+            return [make_workload_key_func(sparse_dense_bsr, (128, 3072, 768, 16, 1, 0.15, False))]
         else:
             raise ValueError("Invalid workload " + name)
 
@@ -580,7 +659,7 @@ def get_workload_weights(name: str) -> List[float]:
 def load_network(network_name, network_path, batch_size, layout):
     from tune_network import get_network
     # Extract tasks from relay program
-    print("Load network %s.B%d (%s)..." % (network_name, batch_size, layout))
+    print("Load tasks from network %s.B%d (%s)..." % (network_name, batch_size, layout))
     mod, params, input_name, data_shape, data_dtype, out_shape = get_network(
             network_name, network_path, batch_size, layout)
     workloads, wkl_weights = ansor.extract_from_program(mod, target='llvm', params=params)
@@ -629,6 +708,9 @@ def measure_schedule(s,
                                  min_repeat_ms=min_repeat_ms)
 
     np_args = [np.ones(topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
+    for i, arg in enumerate(bufs):
+        if measure.get_special_buffer(arg.name) is not None:
+            np_args[i] = measure.get_special_buffer(arg.name)
     args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
     ctx.sync()
 
@@ -648,6 +730,9 @@ def check_correctness(s, bufs, s_ref, buf_ref, target, target_host=None, remote=
         ctx_ref = tvm.cpu()
 
     np_args = [np.random.randn(*topi.get_const_tuple(x.shape)).astype(x.dtype) for x in bufs]
+    for i, arg in enumerate(bufs):
+        if measure.get_special_buffer(arg.name) is not None:
+            np_args[i] = measure.get_special_buffer(arg.name)
     args = [tvm.nd.array(x, ctx=ctx) for x in np_args]
     args_ref = [tvm.nd.array(x, ctx=ctx_ref) for x in np_args]
     ctx.sync()

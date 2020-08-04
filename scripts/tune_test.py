@@ -121,6 +121,7 @@ def tune_workload(wkl_key, target, target_host, policy, model_type,
     if False:
         # Debug info. Print static analysis results from the access analyzer
         dag = ansor.workload_key_to_dag(wkl_key)
+        print(dag.flop_ct)
         print(dag.access_analyzer)
         exit()
 

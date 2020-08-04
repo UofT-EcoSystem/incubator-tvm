@@ -26,6 +26,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_mutator_with_analyzer.h"
@@ -51,6 +52,17 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     analyzer_->Bind(op->loop_var, Range::make_by_min_extent(op->min, op->extent));
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
+
+    if (op->loop_var->name_hint == "block_offset") {
+      // Temporary hack for sparse_dense_bsr
+      tir::PostOrderVisit(GetRef<Stmt>(op), [this](const ObjectRef& node) {
+        if (const ForNode *for_node = node.as<ForNode>()) {
+          analyzer_->Bind(for_node->loop_var,
+                          Range::make_by_min_extent(for_node->min, for_node->extent));
+        }
+      });
+    }
+
     return Parent::VisitStmt_(op);
   }
 

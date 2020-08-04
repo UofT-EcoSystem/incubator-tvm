@@ -1,0 +1,72 @@
+""" The list of extracted tasks from BERT """
+
+
+---------- Task 0 ---------- (key: ["3998ca0cea6769eaeeef8654ebf4ca61"])
+ placeholder = PLACEHOLDER [1, 128, 3072]
+placeholder = PLACEHOLDER [1, 3072, 768]
+compute(b, i, j) += (placeholder[b, i, k]*placeholder[b, k, j])
+
+---------- Task 1 ---------- (key: ["91fab3bc761bd02d45bebca243b68447"])
+ placeholder = PLACEHOLDER [1, 128, 768]
+placeholder = PLACEHOLDER [1, 768, 3072]
+compute(b, i, j) += (placeholder[b, i, k]*placeholder[b, k, j])
+
+---------- Task 2 ---------- (key: ["5d1f049452dbfdf40666d14265983267"])
+ placeholder = PLACEHOLDER [1, 128, 768]
+placeholder = PLACEHOLDER [1, 768, 768]
+compute(b, i, j) += (placeholder[b, i, k]*placeholder[b, k, j])
+
+---------- Task 3 ---------- (key: ["ea4fe9fedf16ae621a41c816d1717dd0"])
+ placeholder = PLACEHOLDER [12, 128, 128]
+placeholder = PLACEHOLDER [12, 128, 64]
+compute(b, i, j) += (placeholder[b, i, k]*placeholder[b, k, j])
+
+---------- Task 4 ---------- (key: ["a36f8a80e85f63df20c4b3fe1d3d849f"])
+ placeholder = PLACEHOLDER [1, 12, 128, 128]
+T_softmax_maxelem(i0, i1, i2) max= placeholder[i0, i1, i2, k]
+T_softmax_delta(i0, i1, i2, i3) = (placeholder[i0, i1, i2, i3] - T_softmax_maxelem[i0, i1, i2])
+T_fast_exp(ax0, ax1, ax2, ax3) = max((tir.reinterpret(tir.shift_left(int32((tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f)) + 127f)), 23))*((((((((((((((0.000198757f*(max(min(T_softmax_delta[ax0, ax1,
+ ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f))) + 0.0013982f)*(max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(m
+in(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f))) + 0.00833345f)*(max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -8
+8.3763f)*1.4427f) + 0.5f))*0.693147f))) + 0.0416658f)*(max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f))) + 0.166667f)*(
+max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f))) + 0.5f)*(max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.
+3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f)))*(max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 8
+8.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f))) + (max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f) - (tir.floor(((max(min(T_softmax_delta[ax0, ax1, ax2, ax3], 88.3763f), -88.3763f)*1.4427f) + 0.5f))*0.693147f))) + 1f)), T_soft
+max_delta[ax0, ax1, ax2, ax3])
+T_softmax_expsum(i0, i1, i2) += T_fast_exp[i0, i1, i2, k]
+T_softmax_norm(i0, i1, i2, i3) = (T_fast_exp[i0, i1, i2, i3]/T_softmax_expsum[i0, i1, i2])
+
+---------- Task 5 ---------- (key: ["cfcc5623971e5c606a92c924b88caed6"])
+ placeholder = PLACEHOLDER [12, 128, 64]
+placeholder = PLACEHOLDER [12, 64, 128]
+compute(b, i, j) += (placeholder[b, i, k]*placeholder[b, k, j])
+
+---------- Task 6 ---------- (key: ["9daf9ad535fc6fbbc30af7039d66a15d"])
+ placeholder = PLACEHOLDER [1, 128, 768]
+placeholder = PLACEHOLDER [1, 2304, 768]
+compute(b, i, j) += (placeholder[b, i, k]*placeholder[b, j, k])
+
+---------- Task 7 ---------- (key: ["00eae41720fe839cc8c8be69bf49571e"])
+ placeholder = PLACEHOLDER [1, 128, 768]
+placeholder_red(ax0, ax1, ax2) += placeholder[ax0, ax1, k2]
+T_divide(ax0, ax1, ax2) = (placeholder_red[ax0, ax1, ax2]/768f)
+
+---------- Task 8 ---------- (key: ["616218b145b71f8ebe8df1799550880a"])
+ placeholder = PLACEHOLDER [1, 128, 768]
+placeholder = PLACEHOLDER [1, 128, 1]
+T_subtract(ax0, ax1, ax2) = (placeholder[ax0, ax1, ax2] - placeholder[ax0, ax1, 0])
+T_power(ax0, ax1, ax2) = tir.pow(T_subtract[ax0, ax1, ax2], 2f)
+T_power_red(ax0, ax1, ax2) += T_power[ax0, ax1, k2]
+T_divide(ax0, ax1, ax2) = (T_power_red[ax0, ax1, ax2]/768f)
+
+---------- Task 9 ---------- (key: ["acfaa711793dc3cdf1cef1dece04d317"])
+ placeholder = PLACEHOLDER [1, 768]
+placeholder = PLACEHOLDER [768, 768]
+T_dense(i, j) += (placeholder[i, k]*placeholder[j, k])
+placeholder = PLACEHOLDER [768]
+T_add(ax0, ax1) = (T_dense[ax0, ax1] + placeholder[ax1])
+T_minimum(ax0, ax1) = min(T_add[ax0, ax1], 9f)
+T_maximum(ax0, ax1) = max(T_minimum[ax0, ax1], -9f)
+T_fast_tanh(ax0, ax1) = ((T_maximum[ax0, ax1]*(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_ma
+ximum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*-2.76077e-16f) + 2.00019e-13f)) + -8.60467e-11f)) + 5.1223e-08f)) + 1.48572e-05f)) + 0.000637262f)) + 0.00489352f))/(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_max
+imum[ax0, ax1])*(((T_maximum[ax0, ax1]*T_maximum[ax0, ax1])*1.19826e-06f) + 0.000118535f)) + 0.00226843f)) + 0.00489353f))

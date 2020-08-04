@@ -226,6 +226,16 @@ AnnotationPosType GetAnnotationPosEncoding(
   }
 }
 
+// Return the extent of a for loop
+int64_t GetLoopExtent(const ForNode* node) {
+  auto pint = node->extent.as<IntImmNode>();
+  if (pint != nullptr) {
+    return pint->value;
+  } else {
+    return 1;
+  }
+}
+
 // Count math ops in an expr
 class MathOpCounter : public StmtExprVisitor {
  public:
@@ -478,7 +488,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
       }
     }
 
-    int64_t extent = GetIntImm(for_loop_stack[i]->extent);
+    int64_t extent = GetLoopExtent(for_loop_stack[i]);
     if (find) {
       // accumulate/update reuse distance
       reuse_dis_iter *= extent;
@@ -508,7 +518,7 @@ std::tuple<ReuseType, float, float, float> ComputeReuse(
 
     int serial_reuse = static_cast<int>(buffer_map.at(buf).size()) - 1;
     if (serial_reuse > 0) {
-      int64_t extent = GetIntImm(cur_for->extent);
+      int64_t extent = GetLoopExtent(cur_for);
 
       // Have SerialMultipleReadWrite reuse
       reuse_dis_iter = std::numeric_limits<float>::max();
@@ -599,7 +609,7 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
   }
 
   void VisitStmt_(const ForNode* node) final {
-    int64_t loop_extent = GetIntImm(node->extent);
+    int64_t loop_extent = GetLoopExtent(node);
 
     if (node->for_type == ForType::Vectorized) {
       vec_for_stack.push_back(node);
@@ -655,10 +665,10 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
 
     fea.vec_num = vec_for_stack.size();
     if (!vec_for_stack.empty()) {
-      fea.vec_len = GetIntImm(vec_for_stack.back()->extent);
+      fea.vec_len = GetLoopExtent(vec_for_stack.back());
       fea.vec_prod = 1.0;
       for (const ForNode* pfor : vec_for_stack) {
-        fea.vec_prod *= GetIntImm(pfor->extent);
+        fea.vec_prod *= GetLoopExtent(pfor);
       }
       fea.vec_type = kPosMixed;
       // todo(lmzheng): this feature requires operation (tvm.compute) information
@@ -668,10 +678,10 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
 
     fea.unroll_num = unroll_for_stack.size();
     if (!unroll_for_stack.empty()) {
-      fea.unroll_len = GetIntImm(unroll_for_stack.back()->extent);
+      fea.unroll_len = GetLoopExtent(unroll_for_stack.back());
       fea.unroll_prod = 1.0;
       for (const ForNode* pfor : unroll_for_stack) {
-        fea.unroll_prod *= GetIntImm(pfor->extent);
+        fea.unroll_prod *= GetLoopExtent(pfor);
       }
       fea.unroll_type = kPosMixed;
       // GetAnnotationPosEncoding(unroll_for_stack.back()->loop_var,
@@ -680,10 +690,10 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
 
     fea.parallel_num = parallel_for_stack.size();
     if (!parallel_for_stack.empty()) {
-      fea.parallel_len = GetIntImm(parallel_for_stack.back()->extent);
+      fea.parallel_len = GetLoopExtent(parallel_for_stack.back());
       fea.parallel_prod = 1.0;
       for (const ForNode* pfor : parallel_for_stack) {
-        fea.parallel_prod *= GetIntImm(pfor->extent);
+        fea.parallel_prod *= GetLoopExtent(pfor);
       }
       fea.parallel_type = kPosMixed;
       // GetAnnotationPosEncoding(parallel_for_stack.back()->loop_var,
@@ -748,7 +758,7 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
       }
 
       mem_bytes_list.push_back(std::log2(mem_bytes));
-      cur_compute_ops *= GetIntImm(for_loop_stack[i]->extent);
+      cur_compute_ops *= GetLoopExtent(for_loop_stack[i]);
       compute_ops_list.push_back(std::log2(cur_compute_ops));
     }
 
@@ -819,7 +829,7 @@ class PerStmtFeatureExtractor : public StmtExprVisitor {
           if (stride != 0) {
             break;
           }
-          reduce_ratio *= GetIntImm(for_loop_stack.back()->extent);
+          reduce_ratio *= GetLoopExtent(for_loop_stack.back());
         }
 
         lines = outer_loop_prod / reduce_ratio *

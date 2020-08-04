@@ -270,4 +270,3 @@ if __name__ == "__main__":
     test_wrong_bind()
     test_vectorize()
     test_vthread()
-

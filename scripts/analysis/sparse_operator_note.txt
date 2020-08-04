@@ -1,0 +1,74 @@
+""" Node for Sparse Operators """
+
+
+========== BSR Matmul (Transposed) ==========
+-----> Vanila Matmul
+out[i, j] = data[i, k] * weight[j, k]
+
+-----> Blockrize
+out[i, block_j, j] = data[i, block_k * BS_C + k] * weight[block_j, block_k, j, k]
+
+-----> Sparsify (Row Compressed)
+row_start = weight_indptr[block_j]
+row_end = weight_indptr[block_j]
+block_idx = row_start + block_offset'
+
+out[i, block_j, j] = data[i, weight_indices[block_idx] * BS_C + k] * weight_data[block_idx, j, k]
+
+
+========== BSR Matmul ==========
+-----> Vanila Matmul
+out[i, j] = data[i, k] * weight[k, j]
+
+-----> Blockrize
+out[i, block_j, j] += data[i, block_k * BS_C + k] * weight[block_k, block_j, k, j]
+
+-----> Sparsify (Row Compressed)
+row_start = weight_indptr[block_k]
+row_end = weight_indptr[block_k + 1]
+block_idx = row_start + block_offset'
+
+out[i, weight_indices[block_idx], j] = data[i, block_k * BS_C + k] * weight_data[block_idx, k, j]
+
+-----> Sparsify (Col Compressed)
+row_start = weight_indptr[block_j]
+row_end = weight_indptr[block_j + 1]
+block_idx = row_start + block_offset'
+
+out[i, block_j, j] = data[i, weight_indices[block_k] * BS_C + k] * weight_data[block_idx, k, j]
+
+
+========== CSR Conv2d ==========
+conv[n, co, h, w] = data[n, ci, h, w] * weight[co, ci, kh, kw]
+
+-----> Sparsify (Row Compressed)
+row_start = weight_indptr[co]
+row_end = weight_indptr[co + 1]
+idx = row_start + row_offset'
+
+col = weight_indices[idx]
+kw = col % KW
+kh = col / KW % KH
+ci = col / KW / KH
+
+conv[n, co, h, w] = data[n, ci, h + kh, w + kw] * weight_data[idx]
+
+
+========== BSR Conv2d ==========
+conv[n, co, h, w] = data[n, ci, h, w] * weight[co, ci x kh x kw]
+
+-----> Blockrize
+conv[n, block_co, co, h, w] = data[n, ci, h, w] * weight[block_co, block_k, co, k]
+
+-----> Sparsify (Row Compressed)
+row_start = weight_indptr[co]
+row_end = weight_indptr[co + 1]
+idx = row_start + row_offset'
+
+col = weight_indices[col] * BS_C + k
+kw = col % KW
+kh = col / KW % KH
+ci = col / KW / KH
+
+conv[n, block_co, co, h, w] = data[n, ci, h + kh, w + kw] * weight_data[idx, co, k]
+

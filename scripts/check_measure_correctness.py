@@ -32,7 +32,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.load_network:
-        print("Load tasks from %s" % args.load_network)
         load_network(args.load_network, args.network_path, args.batch_size, args.layout)
 
     os.environ['TVM_AUTO_CACHE_FLUSH'] = "1"
