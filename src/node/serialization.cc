@@ -515,21 +515,27 @@ ObjectRef LoadJSON(std::string json_str
     }  // if (jnode.type_key == "PlaceholderOp")
   }  // for (jnode ∈ jgraph.nodes)
 
-  LOG(INFO) << "Finished initializing placeholders";
-
   bool jnodes_changed;
   do {
     jnodes_changed = false;
     for (JSONNode& jnode : jgraph.nodes) {
       if (jnode.type_key == ::tvm::tir::CallNode::_type_key) {
         // make a copy of the CallNode's attributes
-        LOG(INFO) << "Retrieving attributes from CallNodes";
-        const std::string callnode_calltype = jnode.attrs.at("call_type"),
-                          callnode_args = jnode.attrs.at("args"),
-                          callnode_name = jnode.attrs.at("name"),
-                          callnode_dtype = jnode.attrs.at("dtype"),
-                          callnode_valueidx = jnode.attrs.at("value_index");
-        LOG(INFO) << "Finished the retrieval";
+        std::string callnode_calltype,
+                          callnode_args,
+                          callnode_name,
+                          callnode_dtype,
+                          callnode_valueidx;
+        try {
+          callnode_calltype = jnode.attrs.at("call_type"),
+          callnode_args = jnode.attrs.at("args"),
+          callnode_name = jnode.attrs.at("name"),
+          callnode_dtype = jnode.attrs.at("dtype"),
+          callnode_valueidx = jnode.attrs.at("value_index");
+        } catch (const std::out_of_range& except) {
+          LOG(INFO) << "Out-of-range exception caught. "
+                       "Skipping the CallNode's.";
+        }
 
         if (callnode_calltype == "3") {
           LOG(INFO) << "Halide-style CallNode (" << callnode_name
@@ -577,25 +583,10 @@ ObjectRef LoadJSON(std::string json_str
     }  // for (jnode ∈ jgraph.nodes)
   } while (jnodes_changed);
 
-  LOG(INFO) << "Finished the traversal of Halide-style CallNode's";
-
   // node 0 is always null
   nodes.reserve(jgraph.nodes.size());
 
   for (const JSONNode& jnode : jgraph.nodes) {
-    
-    // <bojian/TVM-AutoDiff> Added logging on the JSON node type key.
-    // LOG(INFO) << "Type Key: " << jnode.type_key;
-    // <bojian/TVM-AutoDiff> Added special handing for Halide-style CallNode.
-    // if (jnode.type_key == ::tvm::tir::CallNode::_type_key) {
-    //   LOG(INFO) << "CallNode has been encountered with repr_bytes="
-    //             << jnode.repr_bytes;
-    //   for (const std::pair<const std::string, std::string>& kv : jnode.attrs) {
-    //     LOG(INFO) << "\t" "attr.k=" << kv.first << ", "
-    //                       "attr.v=" << kv.second;
-    //   }
-    // } 
-
     if (jnode.type_key == ArrayNode::_type_key) {
       CHECK(jnode.repr_bytes.empty());
       nodes.emplace_back(ArrayNode::CreateRepeated(jnode.data.size(), ObjectRef(nullptr)));
@@ -628,8 +619,6 @@ ObjectRef LoadJSON(std::string json_str
       setter.Set(&nodes[i]);
     }
 
-    LOG(INFO) << "Finished the setter";
-
     // <bojian/TVM-AutoDiff> Record all the TensorNode's.
     if (nodes[i] != nullptr &&
         nodes[i]->IsInstance<::tvm::te::TensorNode>()) {
@@ -647,72 +636,6 @@ ObjectRef LoadJSON(std::string json_str
     }
 
   }
-
-  /* It is challenging to handle cross-node references. Maybe we should consider
-     switching to JSON string manipulation?
-  // <bojian/TVM-AutoDiff> Use worklist algorithm to map Halide-style CallNode's
-  //                       to Tensors (which are generated from OpeartionNode's).
-  using ::tvm::te::Operation;
-  using ::tvm::te::PlaceholderOpNode;
-  using ::tvm::te::TensorNode;
-  using ::tvm::tir::CallNode;
-  using ::tvm::tir::DataProducer;
-  using ::tvm::tir::ProducerLoadNode;
-
-  std::unordered_map<std::string, ObjectPtr<Object>> ph_op_nodes;
-  for (ObjectPtr<Object>& node : nodes) {
-    if (node == nullptr) continue;
-    if (node->IsInstance<PlaceholderOpNode>()) {
-      PlaceholderOpNode* pnode = static_cast<PlaceholderOpNode*>(node.get());
-      ph_op_nodes[pnode->name] = node;
-    }  // if (node->IsInstance<OperationNode>())
-  }  // for (node ∈ nodes)
-
-  bool nodes_changed = false;
-  do {
-    for (ObjectPtr<Object>& node : nodes) {
-      if (node == nullptr) continue;
-      if (node->IsInstance<CallNode>()) {
-        CallNode* pnode = static_cast<CallNode*>(node.get());
-        if (pnode->call_type == 3) {
-          LOG(INFO) << "Halide-style CallNode (" << pnode->name
-                    << ") encountered. " 
-                       "Modifying the nodes for backward compatibility.";
-          auto ph_op_node = ph_op_nodes.find(pnode->name);
-          if (ph_op_node != ph_op_nodes.end()) {
-            // LOG(INFO) << "CallNode (" << pnode->name <<  ") has been detected "
-            //              "as a PlaceholderNode.";
-            ObjectPtr<TensorNode> tensor_node = make_object<TensorNode>();
-            ObjectPtr<ProducerLoadNode> producer_load_node
-                = make_object<ProducerLoadNode>();
-            CHECK(ph_op_node->second->IsInstance<PlaceholderOpNode>());
-            PlaceholderOpNode* ph_op_pnode =
-                static_cast<PlaceholderOpNode*>(ph_op_node->second.get());
-
-            tensor_node->op = Operation(ph_op_node->second);
-            tensor_node->shape = ph_op_pnode->shape;
-            tensor_node->dtype = ph_op_pnode->dtype;
-            // Assume that the value index is always 0. Would this be a problem?
-            tensor_node->value_index = 0;
-
-            producer_load_node->producer = DataProducer(tensor_node);
-            producer_load_node->dtype = tensor_node->dtype;
-            producer_load_node->indices = pnode->args;
-
-            // reset the CallNode with the newly created ProducerLoadNode
-            // node = ;
-            // nodes.emplace_back(tensor_node);
-
-            // nodes_changed = true;
-            // break;  // set nodes_changed flag to true and break out of the loop
-          } else {  if (ph_op_node != ph_op_nodes.end())
-            LOG(FATAL) << "Unknown CallNode function name (" << pnode->name << ").";
-          }  if (ph_op_node != ph_op_nodes.end())
-        }  // if (pnode->call_type == 3)
-      }  // if (node->IsInstance<CallNode>())
-    }  // for (node ∈ nodes)
-  } while (nodes_changed);
-   */
 
   if (!ret_all_tensors || 
       tensor_node_idxs.size() == 0) {
