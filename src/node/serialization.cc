@@ -515,6 +515,8 @@ ObjectRef LoadJSON(std::string json_str
     }  // if (jnode.type_key == "PlaceholderOp")
   }  // for (jnode ∈ jgraph.nodes)
 
+  LOG(INFO) << "Finished initializing placeholders";
+
   bool jnodes_changed;
   do {
     jnodes_changed = false;
@@ -573,6 +575,8 @@ ObjectRef LoadJSON(std::string json_str
     }  // for (jnode ∈ jgraph.nodes)
   } while (jnodes_changed);
 
+  LOG(INFO) << "Finished the traversal of Halide-style CallNode's";
+
   // node 0 is always null
   nodes.reserve(jgraph.nodes.size());
 
@@ -621,6 +625,8 @@ ObjectRef LoadJSON(std::string json_str
       // setter.Set(nodes[i].get());
       setter.Set(&nodes[i]);
     }
+
+    LOG(INFO) << "Finished the setter";
 
     // <bojian/TVM-AutoDiff> Record all the TensorNode's.
     if (nodes[i] != nullptr &&
