@@ -523,11 +523,13 @@ ObjectRef LoadJSON(std::string json_str
     for (JSONNode& jnode : jgraph.nodes) {
       if (jnode.type_key == ::tvm::tir::CallNode::_type_key) {
         // make a copy of the CallNode's attributes
+        LOG(INFO) << "Retrieving attributes from CallNodes";
         const std::string callnode_calltype = jnode.attrs.at("call_type"),
                           callnode_args = jnode.attrs.at("args"),
                           callnode_name = jnode.attrs.at("name"),
                           callnode_dtype = jnode.attrs.at("dtype"),
                           callnode_valueidx = jnode.attrs.at("value_index");
+        LOG(INFO) << "Finished the retrieval";
 
         if (callnode_calltype == "3") {
           LOG(INFO) << "Halide-style CallNode (" << callnode_name
