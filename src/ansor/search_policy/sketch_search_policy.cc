@@ -234,7 +234,7 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
   if (IsGPUTask(cur_task)) {
     auto_unroll_configs_ = {0, 16, 64, 512, 1024};
   } else {
-    auto_unroll_configs_ = {0, 16, 64, 512}; 
+    auto_unroll_configs_ = {0, 16, 64, 512};
   }
 
   if (!have_cost_model) {
@@ -384,7 +384,7 @@ class RuleMultiLevelTiling : public SketchGenerationRule {
                               const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
 
-    return NeedsMultilevelTiling(task, state, stage_id) ? kApply : kPass;
+    return NeedsMultilevelTiling(task, state, stage_id) ? kApplyAndSkipRest : kPass;
   }
 
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
@@ -411,6 +411,9 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
 
     if (NeedsMultilevelTiling(task, state, stage_id) &&
         HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
+      if (HasCacheReadStage(state, stage_id)) {
+        return kPass;
+      }
       // Always do fusion for stage with cache_write or GPU
       return HasCacheWriteStage(state, stage_id) || IsGPUTask(task) ?
           kApplyAndSkipRest : kApply;
@@ -512,7 +515,6 @@ class RuleAddCacheRead : public SketchGenerationRule {
   std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
                                             const State& state, int stage_id) final {
     const SearchTask& task = policy->cur_task;
-    std::vector<std::pair<State, int>> ret;
     const std::set<int>& consumers = GetConsumers(task, state, stage_id);
     CHECK_EQ(consumers.size(), 1);
     int target_stage_id = *consumers.begin();
@@ -526,17 +528,7 @@ class RuleAddCacheRead : public SketchGenerationRule {
     const auto& share_read_pos = GetLastReduceIteratorInOutermostReduceTile(
         tmp_s->stages[target_stage_id]);
     tmp_s.compute_at(added_stage_id, target_stage_id, share_read_pos);
-    ret.push_back(std::make_pair(tmp_s, stage_id));
-
-    //// Cache read add local memory
-    //added_stage_id = tmp_s.cache_read(added_stage_id, "local",
-    //                                  {target_stage_id}, task->compute_dag);
-    //target_stage_id++;
-    //const auto& local_read_pos = GetLastReduceIteratorInSecondOutermostReduceTile(
-    //    tmp_s->stages[target_stage_id]);
-    //tmp_s.compute_at(added_stage_id, target_stage_id, local_read_pos);
-    //ret.push_back(std::make_pair(tmp_s, stage_id));
-    return ret;
+    return {std::make_pair(tmp_s, stage_id)};
   }
 };
 
@@ -850,7 +842,8 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
           const auto& split_its = state->split(stage_id, fused_it,
               {1, policy->cur_task->hardware_params->warp_size});
           state->bind_thread(stage_id, split_its[0], kBlockX);
-          state->bind_thread(stage_id, split_its[1], kThreadX);
+          state->bind_thread(stage_id, split_its[1], kVThread);
+          state->bind_thread(stage_id, split_its[2], kThreadX);
         }
 
         continue;

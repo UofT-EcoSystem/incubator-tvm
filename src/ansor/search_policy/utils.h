@@ -513,7 +513,6 @@ inline const Iterator& GetLastReduceIteratorInOutermostReduceTile(const Stage& s
       reduce_axis_size++;
     }
   }
-
   if (reduce_axis_size) {
     for (const auto& iter : stage->iters) {
       if (iter->iter_type == kReduce) {
@@ -521,6 +520,12 @@ inline const Iterator& GetLastReduceIteratorInOutermostReduceTile(const Stage& s
         if (original_names.size() == reduce_axis_size) {
           return iter;
         }
+      }
+    }
+  } else {
+    for (size_t i = stage->iters.size() - 1; i >= 0; i--) {
+      if (stage->iters[i]->iter_type == kReduce) {
+        return stage->iters[i];
       }
     }
   }

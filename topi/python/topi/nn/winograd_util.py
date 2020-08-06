@@ -148,7 +148,10 @@ def winograd_transform_matrices(tile_size, kernel_size, out_dtype):
     A_data, B_data, G_data = _cook_toom_convolution(intp_pts, tile_size, kernel_size)
 
     return (
-        const_matrix(A_data.astype(out_dtype), "A", attrs={"ansor_always_compute_inline": "True"}),
-        const_matrix(B_data.astype(out_dtype), "B", attrs={"ansor_always_compute_inline": "True"}),
-        const_matrix(G_data.astype(out_dtype), "G", attrs={"ansor_always_compute_inline": "True"}),
+        const_matrix(A_data.astype(out_dtype), "A", attrs={"ansor_always_compute_inline": "True",
+                                                           "ansor_no_cache_read": "True"}),
+        const_matrix(B_data.astype(out_dtype), "B", attrs={"ansor_always_compute_inline": "True",
+                                                           "ansor_no_cache_read": "True"}),
+        const_matrix(G_data.astype(out_dtype), "G", attrs={"ansor_always_compute_inline": "True",
+                                                           "ansor_no_cache_read": "True"}),
     )
