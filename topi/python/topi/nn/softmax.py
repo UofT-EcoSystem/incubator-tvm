@@ -51,13 +51,18 @@ def softmax(x, axis=-1):
     def get_non_reduce_indices(indices):
         return tuple([var for (i, var) in enumerate(indices) if i != axis])
 
-    def _compute_max(*indices):
-        eval_range = insert_reduce_index(indices, k1)
-        return tvm.max(x[eval_range], axis=k1)
-
-    def _compute_exp(max_elem, *indices):
+    # <bojian/TVM-AutoDiff> Removed the normalization using the max value.
+    # def _compute_max(*indices):
+    #     eval_range = insert_reduce_index(indices, k1)
+    #     return tvm.max(x[eval_range], axis=k1)
+                     # <bojian/TVM-AutoDiff>
+    def _compute_exp(# max_elem, 
+                     *indices):
         non_reduce_indices = get_non_reduce_indices(indices)
-        return tvm.exp(x[indices] - max_elem[non_reduce_indices])
+        return tvm.exp(x[indices]
+                       # <bojian/TVM-AutoDiff>
+                       # - max_elem[non_reduce_indices]
+                       )
 
     def _compute_expsum(exp, *indices):
         eval_range = insert_reduce_index(indices, k2)
@@ -68,8 +73,11 @@ def softmax(x, axis=-1):
         return exp[indices] / expsum[non_reduce_indices]
 
     reduced_shape = tuple([dim for (i, dim) in enumerate(shape) if i != axis])
-    max_elem = tvm.compute(reduced_shape, _compute_max, name='T_softmax_maxelem')
-    exp = tvm.compute(shape, lambda *indices: _compute_exp(max_elem, *indices),
+    # <bojian/TVM-AutoDiff>
+    # max_elem = tvm.compute(reduced_shape, _compute_max, name='T_softmax_maxelem')
+                                                           # <bojian/TVM-AutoDiff>
+    exp = tvm.compute(shape, lambda *indices: _compute_exp(# max_elem, 
+                                                           *indices),
                       name='T_softmax_exp')
     expsum = tvm.compute(reduced_shape, lambda *indices: _compute_expsum(exp, *indices),
                          name='T_softmax_expsum')
