@@ -94,11 +94,7 @@ inline Tensor softmax(const Tensor &x,
   auto _compute_exp = [&](const Tensor &max_elem,
                           const Array<Var> &indices) {
     auto non_reduce_indices = get_non_reduce_indices(indices);
-    return tvm::exp(x(indices)
-                    // <bojian/TVM-AutoDiff> Removed the normalization using the 
-                    //                       maximum value.
-                    // - max_elem(non_reduce_indices)
-                    );
+    return tvm::exp(x(indices) - max_elem(non_reduce_indices));
   };
 
   auto _compute_expsum = [&](const Tensor &exp,
