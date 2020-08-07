@@ -411,7 +411,8 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
 
     if (NeedsMultilevelTiling(task, state, stage_id) &&
         HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
-      if (HasCacheReadStage(state, stage_id)) {
+      // Skip the condition of: A -> A_cache_read -> B
+      if (HasCacheReadStage(state, stage_id) && !HasCacheWriteStage(state, stage_id)) {
         return kPass;
       }
       // Always do fusion for stage with cache_write or GPU
@@ -484,10 +485,14 @@ class RuleAddCacheWrite : public SketchGenerationRule {
 
     // Add cache write if a stage needs multi-level tiling,
     // but does not have a element-wise matched consumer
-    if (NeedsMultilevelTiling(task, state, stage_id) &&
-        !HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
-      // Always do cache_write on GPU
-      return IsGPUTask(task) ? kApplyAndSkipRest : kApply;
+    if (NeedsMultilevelTiling(task, state, stage_id)) {
+      // If this stage has been applied cache read, then it lost the single elementwise match
+      // relation with its consumer
+      if ((HasCacheReadStage(state, stage_id) && !HasCacheWriteStage(state, stage_id)) ||
+          !HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
+        // Always do cache_write on GPU
+        return IsGPUTask(task) ? kApplyAndSkipRest : kApply;
+      }
     }
     return kPass;
   }
