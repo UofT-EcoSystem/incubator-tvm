@@ -148,10 +148,31 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 name="conv2d_hwcn.cuda")
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
-            strategy.add_implementation(wrap_compute_conv2d(topi.nn.conv2d_nhwc),
-                                        wrap_topi_schedule(ansor.auto_schedule_topi),
-                                        name='ansor',
-                                        plevel=ansor_plevel)
+            is_winograd_applicable = False
+            if len(kernel.shape) == 4:
+                kernel_h, kernel_w, _, co = get_const_tuple(kernel.shape)
+                is_winograd_applicable = "float" in data.dtype and \
+                                         "float" in kernel.dtype and \
+                                         kernel_h == 3 and kernel_w == 3 and \
+                                         stride_h == 1 and stride_w == 1 and \
+                                         dilation_h == 1 and dilation_w == 1
+
+            if is_winograd_applicable:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd),
+                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                    name="ansor.winograd",
+                    plevel=ansor_plevel)
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.conv2d_nhwc),
+                    wrap_topi_schedule(ansor.auto_schedule_topi),
+                    name="ansor",
+                    plevel=ansor_plevel)
+            # strategy.add_implementation(wrap_compute_conv2d(topi.nn.conv2d_nhwc),
+            #                             wrap_topi_schedule(ansor.auto_schedule_topi),
+            #                             name='ansor',
+            #                             plevel=ansor_plevel)
 
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
@@ -291,29 +312,39 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
                 topi.cuda.schedule_conv2d_nchw_winograd_without_weight_transform),
             name="conv2d_nchw_winograd_without_weight_transform.cuda")
     elif layout == "NHWC":
-        N, H, W, _ = get_const_tuple(data.shape)
-        alpha, _, CI, CO = get_const_tuple(kernel.shape)
-        dilation_h, dilation_w = dilation
-        judge_winograd_tensorcore, _ = winograd_judge(N, H, W, alpha, alpha, CI, CO,
-                                                      padding, stride_h, stride_w,
-                                                      dilation_h, dilation_w,
-                                                      pre_flag=True)
-        if target.target_name == "cuda" and \
-            nvcc.have_tensorcore(tvm.gpu(0).compute_version) and \
-            judge_winograd_tensorcore:
-            strategy.add_implementation(
-                wrap_compute_conv2d(
-                    topi.cuda.conv2d_nhwc_winograd_tensorcore_without_weight_transform),
-                wrap_topi_schedule(
-                    topi.cuda.schedule_conv2d_nhwc_winograd_tensorcore_without_weight_transform),
-                name="conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
-        else:
-            strategy.add_implementation(
-                wrap_compute_conv2d(
-                    topi.cuda.conv2d_nhwc_winograd_direct_without_weight_transform),
-                wrap_topi_schedule(
-                    topi.cuda.schedule_conv2d_nhwc_winograd_direct_without_weight_transform),
-                name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
+        assert len(kernel.shape) == 4
+        pad_kh, pad_kw, _, _ = get_const_tuple(kernel.shape)
+        tile_size = attrs.get_int("tile_size")
+        kh = pad_kh - tile_size + 1
+        kw = pad_kw - tile_size + 1
+        assert kh == 3 and kw == 3
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd_without_weight_transform),
+            wrap_topi_schedule(ansor.auto_schedule_topi),
+            name="ansor.winograd")
+        # N, H, W, _ = get_const_tuple(data.shape)
+        # alpha, _, CI, CO = get_const_tuple(kernel.shape)
+        # dilation_h, dilation_w = dilation
+        # judge_winograd_tensorcore, _ = winograd_judge(N, H, W, alpha, alpha, CI, CO,
+        #                                               padding, stride_h, stride_w,
+        #                                               dilation_h, dilation_w,
+        #                                               pre_flag=True)
+        # if target.target_name == "cuda" and \
+        #     nvcc.have_tensorcore(tvm.gpu(0).compute_version) and \
+        #     judge_winograd_tensorcore:
+        #     strategy.add_implementation(
+        #         wrap_compute_conv2d(
+        #             topi.cuda.conv2d_nhwc_winograd_tensorcore_without_weight_transform),
+        #         wrap_topi_schedule(
+        #             topi.cuda.schedule_conv2d_nhwc_winograd_tensorcore_without_weight_transform),
+        #         name="conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
+        # else:
+        #     strategy.add_implementation(
+        #         wrap_compute_conv2d(
+        #             topi.cuda.conv2d_nhwc_winograd_direct_without_weight_transform),
+        #         wrap_topi_schedule(
+        #             topi.cuda.schedule_conv2d_nhwc_winograd_direct_without_weight_transform),
+        #         name="conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
     else:
         raise RuntimeError("Unsupported conv2d_winograd_without_weight_transfrom layout {}".
                            format(layout))

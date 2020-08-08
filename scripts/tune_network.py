@@ -320,7 +320,8 @@ def tune_and_evaluate(network_arguments, target, target_host,
             if compare_with_tflite:
                 print("========== Compare with tflite ==========")
                 assert network_arguments['network_path'], "tflite model path shouldn't be none"
-                get_tflite_output(data, network_arguments['network_path'])
+                tflite_output = get_tflite_output(data, network_arguments['network_path'])
+                np.testing.assert_allclose(actual_output, tflite_output, atol=1e-2, rtol=1e-2)
 
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res) * 1000, np.std(prof_res) * 1000))
