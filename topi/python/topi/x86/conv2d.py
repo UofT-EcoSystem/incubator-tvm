@@ -373,7 +373,6 @@ def _conv2d_nhwc_winograd_impl(input, weight, strides, padding, dilation, out_dt
                                kernel_pack[eps][nu][co][ci],
                                axis=[ci]), name='bgemm',
                                attrs={"layout_free_placeholders": [kernel_pack],
-                                      "ansor_no_cache_read": "True",
                                       "ansor_task_scheduler_tag": "conv2d_winograd_%d_%d" % (r, m)})
 
     # inverse transform

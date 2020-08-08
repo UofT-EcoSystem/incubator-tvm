@@ -387,8 +387,8 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     bgemm = te.compute((alpha, alpha, P, CO), lambda eps, nu, p, co:
                         te.sum(data_pack[eps][nu][p][ci] *
                                 kernel_pack[eps][nu][ci][co],
-                                axis=[ci]), name='bgemm',
-                       attrs={"ansor_no_cache_read": "True"})
+                                axis=[ci]), name='bgemm')
+
     # inverse transform
     r_a = te.reduce_axis((0, alpha), 'r_a')
     r_b = te.reduce_axis((0, alpha), 'r_b')
