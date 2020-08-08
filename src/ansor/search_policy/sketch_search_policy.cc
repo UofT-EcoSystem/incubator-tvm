@@ -1411,7 +1411,7 @@ void SketchSearchPolicyNode::EvolutionarySearch(
   int population = GetIntParam(params, "evolutionary_search_population");
   int num_iters =  GetIntParam(params, "evolutionary_search_num_iters");
   double mutation_prob = GetDoubleParam(params, "evolutionary_search_mutation_prob");
-  int num_cross_over = static_cast<int>(population * 0.0);  // HAS NOT BEEN MIGRATED
+  int num_cross_over = static_cast<int>(population * 0.0);  // Turn off by default.
   int num_cross_over_trial_upper_bound = num_cross_over * 3;
   CostModel cost_model = program_cost_model;
 
@@ -1503,7 +1503,7 @@ void SketchSearchPolicyNode::EvolutionarySearch(
       if (p1 == p2) {
         pnext->push_back((*pnow)[p1]);
       } else {
-        State tmp_s = CrossOverState((*pnow)[p1], (*pnow)[p2]);
+        State tmp_s = CrossOverState(cur_task, &rand_gen_, (*pnow)[p1], (*pnow)[p2]);
         if (tmp_s.defined()) {
           pnext->push_back(std::move(tmp_s));
         }

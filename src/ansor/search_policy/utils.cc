@@ -762,7 +762,332 @@ void PruneInvalidState(const SearchTask& task, std::vector<State>* states) {
   }
 }
 
-State CrossOverState(const State& p1, const State& p2) { return State(); }
+// Return stage ID given the stage name, or -1 if not found.
+int GetStageIdByName(const State& state, const std::string& name) {
+  for (size_t sid = 0; sid < state->stages.size(); ++sid) {
+    if (name == state->stages[sid]->op->name) {
+      return sid;
+    }
+  }
+  return -1;
+}
+
+// Clone and apply one step from the reference state to a new state.
+State ApplyStepToNewState(const SearchTask& task, const State& state, const State& ref_s,
+                          const Step& step) {
+  State tmp_s = state;
+
+  // Retrieve required information from the current ref_s.
+  std::string curr_stage_name = ref_s->stages[step->stage_id]->op->name;
+  int curr_stage_id = GetStageIdByName(tmp_s, curr_stage_name);
+  CHECK_NE(curr_stage_id, -1) << curr_stage_name << " not found in the current state to be applied";
+
+  if (step.as<FollowSplitStepNode>()) {
+    // Follow split step specifies a source split step ID that might be changed when
+    // crossover, so we try to identify the corresponding split step and use an offset
+    // to adjust the source step id.
+    auto follow_step = step.as<FollowSplitStepNode>();
+    std::string target_stage_name =
+        ref_s->stages[ref_s->transform_steps[follow_step->src_step_id]->stage_id]->op->name;
+
+    // Looking for the first SplitStep to the target stage.
+    size_t tmp_s_ptr = 0;
+    while (tmp_s_ptr < tmp_s->transform_steps.size() &&
+           (!tmp_s->transform_steps[tmp_s_ptr].as<SplitStepNode>() ||
+            tmp_s->stages[tmp_s->transform_steps[tmp_s_ptr]->stage_id]->op->name !=
+                target_stage_name)) {
+      tmp_s_ptr++;
+    }
+
+    size_t ref_s_ptr = 0;
+    while (ref_s_ptr < ref_s->transform_steps.size() &&
+           (!ref_s->transform_steps[ref_s_ptr].as<SplitStepNode>() ||
+            ref_s->stages[ref_s->transform_steps[ref_s_ptr]->stage_id]->op->name !=
+                target_stage_name)) {
+      ref_s_ptr++;
+    }
+
+    int follow_split_src_offset = tmp_s_ptr - ref_s_ptr;
+    int new_src_split_step_id = follow_step->src_step_id + follow_split_src_offset;
+    if (tmp_s_ptr == tmp_s->transform_steps.size() || ref_s_ptr == ref_s->transform_steps.size() ||
+        !tmp_s->transform_steps[tmp_s_ptr].as<SplitStepNode>() ||
+        !ref_s->transform_steps[ref_s_ptr].as<SplitStepNode>() || new_src_split_step_id < 0 ||
+        new_src_split_step_id >= static_cast<int>(tmp_s->transform_steps.size()) ||
+        !tmp_s->transform_steps[new_src_split_step_id].as<SplitStepNode>()) {
+      // The corresponding split steps were not applied to the current state. It means the
+      // stage with split steps is not selected. We give up crossover in this case because
+      // we believe this state will not achieve better performance.
+      return State();
+    }
+
+    CHECK_LT(follow_step->iter_id, tmp_s->stages[curr_stage_id]->iters.size());
+    auto iter = tmp_s->stages[curr_stage_id]->iters[follow_step->iter_id];
+
+    tmp_s.follow_split(curr_stage_id, iter, new_src_split_step_id, follow_step->n_split);
+  } else if (step.as<FollowFusedSplitStepNode>()) {
+    // Follow fused split step specifies a source split/fuse step IDs that might be changed when
+    // crossover, so we update the source step ID list.
+    auto follow_step = step.as<FollowFusedSplitStepNode>();
+
+    // Get target stage ID and spatial split steps.
+    std::set<int> consumers = GetConsumers(task, tmp_s, curr_stage_id);
+    if (consumers.size() == 0) {
+      return State();
+    }
+    int target_stage_id = *consumers.begin();
+    std::string target_stage_name = tmp_s->stages[target_stage_id]->op->name;
+
+    // Get split steps.
+    std::vector<int> spatial_split_step_ids;
+    GetSpaceSplitStepIds(tmp_s, target_stage_id, &spatial_split_step_ids);
+    if (spatial_split_step_ids.size() == 0 ||
+        spatial_split_step_ids.size() != follow_step->src_step_ids.size()) {
+      return State();
+    }
+
+    // Locate the new state iter by name.
+    std::string iter_name = ref_s->stages[follow_step->stage_id]->iters[follow_step->iter_id]->name;
+    Iterator iter;
+    for (size_t i = 0; i < tmp_s->stages[curr_stage_id]->iters.size(); ++i) {
+      if (tmp_s->stages[curr_stage_id]->iters[i]->name == iter_name) {
+        iter = tmp_s->stages[curr_stage_id]->iters[i];
+        break;
+      }
+    }
+
+    if (!iter.defined()) {
+      return State();
+    }
+
+    tmp_s.follow_fused_split(curr_stage_id, iter, spatial_split_step_ids, follow_step->level,
+                             follow_step->factor_or_nparts);
+  } else if (step.as<ComputeAtStepNode>()) {
+    // ComputeAt target stage may be missing in the new state so we need to update target stage ID
+    // and iter ID before applying ComputeAtStep to a new state.
+    // We use stage name and iter name from the reference state to update IDs. If any of names is
+    // missing in the new state, we give up this crossover to avoid creating an invalid state.
+    auto compute_at_step = step.as<ComputeAtStepNode>();
+    std::string target_stage_name =
+        ref_s->stages[compute_at_step->target_stage_id]->op->name;
+    std::string target_iter_name = ref_s->stages[compute_at_step->target_stage_id]
+                                       ->iters[compute_at_step->target_iter_id]
+                                       ->name;
+
+    // Find the target stage and iter to apply the compute at step.
+    for (size_t stage_id = 0; stage_id < tmp_s->stages.size(); ++stage_id) {
+      if (target_stage_name == tmp_s->stages[stage_id]->op->name) {
+        for (size_t iter_id = 0; iter_id < tmp_s->stages[stage_id]->iters.size(); ++iter_id) {
+          if (target_iter_name == tmp_s->stages[stage_id]->iters[iter_id]->name) {
+            auto clone_step = ComputeAtStep(curr_stage_id, stage_id, iter_id);
+            tmp_s.CopyOnWrite()->transform_steps.push_back(clone_step);
+            tmp_s.DoStep(clone_step, task->compute_dag);
+            return tmp_s;
+          }
+        }
+      }
+    }
+    return State();
+  } else {
+    auto clone_step = step;
+    clone_step->stage_id = curr_stage_id;
+    tmp_s.CopyOnWrite()->transform_steps.push_back(clone_step);
+    try {
+      tmp_s.DoStep(clone_step, task->compute_dag);
+    } catch (dmlc::Error &ex) {
+      return State();
+    }
+  }
+  return tmp_s;
+}
+
+// Apply one step to the state (if given) as well as the reference state.
+std::pair<State, State> SyncOneStep(const SearchTask& task, const State& state, const State& ref_s,
+                                    const Step& step) {
+  // Apply the step to the new state.
+  State tmp_s;
+  if (state.defined()) {
+    tmp_s = ApplyStepToNewState(task, state, ref_s, step);
+  }
+
+  // Apply the step the reference state.
+  State sync_s = ref_s;
+  sync_s.CopyOnWrite()->transform_steps.push_back(step);
+  sync_s.DoStep(step, task->compute_dag);
+  return {tmp_s, sync_s};
+}
+
+State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const State& p1,
+                     const State& p2) {
+  // An internal class that replays a parent state to make the stage ID consist.
+  class SyncingState {
+   public:
+    int id;
+    State sync_state;
+    const std::vector<Step>& steps;
+    int stage_change_cnt;
+    size_t step_ptr;
+
+    SyncingState(const SearchTask& task, int id, State ref_state)
+        : steps(ref_state->transform_steps) {
+      this->id = id;
+      this->sync_state = task->compute_dag.GetInitState();
+      this->stage_change_cnt = 0;
+      this->step_ptr = 0;
+    }
+
+    // Indicate if the state is up-to-date (all steps are applied).
+    bool IsSynced() { return step_ptr == steps.size(); }
+
+    // Number of applied steps that changed stages.
+    int StageChangeCount() { return stage_change_cnt; }
+
+    // Get the target stage name of the step to be applied.
+    std::string GetCurrStageName() {
+      if (IsSynced()) {
+        return "";
+      }
+      return sync_state->stages[steps[step_ptr]->stage_id]->op->name;
+    }
+
+    // Apply one step to the syncing state. Do nothing if all steps are applied already.
+    void ApplyOneStep(const SearchTask& task) {
+      if (IsSynced()) {
+        return;
+      }
+      auto ret = SyncOneStep(task, State(), this->sync_state, steps[this->step_ptr]);
+      this->sync_state = ret.second;
+      if (steps[step_ptr].as<CacheWriteStepNode>() || steps[step_ptr].as<CacheReadStepNode>() ||
+          steps[step_ptr].as<RfactorStepNode>()) {
+        this->stage_change_cnt++;
+      }
+      this->step_ptr++;
+    }
+  };
+
+  // Do crossover only when the stage numbers are the same.
+  if (p1->stages.size() != p2->stages.size()) {
+    return State();
+  }
+
+  // Note that we are based on the current state instead of initial state.
+  int n_stage = p1->stages.size();
+
+  // Create sync states to match the stages.
+  SyncingState sync_p1(task, 1, p1);
+  SyncingState sync_p2(task, 2, p2);
+  std::vector<SyncingState*> sync_states = {&sync_p1, &sync_p2};
+
+  // Stage index to the selected state. Default to p1.
+  std::unordered_map<std::string, int> stage_out_to_states;
+  for (int t = 0; t < n_stage; ++t) {
+    if (p1->stages[t]->op_type == kPlaceholder) {
+      // Since CacheRead steps target to placeholder stage, we assign all placeholders to p1.
+      stage_out_to_states[p1->stages[t]->op->name] = sync_p1.id;
+    } else if (p1->stages[t]->compute_at != kInlined && p2->stages[t]->compute_at == kInlined) {
+      // FIXME: Now we always select the inlined stage.
+      stage_out_to_states[p1->stages[t]->op->name] = sync_p2.id;
+    } else if ((*random_gen)() % 100 >= 50) {
+      // FIXME: Should be based on the score breakdown instead of random selection.
+      stage_out_to_states[p1->stages[t]->op->name] = sync_p2.id;
+    } else {
+      stage_out_to_states[p1->stages[t]->op->name] = sync_p1.id;
+    }
+  }
+
+  // Check if all stages are coming from the same state (no need to crossover).
+  bool consist = true;
+  int first_select = stage_out_to_states.begin()->second;
+  for (auto select : stage_out_to_states) {
+    if (first_select != select.second) {
+      consist = false;
+      break;
+    }
+  }
+  if (consist) {
+    return State();
+  }
+
+  // Create a new state.
+  State tmp_s = task->compute_dag.GetInitState();
+
+  // Apply steps. Meanwhile we also re-apply steps to p1 and p2 to make sure
+  // the stage ID is matched.
+  while (!sync_states[0]->IsSynced() && !sync_states[1]->IsSynced()) {
+    SyncingState* sync_s = nullptr;
+
+    // Determine which state we will focus on this round.
+    // If a state has changed its stages more times than another state, we prior to another state to
+    // make their stages synced. Otherwise we simply go for the one with smaller step pointer.
+    if (sync_states[0]->StageChangeCount() < sync_states[1]->StageChangeCount()) {
+      sync_s = sync_states[0];
+    } else if (sync_states[0]->StageChangeCount() > sync_states[1]->StageChangeCount()) {
+      sync_s = sync_states[1];
+    } else {
+      sync_s = sync_states[(sync_states[0]->step_ptr <= sync_states[1]->step_ptr) ? 0 : 1];
+    }
+    std::string curr_stage_name = sync_s->GetCurrStageName();
+    if (stage_out_to_states.count(curr_stage_name) == 0) {
+      // Cannot find the stage in the stage map. It might be due to stage mismatching between
+      // p1 and p2.
+      return State();
+    }
+
+    // Check if we want to apply this step.
+    std::string target_stage_name = curr_stage_name;
+    if (auto ps = sync_s->steps[sync_s->step_ptr].as<ComputeAtStepNode>()) {
+      // Whether to apply Compute_at step depends on the target stage instead of self stage.
+      target_stage_name = sync_s->sync_state->stages[ps->target_stage_id]->op->name;
+    }
+
+    if (stage_out_to_states[target_stage_name] != sync_s->id) {
+      // The target stage of the current state is not selected. Do not apply this step to
+      // the new state but just bypadd.
+      sync_s->ApplyOneStep(task);
+      continue;
+    }
+
+    // Apply one step.
+    auto ret = SyncOneStep(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
+    tmp_s = ret.first;
+    if (!tmp_s.defined()) {
+      return tmp_s;
+    }
+    sync_s->sync_state = ret.second;
+    sync_s->step_ptr++;
+  }
+
+  // Process tails.
+  for (size_t i = 0; i < sync_states.size(); ++i) {
+    SyncingState* sync_s = sync_states[i];
+    while (!sync_s->IsSynced()) {
+      std::string stage_name = sync_s->GetCurrStageName();
+      CHECK_GT(stage_out_to_states.count(stage_name), 0);
+
+      std::string target_stage_name = stage_name;
+      if (auto ps = sync_s->steps[sync_s->step_ptr].as<ComputeAtStepNode>()) {
+        // Whether to apply Compute_at step depends on the target stage instead of self stage.
+        target_stage_name = sync_s->sync_state->stages[ps->target_stage_id]->op->name;
+      }
+
+      if (stage_out_to_states[target_stage_name] != sync_s->id) {
+        // The target stage of the current state is not selected. Do not apply this step to
+        // the new state but just bypadd.
+        sync_s->ApplyOneStep(task);
+        continue;
+      }
+
+      // Apply one step.
+      auto ret = SyncOneStep(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
+      tmp_s = ret.first;
+      if (!tmp_s.defined()) {
+        return tmp_s;
+      }
+      sync_s->sync_state = ret.second;
+      sync_s->step_ptr++;
+    }
+  }
+  return tmp_s;
+}
 
 }  // namespace ansor
 }  // namespace tvm
