@@ -254,7 +254,7 @@ def conv2d_capsule_nhwijc(N, H, W, CI, CO, kernel_size, stride=1, padding=0, cap
 
 @ansor.register_workload_func
 def conv2d_winograd_nhwc_new(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, dilation=1):
-    # TODO: implement tile_size
+    """ An experimental version with a new compute defintion (does not work yet)"""
     tile_size = 4 #_infer_tile_size(data, kernel)
     inputs = te.placeholder((N, H, W, CI), name='inputs')
     #weight = te.placeholder((kernel_size, kernel_size, CI, CO), name='weight')
@@ -380,11 +380,7 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     data_pack = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
                             te.sum(input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
-                                    attrs={"ansor_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_last_split_is_one": ["ci", "p"],
-                                           "ansor_always_unroll": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_no_cache_write": "True",
-                                           })
+                            attrs={"ansor_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]})
 
     # do batch gemm
     ci = te.reduce_axis((0, CI), name='ci')
@@ -399,11 +395,7 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
     inverse = te.compute((m, m, P, CO), lambda vh, vw, p, co:
                           te.sum(bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                          attrs={"ansor_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
-                                 "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                 "ansor_last_split_is_one": ["co", "p"],
-                                 "ansor_no_cache_write": "True",
-                                 })
+                          attrs={"ansor_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]})
 
     # output
     output = te.compute((N, H, W, CO), lambda n, h, w, co:
@@ -411,9 +403,10 @@ def conv2d_winograd_nhwc(N, H, W, CI, CO, kernel_size=3, stride=1, padding=0, di
                                  idxmod(w, m),
                                  n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
                                  co],
-                         name='conv2d_winograd',
-                         tag='conv2d_winograd_nhwc',
-                         attrs={"ansor_no_split_at_outer": ["n", "h", "w", "co"],})
+                         name='conv2d_winograd')
+
+    #output = topi.nn.relu(output)
+
     return [inputs, kernel_pack, output]
 
 @ansor.register_workload_func
@@ -466,11 +459,7 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
     data_pack = te.compute((alpha, alpha, CI, P), lambda eps, nu, ci, p:
                             te.sum(input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
-                                    attrs={"ansor_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_last_split_is_one": ["ci", "p"],
-                                           "ansor_always_unroll": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_no_cache_write": "True",
-                                           })
+                            attrs={"ansor_simplify_const_tensor_indices": ["r_a", "r_b", "eps", "nu"]})
 
     # do batch gemm
     ci = te.reduce_axis((0, CI), name='ci')
@@ -485,19 +474,15 @@ def conv2d_winograd_nchw(N, CI, H, W, CO, kernel_size=3, stride=1, padding=0, di
     inverse = te.compute((CO, P, m, m), lambda co, p, vh, vw:
                           te.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                         attrs={"ansor_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
-                                "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                "ansor_last_split_is_one": ["co", "p"],
-                                "ansor_no_cache_write": "True",
-                                })
+                          attrs={"ansor_simplify_const_tensor_indices": ["r_a", "r_b", "vh", "vw"]})
 
     # output
     output = te.compute((N, CO, H, W), lambda n, co, h, w:
                          inverse[co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
                                  idxmod(h, m),
                                  idxmod(w, m)],
-                         name='conv2d_winograd',
-                         attrs={"ansor_no_split_at_outer": ["n", "co", "h", "w"],})
+                         name='conv2d_winograd')
+
     return [inputs, kernel_pack, output]
 
 # ========================== Subgraphs ==========================

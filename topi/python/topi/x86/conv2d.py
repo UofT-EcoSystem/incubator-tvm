@@ -364,11 +364,7 @@ def _conv2d_nhwc_winograd_impl(input, weight, strides, padding, dilation, out_dt
     data_pack = te.compute((alpha, alpha, P, CI), lambda eps, nu, p, ci:
                             te.sum(input_tile[r_a][r_b][p][ci] * B[r_a][eps] * B[r_b][nu],
                                     axis=[r_a, r_b]), name='data_pack',
-                                    attrs={"ansor_no_split_at_inner": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_last_split_is_one": ["ci", "p"],
-                                           "ansor_always_unroll": ["eps", "nu", "r_a", "r_b"],
-                                           "ansor_no_cache_write": "True",
-                                           })
+                            attrs={"ansor_simplify_const_tensor_indices": ["eps", "nu", "r_a", "r_b"]})
 
     # do batch gemm
     ci = te.reduce_axis((0, CI), name='ci')
@@ -385,11 +381,7 @@ def _conv2d_nhwc_winograd_impl(input, weight, strides, padding, dilation, out_dt
     inverse = te.compute((m, m, P, CO), lambda vh, vw, p, co:
                           te.sum(bgemm[r_a][r_b][p][co] * A[r_a][vh] * A[r_b][vw],
                                   axis=[r_a, r_b]), name='inverse',
-                          attrs={"ansor_no_split_at_inner": ["vh", "vw", "r_a", "r_b"],
-                                 "ansor_always_unroll": ["vh", "vw", "r_a", "r_b"],
-                                 "ansor_last_split_is_one": ["co", "p"],
-                                 "ansor_no_cache_write": "True",
-                                 })
+                          attrs={"ansor_simplify_const_tensor_indices": ["vh", "vw", "r_a", "r_b"]})
 
     # output
     output = te.compute((N, H, W, CO), lambda n, h, w, co:
@@ -397,9 +389,8 @@ def _conv2d_nhwc_winograd_impl(input, weight, strides, padding, dilation, out_dt
                                  idxmod(w, m),
                                  n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
                                  co],
-                         name='conv2d_winograd',
-                         tag='conv2d_winograd_nhwc',
-                         attrs={"ansor_no_split_at_outer": ["n","h","w","co"]})
+                         name='conv2d_winograd')
+
     return output
 
 def conv2d_nhwc_winograd(input, weight, strides, padding, dilation, out_dtype, pre_computed=False):

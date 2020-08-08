@@ -280,11 +280,6 @@ static inline bool ShouldBeCacheRead(
     const SketchSearchPolicyNode* policy, const State& state, int stage_id) {
   const SearchTask& task = policy->cur_task;
 
-  // Handle special requirement
-  if (HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_read_key)) {
-    return false;
-  }
-
   // Don't cache_read a stage if it has multiple consumers
   const std::set<int>& consumers = GetConsumers(task, state, stage_id);
   if (consumers.size() != 1) {
@@ -316,25 +311,71 @@ static inline bool ShouldAlwaysBeInlined(
   const SearchTask& task = policy->cur_task;
   const Stage& stage = state->stages[stage_id];
 
-  if (stage->op_type == kPlaceholder) {
+  // check the inline condition of TE
+  if (stage->op_type == kPlaceholder || IsOutputOp(task, state, stage_id) || HasReduceIter(stage)) {
     return false;
   }
 
-  // Inline limitation of TVM
-  if (!IsOutputOp(task, state, stage_id) && !HasReduceIter(stage)) {
-    // Always inline condition:
-    // 1. Has attrs that this must be inlined
-    // 2. Analyse shows this is strict inlineable
-    // 3. A GPU stage can be inlined (If it should be cache read, do it first)
-    if (HasAttrsFlag(state, stage_id, SearchPolicyNode::always_compute_inline_key) ||
-        IsStrictInlineable(task, state, stage_id) ||
-        (IsGPUTask(policy->cur_task) && !ShouldBeCacheRead(policy, state, stage_id))) {
-      return true;
+  if (IsGPUTask(policy->cur_task)) {  // Greedily inline all inlinable ops on gpu
+    return true;
+  } else {
+     // Only always-inline strict-inlinable ops on cpu.
+     // The computation location of other ops will be tuned in InitPopulationChangeComputeLocation 
+     // and EvolutionarySearch.
+    return IsStrictInlineable(task, state, stage_id);
+  }
+}
+
+// Handle special cases in Winograd transformation for GPU.
+// We need to change the compute location of the producers of 
+// compute ops that perform "fake reduction" with const tensors.
+class RuleSpecialComputeLocationGPU : public SketchGenerationRule {
+ public:
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
+      const State& state, int stage_id) final {
+    const SearchTask& task = policy->cur_task;
+
+    if (!ShouldAlwaysBeInlined(policy, state, stage_id)) {
+      return kPass;
     }
+
+    const std::set<int>& producers = GetProducers(task, state, stage_id);
+    if (producers.empty()) {
+      return kPass;
+    }
+
+    const std::set<int>& consumers = GetConsumers(task, state, stage_id);
+    if (consumers.size() == 1 && state->stages[*consumers.begin()]->op->attrs.count(
+                SearchPolicyNode::simplify_const_tensor_indices_key)) {
+      return kApplyAndSkipRest;
+    }
+
+    return kPass;
   }
 
-  return false;
-}
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
+      const State& state, int stage_id) final {
+    const SearchTask& task = policy->cur_task;
+
+    State tmp_s = state;
+    const std::set<int>& consumers = GetConsumers(task, state, stage_id);
+    CHECK_EQ(consumers.size(), 1);
+
+    // Get the last outer space iterator that is not unrolled.
+    const Stage& target_stage = state->stages[*consumers.begin()];
+    for (size_t i = 0; i < target_stage->iters.size(); ++i) {
+      if (target_stage->iters[i]->annotation == kUnroll) {
+        CHECK_GT(i, 0);
+
+        tmp_s.compute_at(stage_id, *consumers.begin(),
+                target_stage->iters[i-1]);
+        break;
+      }
+    }
+
+    return {std::make_pair(std::move(tmp_s), stage_id - 1)};
+  }
+};
 
 // The rule that inlines simple elementwise ops
 class RuleAlwaysInline : public SketchGenerationRule {
@@ -357,17 +398,6 @@ class RuleSkipStage : public SketchGenerationRule {
  public:
   ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
                               const State& state, int stage_id) final {
-    //const SearchTask& task = policy->cur_task;
-    //const Stage& stage = state->stages[stage_id];
-
-    //const auto& attrs = stage->op->attrs;
-    //if ((attrs.count(SearchPolicyNode::no_split_at_inner_key) ||
-    //    attrs.count(SearchPolicyNode::no_split_at_outer_key)) &&
-    //    NeedsMultilevelTiling(task, state, stage_id)) {
-    //  // for the transform stages in Winograd
-    //  return kPass;
-    //}
-
     return kApply;
   }
 
@@ -411,10 +441,7 @@ class RuleMultiLevelTilingWithFusion : public SketchGenerationRule {
 
     if (NeedsMultilevelTiling(task, state, stage_id) &&
         HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
-      // Skip the condition of: A -> A_cache_read -> B
-      if (HasCacheReadStage(state, stage_id) && !HasCacheWriteStage(state, stage_id)) {
-        return kPass;
-      }
+
       // Always do fusion for stage with cache_write or GPU
       return HasCacheWriteStage(state, stage_id) || IsGPUTask(task) ?
           kApplyAndSkipRest : kApply;
@@ -473,11 +500,6 @@ class RuleAddCacheWrite : public SketchGenerationRule {
     const SearchTask& task = policy->cur_task;
     int target_stage_id;
 
-    // Handle special requirement
-    if (HasAttrsFlag(state, stage_id, SearchPolicyNode::no_cache_write_key)) {
-      return kPass;
-    }
-
     // Don't cache_write a stage if it does cross-thread reduction
     if (HasCrossThreadReduction(state, stage_id)) {
       return kPass;
@@ -485,15 +507,12 @@ class RuleAddCacheWrite : public SketchGenerationRule {
 
     // Add cache write if a stage needs multi-level tiling,
     // but does not have a element-wise matched consumer
-    if (NeedsMultilevelTiling(task, state, stage_id)) {
-      // If this stage has been applied cache read, then it lost the single elementwise match
-      // relation with its consumer
-      if ((HasCacheReadStage(state, stage_id) && !HasCacheWriteStage(state, stage_id)) ||
-          !HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
-        // Always do cache_write on GPU
-        return IsGPUTask(task) ? kApplyAndSkipRest : kApply;
-      }
+    if (NeedsMultilevelTiling(task, state, stage_id) &&
+       !HasSingleElementwiseMatchedConsumer(task, state, stage_id, &target_stage_id)) {
+      // Always do cache_write on GPU
+      return IsGPUTask(task) ? kApplyAndSkipRest : kApply;
     }
+
     return kPass;
   }
 
@@ -670,6 +689,61 @@ class RuleCrossThreadReduction : public SketchGenerationRule {
   }
 };
 
+// The rule that deals with compute ops that perform "fake reduction" with const tensors.
+// This kind of op comes from winograd transformation.
+class RuleSimplifyComputeWithConstTensor : public SketchGenerationRule {
+ public:
+  ConditionEnum MeetCondition(const SketchSearchPolicyNode* policy,
+                              const State& state, int stage_id) final {
+
+    if (state->stages[stage_id]->op->attrs.count(
+                SearchPolicyNode::simplify_const_tensor_indices_key)) { 
+      return kApplyAndSkipRest;
+    }
+
+    return kPass;
+  }
+
+  std::vector<std::pair<State, int> > Apply(const SketchSearchPolicyNode* policy,
+                                            const State& state, int stage_id) final {
+    std::set<std::string> const_tensor_indices = GetIterNameSetParam(
+            state->stages[stage_id]->op->attrs,
+            SearchPolicyNode::simplify_const_tensor_indices_key);
+
+    State tmp_s = state;
+    std::vector<std::vector<Iterator>> tiled_outer_iters;
+    std::vector<Iterator> unrolled_inner_iters;
+
+    size_t tile_level = 2;
+ 
+    for (const auto& iter : state->stages[stage_id]->iters) {
+      if (const_tensor_indices.count(iter->name)) {
+        // unroll indices of const tensors
+        unrolled_inner_iters.push_back(tmp_s.unroll(stage_id, iter));
+      } else {
+        // tile other space indices
+        CHECK_EQ(iter->iter_type, kSpace);
+
+        tiled_outer_iters.push_back(tmp_s.split(stage_id, iter,
+                    std::vector<PrimExpr>(tile_level - 1)));
+      }
+    }
+
+    // reorder them
+    std::vector<Iterator> new_order;
+    for (size_t i = 0; i < tile_level; ++i) {
+      for (size_t j = 0; j < tiled_outer_iters.size(); ++j) {
+        new_order.push_back(tiled_outer_iters[j][i]);
+      }
+    }
+    new_order.insert(new_order.end(), unrolled_inner_iters.begin(),
+            unrolled_inner_iters.end());
+    tmp_s.reorder(stage_id, new_order);
+
+    return {std::make_pair(tmp_s, stage_id - 1)};
+  }
+};
+
 
 std::vector<State> SketchSearchPolicyNode::GenerateSketches() {
   State init_state = cur_task->compute_dag.GetInitState();
@@ -693,14 +767,18 @@ std::vector<State> SketchSearchPolicyNode::GenerateSketches() {
   static RuleAddCacheRead rule_add_cache_read_stage;
   static RuleAddRfactor rule_add_rfactor;
   static RuleCrossThreadReduction rule_cross_thread_reduction;
+  static RuleSimplifyComputeWithConstTensor rule_simplify_compute_with_const_tensor;
+  static RuleSpecialComputeLocationGPU rule_special_compute_location_gpu;;
 
   if (sketch_rules.empty()) {
-    // We may apply and skip the rest when processing some rules.
-    // Should take care of the order of rules here
+    // Some rules require us to skip all the rest rules after they be applied.
+    // So the rules below should be ordered carefully.
 
     if (IsGPUTask(cur_task)) {
       sketch_rules.push_back(&rule_add_cache_read_stage);
+      sketch_rules.push_back(&rule_special_compute_location_gpu);
       sketch_rules.push_back(&rule_always_inline);
+      sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
       sketch_rules.push_back(&rule_cross_thread_reduction);
       sketch_rules.push_back(&rule_add_cache_write_stage);
       sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
@@ -708,6 +786,7 @@ std::vector<State> SketchSearchPolicyNode::GenerateSketches() {
       sketch_rules.push_back(&rule_skip_stage);
     } else {
       sketch_rules.push_back(&rule_always_inline);
+      sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
       sketch_rules.push_back(&rule_add_rfactor);
       sketch_rules.push_back(&rule_add_cache_write_stage);
       sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
@@ -811,6 +890,19 @@ int InitPopulationFillTileSize(const SketchSearchPolicyNode& policy,
 }
 
 int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state) {
+  std::set<int> multi_level_tiling_root_set;
+
+  for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
+    if (NeedsMultilevelTiling(policy->cur_task, *state, stage_id)) {
+      const Stage& stage = (*state)->stages[stage_id];
+      CHECK_EQ(stage->compute_at, kIter);
+      const auto res = (*state)->attach_map->stage_to_attach_iter.find(stage_id);
+      CHECK(res != (*state)->attach_map->stage_to_attach_iter.end());
+
+      multi_level_tiling_root_set.insert(res->second.first);
+    }
+  }
+
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     const Stage& stage = (*state)->stages[stage_id];
 
@@ -835,7 +927,8 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
     if (stage->compute_at == kRoot) {
       // This stage has not been tiled, but in GPU schedule, we must tile the root stage
       // to do thread binding
-      if (!HasSplitStep(*state, stage_id)) {
+
+      if (!multi_level_tiling_root_set.count(stage_id)) {
         Iterator fused_it;
         *state = FuseAllOuterSpaceIterators(*state, stage_id, &fused_it);
 
@@ -845,12 +938,10 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
           // Set threadIdx.x = default_warp_size by default.
           // The later EvolutionarySearch will try more possiblity
           const auto& split_its = state->split(stage_id, fused_it,
-              {1, policy->cur_task->hardware_params->warp_size});
+              {policy->cur_task->hardware_params->warp_size});
           state->bind_thread(stage_id, split_its[0], kBlockX);
-          state->bind_thread(stage_id, split_its[1], kVThread);
-          state->bind_thread(stage_id, split_its[2], kThreadX);
+          state->bind_thread(stage_id, split_its[1], kThreadX);
         }
-
         continue;
       }
 
@@ -865,6 +956,7 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
         CHECK(pint);
         total_space_extent *= pint->value;
       }
+
       // Check if the total space extent is too small for multi-level thread binding
       if (total_space_extent <= policy->cur_task->hardware_params->warp_size) {
         for (const auto& it : (*state)->stages[stage_id]->iters) {
@@ -920,36 +1012,26 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
         return -1;
       }
       state->bind_thread(stage_id, threadidx_it, kThreadX);
-    } else if (stage->compute_at == kIter && StrEndsWith(stage->op->name, "shared")) {
-      // Do cooperative fetching with the cache read stage, there're two cases to identify
-      // a cache read stage in a subgraph of A -> B:
-      // 1. A -> A_cache_read -> B
-      //               *
-      // 2. A -> A_cache_write -> A_cache_read -> B
-      //                                *
-      if ((stage_id > 0 && HasCacheReadStage(*state, stage_id - 1) &&
-          !HasCacheWriteStage(*state, stage_id - 1)) ||
-          (stage_id > 1 && HasCacheReadStage(*state, stage_id - 2) &&
-          HasCacheWriteStage(*state, stage_id - 2))) {
-        // Get spatial_split_step_ids from the root stage
-        CHECK(stage->compute_at == kIter);
-        const auto& it = (*state)->attach_map->stage_to_attach_iter.find(stage_id);
-        CHECK(it != (*state)->attach_map->stage_to_attach_iter.end());
-        std::vector<int> spatial_split_step_ids;
-        GetSpaceSplitStepIds(*state, it->second.first, &spatial_split_step_ids);
+    } else if (stage->compute_at == kIter && StrEndsWith(stage->op->name, ".shared")) {
+      // Do cooperative fetching for the cache read stage.
+      // Get spatial_split_step_ids from the root stage
+      CHECK(stage->compute_at == kIter);
+      const auto& it = (*state)->attach_map->stage_to_attach_iter.find(stage_id);
+      CHECK(it != (*state)->attach_map->stage_to_attach_iter.end());
+      std::vector<int> spatial_split_step_ids;
+      GetSpaceSplitStepIds(*state, it->second.first, &spatial_split_step_ids);
 
-        // Fuse all iterators to do cooperative fetching
-        Iterator fused = state->fuse(stage_id, (*state)->stages[stage_id]->iters);
-        // Split out an extra iterator for vectorization
-        // The later EvolutionarySearch will try more possiblity
-        const auto& iters0 = state->split(stage_id, fused, {1});
-        state->vectorize(stage_id, iters0[1]);
-        // Follow split to keep a same thread extent with the root stage
-        const auto& iters1 = state->follow_fused_split(stage_id, iters0[0],
-                                                      spatial_split_step_ids,
-                                                      1, true);
-        state->bind_thread(stage_id, iters1[1], kThreadX);
-      }
+      // Fuse all iterators to do cooperative fetching
+      Iterator fused = state->fuse(stage_id, (*state)->stages[stage_id]->iters);
+      // Split out an extra iterator for vectorization
+      // The later EvolutionarySearch will try more possiblity
+      const auto& iters0 = state->split(stage_id, fused, {1});
+      state->vectorize(stage_id, iters0[1]);
+      // Follow split to keep a same thread extent with the root stage
+      const auto& iters1 = state->follow_fused_split(stage_id, iters0[0],
+                                                    spatial_split_step_ids,
+                                                    1, true);
+      state->bind_thread(stage_id, iters1[1], kThreadX);
     }
   }
 
@@ -980,11 +1062,6 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
     }
 
     const Stage& target_stage = (*state)->stages[target_stage_id];
-    std::set<std::string> to_unroll_name_set;
-    if (target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
-      to_unroll_name_set = GetIterNameSetParam(target_stage->op->attrs,
-                                               SearchPolicyNode::always_unroll_key);
-    }
 
     std::vector<std::pair<int, int> > candidates;
     bool target_compute_at_other = target_stage->compute_at == kIter;
@@ -1006,8 +1083,8 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
         }
       }
 
-      if (to_unroll_name_set.count(target_iter->name)) {
-        // Do not go into always unroll region
+      if (target_iter->annotation == kUnroll) {
+        // Do not go into the unroll region of const tensor indices
         break;
       }
 
@@ -1035,12 +1112,6 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
       target_target_stage_id = (*state)->attach_map->stage_to_attach_iter.at(
           target_stage_id).first;
       const Stage& target_target_stage = (*state)->stages[target_target_stage_id];
-      if (target_target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
-        to_unroll_name_set = GetIterNameSetParam(target_target_stage->op->attrs,
-                                                 SearchPolicyNode::always_unroll_key);
-      } else {
-        to_unroll_name_set.clear();
-      }
 
       for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
         const Iterator& target_target_iter = target_target_stage->iters[i];
@@ -1050,8 +1121,8 @@ int InitPopulationChangeComputeLocation(const SketchSearchPolicyNode* policy,
           break;
         }
 
-        if (to_unroll_name_set.count(target_target_iter->name)) {
-          // Do not go into always unroll region
+        if (target_target_iter->annotation == kUnroll) {
+          // Do not go into the unroll region of const tensor indices
           break;
         }
 
@@ -1175,12 +1246,6 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
     // try to fuse and vectorize the space iterators in the inner most tile
     int cum_length_prod = 1;
 
-    std::set<std::string> to_unroll_name_set;
-    if (stage->op->attrs.count(policy->always_unroll_key)) {
-      to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
-                                               policy->always_unroll_key);
-    }
-
     int num_fusible = 0;
     while (num_fusible < static_cast<int>(stage->iters.size())) {
       int iter_id = static_cast<int>(stage->iters.size()) - 1 - num_fusible;
@@ -1192,8 +1257,7 @@ int InitPopulationVectorization(const SketchSearchPolicyNode* policy,
       const Iterator& it = stage->iters[iter_id];
 
       // Stop if we meet a reduce iterator
-      if (it->iter_type == kReduce || it->annotation != kNone ||
-          to_unroll_name_set.count(it->name)) {
+      if (it->iter_type == kReduce || it->annotation != kNone) {
         break;
       }
 
@@ -1270,22 +1334,6 @@ int InitPopulationUnroll(const SketchSearchPolicyNode* policy,
           }
         }
 
-        n--;
-      }
-    }
-
-    if (stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
-      // Special unroll policy
-      const auto& to_unroll_name_set = GetIterNameSetParam(stage->op->attrs,
-              SearchPolicyNode::always_unroll_key);
-
-      // Unroll the space iterators and reduce iterators listed in the attrs
-      int n = static_cast<int>(stage->iters.size()) - 1;
-      while (n >= 0) {
-        const Iterator& it = stage->iters[n];
-        if (to_unroll_name_set.count(it->name)) {
-          state->unroll(stage_id, it);
-        }
         n--;
       }
     }

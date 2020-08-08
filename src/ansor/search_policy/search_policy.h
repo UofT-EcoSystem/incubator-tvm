@@ -102,14 +102,10 @@ class SearchPolicyNode : public Object {
 
   // Dict keys to give hints to the policy
   static constexpr const char* always_unroll_inner_key = "ansor_always_unroll_inner";
-  static constexpr const char* always_unroll_key = "ansor_always_unroll";
   static constexpr const char* no_split_at_inner_key = "ansor_no_split_at_inner";
   static constexpr const char* no_split_at_outer_key = "ansor_no_split_at_outer";
-  static constexpr const char* last_split_is_one_key = "ansor_last_split_is_one";
-  // Flag keys to give hints to the policy
-  static constexpr const char* always_compute_inline_key = "ansor_always_compute_inline";
-  static constexpr const char* no_cache_write_key = "ansor_no_cache_write";
-  static constexpr const char* no_cache_read_key = "ansor_no_cache_read";
+  static constexpr const char* simplify_const_tensor_indices_key =
+      "ansor_simplify_const_tensor_indices";
 
   static constexpr const char *_type_key = "ansor.SearchPolicy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchPolicyNode, Object);

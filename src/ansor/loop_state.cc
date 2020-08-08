@@ -967,6 +967,7 @@ void AttachMap::ReplaceIters(const std::vector<IterKey>& old_iters,
                              const std::vector<IterKey>& new_iters) {
   AttachMapNode* pnode = CopyOnWrite();
 
+  std::unordered_map<IterKey, std::vector<StageKey>> new_iter_to_attached_stages;
   CHECK_EQ(old_iters.size(), new_iters.size());
   for (size_t i = 0; i < old_iters.size(); ++i) {
     auto entry = pnode->iter_to_attached_stages.find(old_iters[i]);
@@ -982,7 +983,13 @@ void AttachMap::ReplaceIters(const std::vector<IterKey>& old_iters,
     // replace iter in the key of `iter_to_attached_stages`
     std::vector<int> attached_stages = std::move(entry->second);
     pnode->iter_to_attached_stages.erase(entry);
-    pnode->iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
+    new_iter_to_attached_stages[new_iters[i]] = std::move(attached_stages);
+  }
+
+  // update new entries
+  for (auto it = new_iter_to_attached_stages.begin(); it != new_iter_to_attached_stages.end();
+       ++it) {
+    pnode->iter_to_attached_stages[it->first] = std::move(it->second);
   }
 }
 

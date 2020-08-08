@@ -89,7 +89,6 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
   State tmp_s = state;
   const Stage& stage = state->stages[stage_id];
   const auto& no_split_name_pair = GetNoSplitAxisAttr(stage);  // handle special split strategy
-  const auto& last_split_is_one_name_set = GetLastSplitIsOneAxisAttr(stage);
   const std::set<std::string>& no_split_at_inner_name_set = no_split_name_pair.first;
   const std::set<std::string>& no_split_at_outer_name_set = no_split_name_pair.second;
 
@@ -98,17 +97,12 @@ State DoMultiLevelTiling(const State& state, int stage_id, const std::string& fo
       if (!no_split_at_inner_name_set.count(iter->name) &&
           !no_split_at_outer_name_set.count(iter->name)) {
         CHECK_GE(n_space, 1);
-        int tmp_n_space = n_space;
 
-        if (last_split_is_one_name_set.count(iter->name)) {
-          tmp_n_space--;
-        }
-
-        if (tmp_n_space == 1) {
+        if (n_space == 1) {
           space_levels[0].push_back(iter);
         } else {
-          split_res = tmp_s.split(stage_id, iter, std::vector<PrimExpr>(tmp_n_space - 1));
-          for (int i = 0; i < tmp_n_space; i++) {
+          split_res = tmp_s.split(stage_id, iter, std::vector<PrimExpr>(n_space - 1));
+          for (int i = 0; i < static_cast<int>(n_space); i++) {
             space_levels[i].push_back(std::move(split_res[i]));
           }
           spatial_split_step_ids->push_back(tmp_s->transform_steps.size() - 1);
@@ -605,11 +599,6 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
     }
 
     const Stage& target_stage = (old_state)->stages[target_stage_id];
-    std::set<std::string> to_unroll_name_set;
-    if (target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
-      to_unroll_name_set = GetIterNameSetParam(target_stage->op->attrs,
-                                               SearchPolicyNode::always_unroll_key);
-    }
 
     std::vector<std::pair<int, int> > candidates;
     bool target_compute_at_other = target_stage->compute_at == kIter;
@@ -630,8 +619,8 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
         }
       }
 
-      if (to_unroll_name_set.count(target_iter->name)) {
-        // Do not go into always unroll region
+      if (target_iter->annotation == kUnroll) {
+        // Do not go into the unroll region of const tensor indices
         break;
       }
 
@@ -659,12 +648,6 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
       target_target_stage_id = (old_state)->attach_map->stage_to_attach_iter.at(
           target_stage_id).first;
       const Stage& target_target_stage = (old_state)->stages[target_target_stage_id];
-      if (target_target_stage->op->attrs.count(SearchPolicyNode::always_unroll_key)) {
-        to_unroll_name_set = GetIterNameSetParam(target_target_stage->op->attrs,
-                                                 SearchPolicyNode::always_unroll_key);
-      } else {
-        to_unroll_name_set.clear();
-      }
 
       for (size_t i = 0; i < target_target_stage->iters.size(); ++i) {
         const Iterator& target_target_iter = target_target_stage->iters[i];
@@ -674,8 +657,8 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
           break;
         }
 
-        if (to_unroll_name_set.count(target_target_iter->name)) {
-          // Do not go into always unroll region
+        if (target_target_iter->annotation == kUnroll) {
+          // Do not go into the unroll region of const tensor indices
           break;
         }
 
@@ -773,7 +756,7 @@ void PruneInvalidState(const SearchTask& task, std::vector<State>* states) {
   }
 
   if (pt == 0) {
-    LOG(FATAL) << "All states are undefined.";
+    LOG(FATAL) << "All states are invalid.";
   } else {
     states->resize(pt);
   }

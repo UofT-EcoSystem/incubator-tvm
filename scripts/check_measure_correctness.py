@@ -53,7 +53,7 @@ if __name__ == "__main__":
         if True or flops1 > args.threshold:
             s, bufs = dag.apply_steps_from_state(inp.state, LayoutRewriteLevel.BOTH_REWRITE)
             stmt = tvm.lower(s, bufs, simple_mode=True)
-            verify_gpu_code(stmt)
+            #verify_gpu_code(stmt)
             if args.print_schedule:
                 print(tvm.lower(s, bufs, simple_mode=True))
             if args.print_state:

@@ -98,15 +98,6 @@ inline std::pair<std::set<std::string>, std::set<std::string> > GetNoSplitAxisAt
   return ret;
 }
 
-// Get axes whose last split is one according to the attribute from tvm.compute
-inline std::set<std::string> GetLastSplitIsOneAxisAttr(const Stage& stage) {
-  std::set<std::string> ret;
-  if (stage->op->attrs.count(SearchPolicyNode::last_split_is_one_key)) {
-    ret = GetIterNameSetParam(stage->op->attrs, SearchPolicyNode::last_split_is_one_key);
-  }
-  return ret;
-}
-
 // Convert operation to stage id
 inline int OperationToStage(const te::Operation& op, const State& state) {
   for (size_t i = 0; i < state->stages.size(); ++i) {
@@ -302,14 +293,6 @@ inline bool NeedsCrossThreadReduction(const SearchTask& task, const State& state
   return false;
 }
 
-// Return whether the stage has an attribute flag
-inline bool HasAttrsFlag(const State& state, int stage_id, const char* target) {
-  if (state->stages[stage_id]->op->attrs.count(target)) {
-    return GetStringParam(state->stages[stage_id]->op->attrs, target) == "True";
-  }
-  return false;
-}
-
 // Return whether the stage has reduce iterators
 inline bool HasReduceIter(const Stage& stage) {
   for (const auto& iter : stage->iters) {
@@ -437,25 +420,7 @@ inline bool HasRfactorStage(const State& s, int stage_id) {
   return false;
 }
 
-// Return whether the state does split/follow_split/follow_fused_split in stage_id
-inline bool HasSplitStep(const State& s, int stage_id) {
-  for (int i = static_cast<int>(s->transform_steps.size()) - 1; i >= 0; --i) {
-    if (s->transform_steps[i]->IsInstance<CacheWriteStepNode>() ||
-        s->transform_steps[i]->IsInstance<CacheReadStepNode>() ||
-        s->transform_steps[i]->IsInstance<RfactorStepNode>()) {
-      if (stage_id > s->transform_steps[i]->stage_id) {
-        stage_id--;
-      }
-    } else if (s->transform_steps[i]->IsInstance<SplitStepNode>() ||
-        s->transform_steps[i]->IsInstance<FollowSplitStepNode>() ||
-        s->transform_steps[i]->IsInstance<FollowFusedSplitStepNode>()) {
-      if (stage_id == s->transform_steps[i]->stage_id) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
+// 
 
 // Return whether the stage has been tiled already
 inline bool IsTiled(const Stage& stage) {
@@ -639,7 +604,7 @@ inline State FuseAllOuterSpaceIterators(State state, int stage_id, Iterator* fus
   std::vector<Iterator> to_fuse;
   for (size_t iter_id = 0; iter_id < state->stages[stage_id]->iters.size(); ++iter_id) {
     const auto& it = state->stages[stage_id]->iters[iter_id];
-    if (it->iter_type == kReduce) {
+    if (it->iter_type == kReduce || it->annotation != kNone) {
       break;
     }
 

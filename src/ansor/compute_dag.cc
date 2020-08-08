@@ -338,8 +338,14 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
         }
         if (!is_injective) { break; }
       }
+
       if (has_branch[op]) {
         is_strict_inlineable = false;
+      }
+
+      // constant tensor is strict-inlineable
+      if (node->read_from[op].empty()) {
+        is_strict_inlineable = true;
       }
 
       // don't strictly inline expensive op (e.g. exp)
@@ -379,6 +385,11 @@ AccessAnalyzer::AccessAnalyzer(const Array<te::Tensor>& tensors) {
           needs_multi_level_tiling = true;
           break;
         }
+      }
+
+      // Do not perform multi-level tiling on "fake reduction" with const tensors
+      if (op->attrs.count("ansor_simplify_const_tensor_indices")) {
+        needs_multi_level_tiling = false;
       }
 
       node->needs_multi_level_tiling[op] = needs_multi_level_tiling;
