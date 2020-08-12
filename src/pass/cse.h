@@ -1,5 +1,7 @@
 #pragma once
 
+#include <queue>
+
 #include <tvm/ir_visitor.h>
 
 namespace tvm {
@@ -12,14 +14,13 @@ void CSE(const Tensor & src,
         Tensor & tgt = *ptgt;
 
         LOG(INFO) << "Decomposing Tensor " << tgt->op->name;
-        if (const ComputeOpNode * compute_op = tgt->op.as < ComputeOpNode > ()) 
+
+        std::queue < Tensor > worklist;
+        worklist.push(tgt);
+        for (; !worklist.empty(); worklist.pop())
         {
-                PostOrderVisit(compute_op->body[tgt->value_index],
-                        [](const NodeRef & node_ref)
-                        {
-                                LOG(INFO) << node_ref;
-                        });
-        }
+                
+        }  // for (workitem ∈ worklist)
 }
 
 }  // namespace ir
