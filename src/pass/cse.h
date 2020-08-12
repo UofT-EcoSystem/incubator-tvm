@@ -39,6 +39,11 @@ void CSE(const Tensor & src,
                                 worklist.push(input);
                         }
                 }
+                if (const PlaceholderOpNode * placeholder_op = 
+                    workitem->op.as < PlaceholderOpNode > ())
+                {
+                        LOG(INFO) << "Visiting Placeholder " << placeholder_op;
+                }
         }  // for (workitem ∈ worklist)
 }
 
