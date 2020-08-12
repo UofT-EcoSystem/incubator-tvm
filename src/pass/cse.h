@@ -42,7 +42,8 @@ void CSE(const Tensor & src,
                 if (const PlaceholderOpNode * placeholder_op = 
                     workitem->op.as < PlaceholderOpNode > ())
                 {
-                        LOG(INFO) << "Visiting Placeholder " << placeholder_op;
+                        LOG(INFO) << "Visiting Placeholder "
+                                  << workitem->op;
                 }
         }  // for (workitem ∈ worklist)
 }
