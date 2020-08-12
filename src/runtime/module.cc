@@ -156,6 +156,9 @@ bool RuntimeEnabled(const std::string& target) {
 TVM_REGISTER_GLOBAL("runtime.RuntimeEnabled").set_body_typed(RuntimeEnabled);
 
 TVM_REGISTER_GLOBAL("runtime.ModuleGetSource").set_body_typed([](Module mod, std::string fmt) {
+  // <bojian/TVM-AutoDiff> 
+  LOG(INFO) << mod->type_key();
+  // LOG(INFO) << mod;
   return mod->GetSource(fmt);
 });
 
