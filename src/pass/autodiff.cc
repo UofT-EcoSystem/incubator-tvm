@@ -492,7 +492,7 @@ DifferentiationResult Differentiate(const Tensor& output,
   }
 
   // <bojian/TVM-AutoDiff> CSE between the Forward and Backward Schedules
-  PrintTensorsRecursively(result);
+  LOG(INFO) << PrintTensorsRecursively(result);
 
   return DifferentiationResultNode::make(result, adjoints, summands);
 }
