@@ -51,11 +51,6 @@ class CUDAModuleNode : public runtime::ModuleNode {
                           std::unordered_map<std::string, FunctionInfo> fmap,
                           std::string cuda_source)
       : data_(data), fmt_(fmt), fmap_(fmap), cuda_source_(cuda_source) {
-    if (cuda_source.length() == 0) {
-      LOG(INFO) << "Only binary data is provided";
-    } else {
-      LOG(INFO) << "Both CUDA source and binary are given";
-    }
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
@@ -93,13 +88,29 @@ class CUDAModuleNode : public runtime::ModuleNode {
   }
 
   std::string GetSource(const std::string& format) final {
-    if (format == fmt_) return data_;
+
+    // <bojian/TVM-AutoDiff> Prioritize the c-style CUDA source.
     if (cuda_source_.length() != 0) {
+      LOG(INFO) << "C-style CUDA source is provided, returning it instead";
+      if (cuda_source_ != imports().at(0)->GetSource("")) {
+        LOG(WARNING) << "The C-style CUDA source is different from "
+                        "the imported one: "
+                     << cuda_source_ << " vs. " << imports().at(0)->GetSource("");
+      }
       return cuda_source_;
-    } else {
-      if (fmt_ == "ptx") return data_;
-      return "";
     }
+    LOG(INFO) << "C-style CUDA source is NOT provided, returning the binary code instead";
+
+    if (format == fmt_) return data_;
+    // <bojian/TVM-AutoDiff>
+    // if (cuda_source_.length() != 0) {
+    //   return cuda_source_;
+    // } else {
+    //   if (fmt_ == "ptx") return data_;
+    //   return "";
+    // }
+    if (fmt_ == "ptx") return data_;
+    return "";
   }
 
   // get a CUfunction from primary context in device_id
