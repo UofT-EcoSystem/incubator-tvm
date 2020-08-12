@@ -51,6 +51,11 @@ class CUDAModuleNode : public runtime::ModuleNode {
                           std::unordered_map<std::string, FunctionInfo> fmap,
                           std::string cuda_source)
       : data_(data), fmt_(fmt), fmap_(fmap), cuda_source_(cuda_source) {
+    if (cuda_source.length() == 0) {
+      LOG(INFO) << "Only binary data is provided";
+    } else {
+      LOG(INFO) << "Both CUDA source and binary are given";
+    }
     std::fill(module_.begin(), module_.end(), nullptr);
   }
   // destructor
