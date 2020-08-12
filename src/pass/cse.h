@@ -14,7 +14,12 @@ void CSE(const Tensor & src,
 {
         Tensor & tgt = *ptgt;
 
-        LOG(INFO) << "Decomposing Tensor " << tgt->op->name;
+        // TODO: We limit the scope of analysis to compute.gamma.grad, but will
+        //       remove this limitation in later stages.
+        if (tgt->op->name != "compute.gamma.grad")
+        {
+                return;
+        }
 
         std::queue < Tensor > worklist;
         std::unordered_set < Tensor > visited_workitems;
