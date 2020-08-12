@@ -99,6 +99,8 @@ class CUDAModuleNode : public runtime::ModuleNode {
                      << cuda_source_ << " vs. " << imports_.at(0)->GetSource("");
       } else if (imports_.size() > 0) {
         LOG(INFO) << "The C-style CUDA source matches that of the imported module";
+      } else {
+        LOG(INFO) << "imports.size() == 0";
       }
       return cuda_source_;
     }
