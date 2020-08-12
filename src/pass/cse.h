@@ -1,6 +1,7 @@
 #pragma once
 
 #include <queue>
+#include <unordered_set>
 
 #include <tvm/ir_visitor.h>
 
@@ -16,10 +17,28 @@ void CSE(const Tensor & src,
         LOG(INFO) << "Decomposing Tensor " << tgt->op->name;
 
         std::queue < Tensor > worklist;
+        std::unordered_set < Tensor > visited_workitems;
         worklist.push(tgt);
         for (; !worklist.empty(); worklist.pop())
         {
-                
+                const Tensor & workitem = worklist.front();
+
+                if (visited_workitems.count(workitem) != 0)
+                {
+                        continue;
+                }
+                visited_workitems.insert(workitem);
+
+                LOG(INFO) << "Visiting Tensor " << workitem->op->name;
+
+                if (const ComputeOpNode * compute_op =
+                    workitem->op.as < ComputeOpNode > ()) 
+                {
+                        for (const Tensor & input : compute_op->InputTensors())
+                        {
+                                worklist.push_back(input);
+                        }
+                }
         }  // for (workitem ∈ worklist)
 }
 
