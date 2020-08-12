@@ -11,9 +11,9 @@ void CSE(const Tensor & src,
 {
         Tensor & tgt = *ptgt;
 
-        if (const ComputeOpNode * compute = tgt->op.as < ComputeOpNode > ()) 
+        if (const ComputeOpNode * compute_op = tgt->op.as < ComputeOpNode > ()) 
         {
-                PostOrderVisit(comp->body[tgt->value_index],
+                PostOrderVisit(compute_op->body[tgt->value_index],
                         [](const NodeRef & node_ref)
                         {
                                 LOG(INFO) << node_ref;
