@@ -92,10 +92,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // <bojian/TVM-AutoDiff> Prioritize the c-style CUDA source.
     if (cuda_source_.length() != 0) {
       LOG(INFO) << "C-style CUDA source is provided, returning it instead";
-      if (cuda_source_ != imports().at(0)->GetSource("")) {
+      if (cuda_source_ != imports_.at(0)->GetSource("")) {
         LOG(WARNING) << "The C-style CUDA source is different from "
                         "the imported one: "
-                     << cuda_source_ << " vs. " << imports().at(0)->GetSource("");
+                     << cuda_source_ << " vs. " << imports_.at(0)->GetSource("");
       }
       return cuda_source_;
     }
