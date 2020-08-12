@@ -30,7 +30,7 @@ void CSE(const Tensor & src,
 
                 if (visited_workitems.count(workitem) != 0)
                 {
-                        continue;
+                        // continue;
                 }
                 visited_workitems.insert(workitem);
 
@@ -47,8 +47,7 @@ void CSE(const Tensor & src,
                 if (const PlaceholderOpNode * placeholder_op = 
                     workitem->op.as < PlaceholderOpNode > ())
                 {
-                        LOG(INFO) << "Visiting Placeholder "
-                                  << workitem->op;
+                        LOG(INFO) << "Visiting Placeholder " << workitem->op;
                 }
         }  // for (workitem ∈ worklist)
 }
