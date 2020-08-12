@@ -66,7 +66,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             KH, KW, _, CO = get_const_tuple(kernel_tensor.shape)
 
             # Pre-compute weight transformation in winograd
-            tile_size = 4
+            if H % 8 == 0:
+                tile_size = 4
+            else:
+                tile_size = 2
             # HWIO -> OIHW
             kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
             # alpha, alpha, CO, CI

@@ -159,7 +159,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
 
             if is_winograd_applicable:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd),
+                    wrap_compute_conv2d(topi.nn.conv2d_nhwc_winograd),
                     wrap_topi_schedule(ansor.auto_schedule_topi),
                     name="ansor.winograd",
                     plevel=ansor_plevel)
@@ -319,7 +319,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_ty
         kw = pad_kw - tile_size + 1
         assert kh == 3 and kw == 3
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd_without_weight_transform),
+            wrap_compute_conv2d(topi.nn.conv2d_nhwc_winograd_without_weight_transform),
             wrap_topi_schedule(ansor.auto_schedule_topi),
             name="ansor.winograd")
         # N, H, W, _ = get_const_tuple(data.shape)

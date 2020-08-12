@@ -23,9 +23,10 @@ from tvm.contrib import cudnn
 from .. import nn, generic
 from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
+from ..nn.conv2d import conv2d_nhwc_winograd, _conv2d_nhwc_winograd_impl
 from .conv2d_direct import schedule_direct_cuda
 from .conv2d_nhwc import schedule_conv2d_nhwc_direct
-
+from .conv2d_nhwc_winograd import _infer_tile_size
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
 def conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
@@ -115,3 +116,8 @@ def conv2d_cudnn(cfg, data, kernel, strides, padding, dilation, groups=1,
 def schedule_conv2d_cudnn(cfg, outs):
     """Create the schedule for conv2d_cudnn"""
     return generic.schedule_extern(outs)
+
+@conv2d_nhwc_winograd.register(["cuda", "gpu"])
+def conv2d_nhwc_winograd_cuda(input, weight, strides, padding, dilation, out_dtype, pre_computed=False):
+    tile_size = _infer_tile_size(input, weight)
+    return _conv2d_nhwc_winograd_impl(input, weight, strides, padding, dilation, out_dtype, tile_size, pre_computed)

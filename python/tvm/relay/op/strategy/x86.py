@@ -128,7 +128,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
 
             if is_winograd_applicable:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd),
+                    wrap_compute_conv2d(topi.nn.conv2d_nhwc_winograd),
                     wrap_topi_schedule(ansor.auto_schedule_topi),
                     name="ansor.winograd")
             else:
@@ -435,7 +435,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_cpu(attrs, inputs, out_typ
         kh, kw = conv2d_winograd_without_weight_transfrom_get_kernel_size(attrs, kernel)
         assert kh == 3 and kw == 3
         strategy.add_implementation(
-            wrap_compute_conv2d(topi.x86.conv2d_nhwc_winograd_without_weight_transform),
+            wrap_compute_conv2d(topi.nn.conv2d_nhwc_winograd_without_weight_transform),
             wrap_topi_schedule(ansor.auto_schedule_topi),
             name="ansor.winograd")
     else:
