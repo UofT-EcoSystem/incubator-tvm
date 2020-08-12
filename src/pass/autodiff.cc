@@ -21,6 +21,11 @@
 #include "../op/op_util.h"
 #include "zero_elimination.h"
 
+
+// <bojian/TVM-AutoDiff> Added the header for CSE.
+#include "./cse.h"
+
+
 namespace tvm {
 namespace ir {
 
@@ -273,11 +278,6 @@ class JacobianMutator : public IRMutator {
   VarExpr input_var_;
 };
 
-
-// 
-
-
-
 Expr Jacobian(const Expr& expr, const Tensor& input, const Array<Expr>& indices) {
   return JacobianMutator(input, indices).Mutate(expr);
 }
@@ -499,8 +499,7 @@ DifferentiationResult Differentiate(const Tensor& output,
 
 
     Tensor in_arg = compute_adjoint(input);
-
-
+    CSE(output, &in_arg);
 
     result.push_back(in_arg);
   }
