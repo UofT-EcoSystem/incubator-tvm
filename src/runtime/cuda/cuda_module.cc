@@ -95,8 +95,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
       if (imports_.size() > 0 && 
           cuda_source_ != imports_.at(0)->GetSource("")) {
         LOG(WARNING) << "The C-style CUDA source is different from "
-                        "the imported one: "
+                        "that of the imported module: "
                      << cuda_source_ << " vs. " << imports_.at(0)->GetSource("");
+      } else if (imports_.size() > 0) {
+        LOG(INFO) << "The C-style CUDA source matches that of the imported module";
       }
       return cuda_source_;
     }
