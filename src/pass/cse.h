@@ -36,7 +36,7 @@ void CSE(const Tensor & src,
                 {
                         for (const Tensor & input : compute_op->InputTensors())
                         {
-                                worklist.push_back(input);
+                                worklist.push(input);
                         }
                 }
         }  // for (workitem ∈ worklist)
