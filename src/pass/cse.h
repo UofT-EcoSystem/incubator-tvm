@@ -11,6 +11,7 @@ void CSE(const Tensor & src,
 {
         Tensor & tgt = *ptgt;
 
+        LOG(INFO) << "Decomposing Tensor " << tgt->op->name;
         if (const ComputeOpNode * compute_op = tgt->op.as < ComputeOpNode > ()) 
         {
                 PostOrderVisit(compute_op->body[tgt->value_index],
