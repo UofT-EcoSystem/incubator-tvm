@@ -1205,7 +1205,7 @@ void GetPerStmtFeaturesWorkerFunc(const SearchTask& task, const State& state,
     }
     auto mod = IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
 
-    if (task->target->device_type == kDLGPU) {
+    if (IsGPUDevice(task->target->device_type)) {
       auto pass_list = Array<tvm::transform::Pass>();
       // Phase 0
       pass_list.push_back(tir::transform::InjectPrefetch());

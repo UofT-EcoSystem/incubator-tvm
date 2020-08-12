@@ -250,6 +250,12 @@ inline int64_t GetIntImm(const PrimExpr& expr) {
   return pint->value;
 }
 
+/*! \brief Return whether a given device type denotes a GPU device */
+inline bool IsGPUDevice(int dev_type) {
+  return kDLGPU == dev_type || kDLOpenCL == dev_type || kDLVulkan == dev_type ||
+         kDLMetal == dev_type || kDLROCM == dev_type || kOpenGL == dev_type;
+}
+
 /*! \brief  Compute the product of the lengths of axes */
 inline int64_t AxisLengthProd(const Array<tir::IterVar>& axes) {
   int64_t ret = 1.0;

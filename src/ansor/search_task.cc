@@ -53,8 +53,6 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     return HardwareParams(tvm::runtime::threading::MaxConcurrency(),
                           32, 64, 16, 64);
   } else if (target->device_type == kDLGPU) {
-    // TODO(jcf94): temp implementation, max vectorize size in GPU is related
-    // to the data type
     auto hardware_params = HardwareParams(100000, 16, 64, 4, 64);
     auto* p_hardware_params = hardware_params.CopyOnWrite();
 
@@ -80,12 +78,10 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     device_api->GetAttr(ctx, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
     p_hardware_params->warp_size = ret;
 
-    // Manually set now
     p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
 
     return hardware_params;
   } else if (target->device_type == kDLOpenCL) {
-    // TODO(jcf94): temp implementation
     auto hardware_params = HardwareParams(100000, 16, 64, 4, 64);
     auto p_hardware_params = hardware_params.CopyOnWrite();
 
@@ -108,7 +104,7 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(
     p_hardware_params->warp_size = ret;
 
     // Manually set now
-    p_hardware_params->max_vthread_extent = p_hardware_params->warp_size / 4;
+    p_hardware_params->max_vthread_extent = 8;
 
     return hardware_params;
   } else {

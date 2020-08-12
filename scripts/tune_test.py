@@ -38,7 +38,9 @@ def create_tune_option(target, log_file, n_trials, num_measure_per_iter, verbose
     builder = runner = measure_ctx = None
     if local_measure:
         builder = ansor.LocalBuilder(timeout=build_timeout)
-        if target.target_name == "cuda":
+        if "gpu" in target.keys:
+            # Start a local RPC tracker and a local RPC server to do measurement in a separate process.
+            # This provides necessary isolation to avoid cuda context errors.
             measure_ctx = ansor.LocalRPCMeasureContext(repeat=1, min_repeat_ms=400, timeout=run_timeout)
             runner = measure_ctx.runner
         else:

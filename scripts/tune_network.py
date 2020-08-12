@@ -163,10 +163,7 @@ def get_network(name, network_path, batch_size, layout):
 def create_module(data_shape, data_dtype, graph, lib, target, input_name, params, debug_profile,
         local_measure, ndk_cc, rpc_device_key, rpc_host, rpc_port, rpc_num_threads, seed=43):
     if local_measure:
-        if target.target_name == "cuda":
-            ctx = tvm.gpu()
-        else:
-            ctx = tvm.cpu()
+        ctx = tvm.context(str(target))
     else:
         print("=============== Request Remote ===============")
         remote = request_remote(rpc_device_key, rpc_host, rpc_port)
@@ -277,7 +274,7 @@ def tune_and_evaluate(network_arguments, target, target_host,
             **task_scheduler_arguments)
         tune_option, measure_ctx = create_tune_option(target, **tune_option_arguments)
 
-        if tune_option_arguments['local_measure'] and target.target_name != 'cuda':
+        if tune_option_arguments['local_measure'] and 'cpu' in target.keys:
             os.environ['TVM_BIND_MASTER_CORE_0'] = "1"
         tuner.tune(tune_option, search_policy)
 
@@ -325,7 +322,7 @@ def tune_and_evaluate(network_arguments, target, target_host,
 
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res) * 1000, np.std(prof_res) * 1000))
-        log_line(BenchmarkRecord(target.target_name, 'gpu' if target.target_name == 'cuda' else 'cpu', 'network',
+        log_line(BenchmarkRecord(target.target_name, 'gpu' if 'gpu' in target.keys else 'cpu', 'network',
                                  "%s.B%d" % (network_arguments['name'], network_arguments['batch_size']),
                                  'ours', network_arguments['layout'], {"costs": prof_res}, time.time()), 'results.tsv')
 
@@ -410,18 +407,12 @@ if __name__ == "__main__":
     load_log_file = args.load_log or log_file
     local_measure = args.rpc_device_key is None
     search_policy = "%s.%s" % (args.policy, args.model_type)
-    if args.layout:
-        layout = args.layout
-    elif target.target_name == "cuda":
-        layout = "NCHW"
-    else:
-        layout = "NHWC"
 
     network_arguments = {
         'name': args.network,
         'network_path': args.network_path,
         'batch_size': args.batch_size,
-        'layout': layout
+        'layout': args.layout
     }
 
     task_scheduler_parameters = {

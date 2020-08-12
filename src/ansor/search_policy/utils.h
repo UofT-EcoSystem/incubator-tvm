@@ -216,7 +216,7 @@ inline bool ElementwiseMatch(const SearchTask& task, const State& state, int sta
 
 // Return whether the search task is targeting a GPU
 inline bool IsGPUTask(const SearchTask& task) {
-  return ((task)->target->device_type == kDLGPU ||(task)->target->device_type == kDLOpenCL);
+  return IsGPUDevice(task->target->device_type);
 }
 
 // Return the extent of an iterator
