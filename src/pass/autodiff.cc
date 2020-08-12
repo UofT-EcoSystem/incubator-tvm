@@ -273,6 +273,11 @@ class JacobianMutator : public IRMutator {
   VarExpr input_var_;
 };
 
+
+// 
+
+
+
 Expr Jacobian(const Expr& expr, const Tensor& input, const Array<Expr>& indices) {
   return JacobianMutator(input, indices).Mutate(expr);
 }
@@ -488,11 +493,17 @@ DifferentiationResult Differentiate(const Tensor& output,
 
   // Compute an adjoint for each input
   for (const Tensor& input : inputs) {
-    result.push_back(compute_adjoint(input));
-  }
+    // <bojian/TVM-AutoDiff> Eliminate common subexpressions between the forward
+    //                       and backward schedule.
+    // result.push_back(compute_adjoint(input));
 
-  // <bojian/TVM-AutoDiff> CSE between the Forward and Backward Schedules
-  LOG(INFO) << PrintTensorsRecursively(result);
+
+    Tensor in_arg = compute_adjoint(input);
+
+
+
+    result.push_back(in_arg);
+  }
 
   return DifferentiationResultNode::make(result, adjoints, summands);
 }
