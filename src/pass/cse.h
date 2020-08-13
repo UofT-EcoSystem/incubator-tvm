@@ -15,8 +15,10 @@ namespace ir {
 class IRComparator
 {
 private:
-        bool _Compare(const Array < Expr > & lhs,
-                      const Array < Expr > & rhs);
+        bool _Compare(const Array < Expr > & lhs, const Array < Expr > & rhs);
+        bool _Compare(const IterVar & lhs, const IterVar & rhs);
+        bool _Compare(const Array < IterVar > & lhs,
+                      const Array < IterVar > & rhs);
 public:
         ~IRComparator() {}
         using FCompare = NodeFunctor < bool(const ObjectRef &,

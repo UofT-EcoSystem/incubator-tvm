@@ -15,8 +15,7 @@ IRComparator::FCompare & IRComparator::vtable()
 }
 
 
-bool IRComparator::_Compare(const Array < Expr > & lhs,
-                            const Array < Expr > & rhs)
+bool IRComparator::_Compare(const Array < Expr > & lhs, const Array < Expr > & rhs)
 {
         if (lhs.size() != rhs.size())
         {
@@ -25,6 +24,35 @@ bool IRComparator::_Compare(const Array < Expr > & lhs,
         for (size_t i = 0; i < lhs.size(); ++i)
         {
                 if (Compare(lhs[i], rhs[i]) == false)
+                {
+                        return false;
+                }
+        }
+        return true;
+}
+
+
+bool IRComparator::_Compare(const IterVar & lhs, const IterVar & rhs)
+{
+        if (lhs->iter_type != rhs->iter_type)
+        {
+                return false;
+        }
+        return Compare(lhs->dom->min, rhs->dom->min) &&
+               Compare(lhs->dom->extent, rhs->dom->extent);
+}
+
+
+bool IRComparator::_Compare(const Array < IterVar > & lhs,
+                            const Array < IterVar > & rhs)
+{
+        if (lhs.size() != rhs.size())
+        {
+                return false;
+        }
+        for (size_t i = 0; i < lhs.size(); ++i)
+        {
+                if (_Compare(lhs[i], rhs[i]))
                 {
                         return false;
                 }
@@ -61,10 +89,19 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                     ::tvm::PlaceholderOpNode::_type_key)
                 {
                         return lhs->func == rhs->func && 
-                               // Note that here we are invoking the private
-                               // auxiliary function for arrays of expressions,
-                               // instead of doing the dispatch.
                                _Compare(lhs->args, rhs->args);
+                }
+                else if (lhs->func->GetTypeKey() == 
+                         ::tvm::ComputeOpNode::_type_key)
+                {
+                        const ComputeOpNode 
+                                * lhs_compute_op = lhs->func.as < ComputeOpNode > (),
+                                * rhs_compute_op = rhs->func.as < ComputeOpNode > ();
+                        return _Compare(lhs_compute_op->axis, rhs_compute_op->axis) &&
+                               _Compare(lhs_compute_op->reduce_axis,
+                                        rhs_compute_op->reduce_axis) &&
+                               Compare(lhs_compute_op->body[lhs->value_index],
+                                       rhs_compute_op->body[rhs->value_index]);
                 }
                 else
                 {
