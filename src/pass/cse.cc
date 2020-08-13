@@ -60,7 +60,7 @@ bool IRComparator::_Compare(const Array < IterVar > & lhs,
         }
         for (size_t i = 0; i < lhs.size(); ++i)
         {
-                if (_Compare(lhs[i], rhs[i]))
+                if (_Compare(lhs[i], rhs[i]) == false)
                 {
                         LOG(INFO) << "Returning false";
                         return false;
