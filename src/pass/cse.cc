@@ -1,3 +1,4 @@
+#include <tvm/expr.h>
 #include <tvm/operation.h>
 
 #include "./cse.h"
@@ -106,6 +107,13 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
+
+
+        Var x ("x");
+        Var y ("y");
+        IRComparator cmp;
+        LOG(INFO) << "x + y == y + x?: " << cmp.Compare(x + y, y + x);
+
 
         std::queue < Tensor > worklist;
         std::unordered_set < Tensor > visited_workitems;
