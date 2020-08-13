@@ -128,7 +128,14 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x + y, y * x);
         LOG(INFO) << "x * y + y == y + y * x?: " 
                   << cmp.Compare(x * y + y, y + y * x);
-        
+
+        if (const ComputeOpNode * compute_op =
+            src->op.as < ComputeOpNode > ())
+        {
+                Expr body = compute_op->body[src->value_index];
+
+                cmp.Compare(body, body);
+        }
 
 
         std::queue < Tensor > worklist;
