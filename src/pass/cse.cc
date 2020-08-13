@@ -15,6 +15,14 @@ IRComparator::FCompare & IRComparator::vtable()
 }
 
 
+bool IRComparator::Compare_(const Variable * const lhs,
+                            const Variable * const rhs)
+{
+        // > Each variable is UNIQUELY identified by its address.
+        return lhs == rhs;
+}
+
+
 #define DISPATCH_TO_COMPARE(Op)                                                 \
         set_dispatch < Op > (                                                   \
                 [](const ObjectRef & lhs,                                       \
