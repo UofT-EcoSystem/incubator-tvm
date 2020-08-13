@@ -236,7 +236,8 @@ void CSE(const Tensor & src, Tensor * const ptgt)
 
 
         Var x ("x"), y ("y"), z ("z");
-        IterVar i;
+        Integer _0 (0), _4 (4);
+        IterVar i = reduce_axis(Range(_0, _4), "i");
         IRComparator cmp;
         LOG(INFO) << "x + y == y + x?: " << cmp.Compare(x + y, y + x);
         LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x + y, y * x);
