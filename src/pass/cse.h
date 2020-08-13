@@ -6,6 +6,10 @@
 
 #include <tvm/tensor.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/operation.h>
+
+
+using ::tvm::PlaceholderOp;
 
 
 namespace tvm {
@@ -32,6 +36,8 @@ public:
         }
         bool Compare_(const Variable * const lhs, const Variable * const rhs);
         bool Compare_(const Call * const lhs, const Call * const rhs);
+        bool Compare_(const PlaceholderOp * const lhs,
+                      const PlaceholderOp * const rhs);
         bool Compare_(const Add * const lhs, const Add * const rhs);
         bool Compare_(const Sub * const lhs, const Sub * const rhs);
         bool Compare_(const Mul * const lhs, const Mul * const rhs);

@@ -22,6 +22,7 @@ bool IRComparator::Compare_(const Variable * const lhs,
         return lhs == rhs;
 }
 
+
 bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
 {
         if (lhs->type != rhs->type || 
@@ -58,6 +59,13 @@ bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
         LOG(FATAL) << "Comparator has not been implemented "
                       "for call_type=" << lhs->call_type;
         return false;
+}
+
+
+bool IRComparator::Compare_(const PlaceholderOp * const lhs,
+                            const PlaceholderOp * const rhs)
+{
+        return lhs == rhs;
 }
 
 
@@ -100,6 +108,7 @@ DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Div)
 TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Variable)
 .DISPATCH_TO_COMPARE(Call)
+.DISPATCH_TO_COMPARE(PlaceholderOp)
 .DISPATCH_TO_COMPARE(Add)
 .DISPATCH_TO_COMPARE(Sub)
 .DISPATCH_TO_COMPARE(Mul)
