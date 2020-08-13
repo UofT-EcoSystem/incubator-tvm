@@ -259,19 +259,24 @@ TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(FloatImm);
 
 
-class IRPreOrderVisitor : public IRVisitor
-{
-
-};  // class IRPreOrderVisitor
-
-
 /// TODO: This should be @c Mutator instead of @c Visitor .
-class CSEVisitor : public IRPreOrderVisitor
+class CSEVisitor : public IRVisitor
 {
 private:
         Expr _src_expr;
+        std::unordered_set < const Node * > _visited_nodes;
 public:
         CSEVisitor(const Expr & src_expr) : _src_expr(src_expr) {}
+        void Visit(const NodeRef & node) final
+        {
+                if (_visited_nodes.count(node.get()) != 0)
+                {
+                        return;
+                }
+                _visited_nodes.insert(node.get());
+                LOG(INFO) << "Visiting Node " << node;
+                IRVisitor::Visit(node);
+        }
 };  // class CSEVisitors
 
 
@@ -285,7 +290,6 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-
 
         Var x ("x"), y ("y"), z ("z");
         Integer _0 (0), _4 (4);
@@ -309,7 +313,8 @@ void CSE(const Tensor & src, Tensor * const ptgt)
 
                 LOG(INFO) << "body == body?: " << cmp.Compare(body, body);
         }
-
+        CSEVisitor cse_visitor (x * x);
+        cse_visitor.Visit(x * x * y);
 
         std::queue < Tensor > worklist;
         std::unordered_set < Tensor > visited_workitems;
