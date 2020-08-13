@@ -19,15 +19,18 @@ bool IRComparator::_Compare(const Array < Expr > & lhs, const Array < Expr > & r
 {
         if (lhs.size() != rhs.size())
         {
+                LOG(INFO) << "Returning false";
                 return false;
         }
         for (size_t i = 0; i < lhs.size(); ++i)
         {
                 if (Compare(lhs[i], rhs[i]) == false)
                 {
+                        LOG(INFO) << "Returning false";
                         return false;
                 }
         }
+        LOG(INFO) << "Returning true";
         return true;
 }
 
@@ -36,10 +39,14 @@ bool IRComparator::_Compare(const IterVar & lhs, const IterVar & rhs)
 {
         if (lhs->iter_type != rhs->iter_type)
         {
+                LOG(INFO) << "Returning false";
                 return false;
         }
-        return Compare(lhs->dom->min, rhs->dom->min) &&
+        bool ret =
+               Compare(lhs->dom->min, rhs->dom->min) &&
                Compare(lhs->dom->extent, rhs->dom->extent);
+        LOG(INFO) << "Returning " << ret;
+        return ret;
 }
 
 
@@ -48,15 +55,18 @@ bool IRComparator::_Compare(const Array < IterVar > & lhs,
 {
         if (lhs.size() != rhs.size())
         {
+                LOG(INFO) << "Returning false";
                 return false;
         }
         for (size_t i = 0; i < lhs.size(); ++i)
         {
                 if (_Compare(lhs[i], rhs[i]))
                 {
+                        LOG(INFO) << "Returning false";
                         return false;
                 }
         }
+        LOG(INFO) << "Returning true";
         return true;
 }
 
@@ -65,7 +75,10 @@ bool IRComparator::_Compare(const Variable * const lhs,
                             const Variable * const rhs)
 {
         // > Each variable is UNIQUELY identified by its address.
-        return lhs == rhs;
+        bool ret =
+               lhs == rhs;
+        LOG(INFO) << "Returning " << ret;
+        return ret;
 }
 
 
@@ -76,6 +89,7 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
             lhs->call_type != rhs->call_type ||
             lhs->value_index != rhs->value_index)
         {
+                LOG(INFO) << "Returning false";
                 return false;
         }
         if (lhs->call_type == Call::CallType::Halide)
@@ -83,13 +97,17 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                 if (lhs->func->GetTypeKey() !=
                     rhs->func->GetTypeKey())
                 {
+                        LOG(INFO) << "Returning false";
                         return false;
                 }
                 if (lhs->func->GetTypeKey() == 
                     ::tvm::PlaceholderOpNode::_type_key)
                 {
-                        return lhs->func == rhs->func && 
+                        bool ret =
+                               lhs->func == rhs->func && 
                                _Compare(lhs->args, rhs->args);
+                        LOG(INFO) << "Returning " << ret;
+                        return ret;
                 }
                 else if (lhs->func->GetTypeKey() == 
                          ::tvm::ComputeOpNode::_type_key)
@@ -97,11 +115,14 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                         const ComputeOpNode 
                                 * lhs_compute_op = lhs->func.as < ComputeOpNode > (),
                                 * rhs_compute_op = rhs->func.as < ComputeOpNode > ();
-                        return _Compare(lhs_compute_op->axis, rhs_compute_op->axis) &&
+                        bool ret =
+                               _Compare(lhs_compute_op->axis, rhs_compute_op->axis) &&
                                _Compare(lhs_compute_op->reduce_axis,
                                         rhs_compute_op->reduce_axis) &&
                                Compare(lhs_compute_op->body[lhs->value_index],
                                        rhs_compute_op->body[rhs->value_index]);
+                        LOG(INFO) << "Returning " << ret;
+                        return ret;
                 }
                 else
                 {
@@ -119,7 +140,9 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                     lhs->name == "pow" ||
                     lhs->name == "fabs")
                 {
-                        return Compare(lhs->args[0], rhs->args[0]);
+                        bool ret = Compare(lhs->args[0], rhs->args[0]);
+                        LOG(INFO) << "Returning " << ret;
+                        return ret;
                 }
                 else 
                 {
@@ -137,18 +160,24 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
         bool IRComparator::_Compare(const Op * const lhs,                       \
                                     const Op * const rhs)                       \
         {                                                                       \
-                return this->Compare(lhs->a, rhs->a) &&                         \
+                bool ret =                                                      \
+                       this->Compare(lhs->a, rhs->a) &&                         \
                        this->Compare(lhs->b, rhs->b);                           \
+                LOG(INFO) << "Returning " << ret;                               \
+                return ret;
         }
 
 #define DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Op)                                \
         bool IRComparator::_Compare(const Op * const lhs,                       \
                                     const Op * const rhs)                       \
         {                                                                       \
-                return (this->Compare(lhs->a, rhs->a) &&                        \
+                bool ret =                                                      \
+                       (this->Compare(lhs->a, rhs->a) &&                        \
                         this->Compare(lhs->b, rhs->b)) ||                       \
                        (this->Compare(lhs->a, rhs->b) &&                        \
                         this->Compare(lhs->b, rhs->a));                         \
+                LOG(INFO) << "Returning " << ret;                               \
+                return ret;                                                     \
         }
 
 DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Add);
@@ -160,8 +189,11 @@ DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div);
         bool IRComparator::_Compare(const Imm * const lhs,                      \
                                     const Imm * const rhs)                      \
         {                                                                       \
-                return lhs->type == rhs->type &&                                \
+                bool ret =                                                      \
+                       lhs->type == rhs->type &&                                \
                        lhs->value == rhs->value;                                \
+                LOG(INFO) << "Returning " << ret;                               \
+                return ret;
         }
 
 DEFINE_IMM_COMPARE(IntImm);
@@ -176,10 +208,14 @@ DEFINE_IMM_COMPARE(FloatImm);
                 {                                                               \
                         if (lhs->type_index() != rhs->type_index())             \
                         {                                                       \
+                                LOG(INFO) << "Returning false";                 \
                                 return false;                                   \
                         }                                                       \
-                        return v->_Compare(static_cast < const Op * > (lhs.get()),  \
-                                           static_cast < const Op * > (rhs.get())); \
+                        bool ret =                                              \
+                                v->_Compare(static_cast < const Op * > (lhs.get()),  \
+                                            static_cast < const Op * > (rhs.get())); \
+                        LOG(INFO) << "Returning " << ret;                       \
+                        return ret;                                             \
                 })
 
 TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
