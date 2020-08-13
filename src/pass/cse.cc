@@ -188,7 +188,7 @@ bool IRComparator::_Compare(const Reduce * const lhs,
                _Compare(lhs->source, rhs->source) &&  // Array < Expr >
                _Compare(lhs->axis, rhs->axis) &&      // Array < IterVar >
                Compare(lhs->condition, rhs->condition) &&  // Expr
-               lhs->value_index == rhs->value_index;
+               lhs->value_index == rhs->value_index);
 }
 
 
