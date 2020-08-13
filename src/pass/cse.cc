@@ -11,7 +11,7 @@
         do {                                                                    \
                 bool ret = v;                                                   \
                 LOG(INFO) << std::boolalpha << ret << std::noboolalpha;         \
-                return ret;
+                return ret;                                                     \
         } while(0)
 #else
 #define RETURN(v)  return v
@@ -186,7 +186,7 @@ bool IRComparator::_Compare(const Reduce * const lhs,
                _Compare(lhs->combiner->identity_element,
                         rhs->combiner->identity_element) &&  // Array < Expr >
                _Compare(lhs->source, rhs->source) &&  // Array < Expr >
-        //        _Compare(lhs->axis, rhs->axis) &&      // Array < IterVar >
+               _Compare(lhs->axis, rhs->axis) &&      // Array < IterVar >
                Compare(lhs->condition, rhs->condition) &&  // Expr
                lhs->value_index == rhs->value_index);
 }
@@ -245,11 +245,10 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         CommReducer combiner =
                 CommReducerNode::make({x}, {y}, {ir::Mul::make(x, y)},
                                       {make_const(x->type, 1)});
+        Expr reduce_z = Reduce::make(combiner, {z}, {i},
+                                     make_const(Bool(1), true), 0);
         LOG(INFO) << "Reduce(z) == Reduce(z)?: " <<
-                cmp.Compare(Reduce::make(combiner, {z}, {i},
-                                         make_const(Bool(1), true), 0),
-                            Reduce::make(combiner, {z}, {i},
-                                         make_const(Bool(1), true), 0));
+                cmp.Compare(reduce_z, reduce_z);
 
         if (const ComputeOpNode * compute_op =
             src->op.as < ComputeOpNode > ())
