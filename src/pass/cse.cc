@@ -7,15 +7,38 @@ namespace tvm {
 namespace ir {
 
 
-#define DISPATCH_TO_COMPARE(op)                                                 \
-        set_dispatch < op > (                                                   \
+#define DISPATCH_TO_COMPARE(Op)                                                 \
+        set_dispatch < Op > (                                                   \
                 [](const ObjectRef & lhs,                                       \
                    const ObjectRef & rhs, IRComparator * v)                     \
                   -> bool                                                       \
                 {                                                               \
-                        return v->Compare_(static_cast < const op * > (lhs.get()),  \
-                                           static_cast < const op * > (rhs.get())); \
+                        return v->Compare_(static_cast < const Op * > (lhs.get()),  \
+                                           static_cast < const Op * > (rhs.get())); \
                 })
+
+#define DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Op)                            \
+        bool IRComparator::Compare_(const Op * lhs, const Op * rhs)             \
+        {                                                                       \
+                return this->Compare(lhs->a, rhs->a) &&                         \
+                       this->Compare(lhs->b, rhs->b);                           \
+        }
+
+#define DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Op)                               \
+        bool IRComparator::Compare_(const Op * lhs, const Op * rhs)             \
+        {                                                                       \
+                return (this->Compare(lhs->a, rhs->a) &&                        \
+                        this->Compare(lhs->b, rhs->b)) ||                       \
+                       (this->Compare(lhs->a, rhs->b) &&                        \
+                        this->Compare(lhs->b, rhs->a));                         \
+        }
+
+
+DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Add)
+DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Sub)
+DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Mul)
+DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Div)
+
 
 TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Variable)

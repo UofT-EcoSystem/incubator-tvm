@@ -30,7 +30,7 @@ public:
                 }
                 return false;
         }
-#define CMP_NOT_IMPLEMENTED                                                         \
+#define CMP_NOT_IMPLEMENTED                                                     \
         {                                                                       \
                 LOG(FATAL) << "Comparator has not been implemented";            \
                 return false;                                                   \
@@ -51,7 +51,7 @@ public:
         bool Compare_(const Sub * lhs, const Sub * rhs);
         bool Compare_(const Mul * lhs, const Mul * rhs);
         bool Compare_(const Div * lhs, const Div * rhs);
-        bool Compare_(const Mod * lhs, const Mod * rhs);
+        bool Compare_(const Mod * lhs, const Mod * rhs) CMP_NOT_IMPLEMENTED
         bool Compare_(const FloorDiv * lhs, const FloorDiv * rhs) CMP_NOT_IMPLEMENTED
         bool Compare_(const FloorMod * lhs, const FloorMod * rhs) CMP_NOT_IMPLEMENTED
         bool Compare_(const Min * lhs, const Min * rhs) CMP_NOT_IMPLEMENTED
