@@ -4,7 +4,9 @@
 #include <queue>
 #include <unordered_set>
 
+#include <tvm/tensor.h>
 #include <tvm/ir_visitor.h>
+
 
 namespace tvm {
 namespace ir {
@@ -15,7 +17,7 @@ class IRComparator
 private:
 public:
         ~IRComparator() {}
-        using FCompare = NodeFunctor < void(const ObjectRef &,
+        using FCompare = NodeFunctor < bool(const ObjectRef &,
                                             const ObjectRef &, IRComparator *) >;
         static FCompare & vtable();
         bool Compare(const NodeRef & lhs,
@@ -24,8 +26,9 @@ public:
                 static const FCompare & f = vtable();
                 if (lhs.defined() && rhs.defined())
                 {
-                        f(lhs, rhs, this);
+                        return f(lhs, rhs, this);
                 }
+                return false;
         }
         bool Compare_(const Variable * lhs, const Variable * rhs);
         bool Compare_(const LetStmt * lhs, const LetStmt * rhs);

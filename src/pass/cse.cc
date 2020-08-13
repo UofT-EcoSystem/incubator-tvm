@@ -1,4 +1,7 @@
+#include <tvm/operation.h>
+
 #include "./cse.h"
+
 
 namespace tvm {
 namespace ir {
