@@ -10,73 +10,75 @@ namespace tvm {
 namespace ir {
 
 
-class IRPreOrderVisitor : public IRVisitor
+class IRComparator
 {
 private:
-        std::function < void(const NodeRef &) >  _visit_func;
-        std::unordered_set < const Node * >      _visited_nodes;
 public:
-        explicit IRPreOrderVisitor(
-                std::function < void(const NodeRef &) > visit_func)
-                : _visit_func(visit_func) 
-        {}
-
-        void Visit(const NodeRef & node) final
+        ~IRComparator() {}
+        using FCompare = NodeFunctor < void(const ObjectRef &,
+                                            const ObjectRef &, IRComparator *) >;
+        static FCompare & vtable();
+        bool Compare(const NodeRef & lhs,
+                     const NodeRef & rhs)
         {
-                if (_visited_nodes.count(node.get()) != 0)
+                static const FCompare & f = vtable();
+                if (lhs.defined() && rhs.defined())
                 {
-                        return;
+                        f(lhs, rhs, this);
                 }
-                _visited_nodes.insert(node.get());
-                _visit_func(node);
-                IRVisitor::Visit(node);
         }
-};  // class IRPreOrderVisitor;
+        bool Compare_(const Variable * lhs, const Variable * rhs);
+        bool Compare_(const LetStmt * lhs, const LetStmt * rhs);
+        bool Compare_(const AttrStmt * lhs, const AttrStmt * rhs);
+        bool Compare_(const IfThenElse * lhs, const IfThenElse * rhs);
+        bool Compare_(const For * lhs, const For * RHS);
+        bool Compare_(const Allocate * lhs, const Allocate * rhs);
+        bool Compare_(const Load * lhs, const Load * rhs);
+        bool Compare_(const Store * lhs, const Store * rhs);
+        bool Compare_(const Let * lhs, const Let * rhs);
+        bool Compare_(const Free * lhs, const Free * rhs);
+        bool Compare_(const Call * lhs, const Call * rhs);
+        bool Compare_(const Add * lhs, const Add * rhs);
+        bool Compare_(const Sub * lhs, const Sub * rhs);
+        bool Compare_(const Mul * lhs, const Mul * rhs);
+        bool Compare_(const Div * lhs, const Div * rhs);
+        bool Compare_(const Mod * lhs, const Mod * rhs);
+        bool Compare_(const FloorDiv * lhs, const FloorDiv * rhs);
+        bool Compare_(const FloorMod * lhs, const FloorMod * rhs);
+        bool Compare_(const Min * op);
+        bool Compare_(const Max * op);
+        bool Compare_(const EQ * op);
+        bool Compare_(const NE * op);
+        bool Compare_(const LT * op);
+        bool Compare_(const LE * op);
+        bool Compare_(const GT * op);
+        bool Compare_(const GE * op);
+        bool Compare_(const And* op);
+        bool Compare_(const Or * op);
+        bool Compare_(const Reduce * op);
+        bool Compare_(const Cast * op);
+        bool Compare_(const Not * op);
+        bool Compare_(const Select * op);
+        bool Compare_(const Ramp * op);
+        bool Compare_(const Shuffle * op);
+        bool Compare_(const Broadcast * op);
+        bool Compare_(const AssertStmt * op);
+        bool Compare_(const ProducerConsumer * op);
+        bool Compare_(const Provide * op);
+        bool Compare_(const Realize * op);
+        bool Compare_(const Prefetch * op);
+        bool Compare_(const Block * op);
+        bool Compare_(const Evaluate * op);
+        bool Compare_(const IntImm * op);
+        bool Compare_(const UIntImm * op);
+        bool Compare_(const FloatImm * op);
+        bool Compare_(const StringImm * op);
+};  // class IRComparator
 
 
 /// @brief  Common Subexpression Elimination (Top-Level Function Call)
-void CSE(const Tensor & src,
-         Tensor * const ptgt)
-{
-        Tensor & tgt = *ptgt;
+void CSE(const Tensor & src, Tensor * const ptgt);
 
-        // TODO: We limit the scope of analysis to compute.gamma.grad, but will
-        //       remove this limitation in later stages.
-        if (tgt->op->name != "compute.gamma.grad")
-        {
-                return;
-        }
-
-        std::queue < Tensor > worklist;
-        std::unordered_set < Tensor > visited_workitems;
-        worklist.push(tgt);
-        for (; !worklist.empty(); worklist.pop())
-        {
-                const Tensor & workitem = worklist.front();
-
-                if (visited_workitems.count(workitem) != 0)
-                {
-                        // continue;
-                }
-                visited_workitems.insert(workitem);
-
-                LOG(INFO) << "Visiting Tensor " << workitem->op->name;
-
-                if (const ComputeOpNode * compute_op =
-                    workitem->op.as < ComputeOpNode > ()) 
-                {
-                        for (const Tensor & input : compute_op->InputTensors())
-                        {
-                                worklist.push(input);
-                        }
-                }
-                if (const PlaceholderOpNode * placeholder_op = 
-                    workitem->op.as < PlaceholderOpNode > ())
-                {
-                        LOG(INFO) << "Visiting Placeholder " << workitem->op;
-                }
-        }  // for (workitem ∈ worklist)
-}
 
 }  // namespace ir
 }  // namespace tvm
