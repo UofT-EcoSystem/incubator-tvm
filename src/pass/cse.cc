@@ -15,7 +15,25 @@ IRComparator::FCompare & IRComparator::vtable()
 }
 
 
-bool IRComparator::Compare_(const Variable * const lhs,
+bool IRComparator::_Compare(const Array < Expr > & lhs,
+                            const Array < Expr > & rhs)
+{
+        if (lhs.size() != rhs.size())
+        {
+                return false;
+        }
+        for (size_t i = 0; i < lhs.size(); ++i)
+        {
+                if (Compare(lhs[i], rhs[i]) == false)
+                {
+                        return false;
+                }
+        }
+        return true;
+}
+
+
+bool IRComparator::_Compare(const Variable * const lhs,
                             const Variable * const rhs)
 {
         // > Each variable is UNIQUELY identified by its address.
@@ -23,7 +41,7 @@ bool IRComparator::Compare_(const Variable * const lhs,
 }
 
 
-bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
+bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
 {
         if (lhs->type != rhs->type || 
             lhs->name != rhs->name ||
@@ -34,8 +52,25 @@ bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
         }
         if (lhs->call_type == Call::CallType::Halide)
         {
-                LOG(INFO) << lhs->func << " vs. " << rhs->func;
-                return this->Compare(lhs->func, rhs->func);
+                if (lhs->func->GetTypeKey() !=
+                    rhs->func->GetTypeKey())
+                {
+                        return false;
+                }
+                if (lhs->func->GetTypeKey() == 
+                    ::tvm::PlaceholderOpNode::_type_key)
+                {
+                        return lhs->func == rhs->func && 
+                               // Note that here we are invoking the private
+                               // auxiliary function for arrays of expressions,
+                               // instead of doing the dispatch.
+                               _Compare(lhs->args, rhs->args);
+                }
+                else
+                {
+                        LOG(FATAL) << "Comparator has not been implemented "
+                                      "for func=" << lhs->func;
+                }
         }
         else if (lhs->call_type == Call::CallType::PureIntrinsic)
         {
@@ -47,13 +82,12 @@ bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
                     lhs->name == "pow" ||
                     lhs->name == "fabs")
                 {
-                        return this->Compare(lhs->args[0], rhs->args[0]);
+                        return Compare(lhs->args[0], rhs->args[0]);
                 }
                 else 
                 {
                         LOG(FATAL) << "Comparator has not been implemented "
                                       "for name=" << lhs->name;
-                        return false;
                 }
         }
         LOG(FATAL) << "Comparator has not been implemented "
@@ -62,22 +96,15 @@ bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
 }
 
 
-bool IRComparator::Compare_(const PlaceholderOp * const lhs,
-                            const PlaceholderOp * const rhs)
-{
-        return lhs == rhs;
-}
-
-
-#define DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Op)                            \
-        bool IRComparator::Compare_(const Op * lhs, const Op * rhs)             \
+#define DEFINE_NONCOMMUTATIVE_BINARY_OP__COMPARE(Op)                            \
+        bool IRComparator::_Compare(const Op * lhs, const Op * rhs)             \
         {                                                                       \
                 return this->Compare(lhs->a, rhs->a) &&                         \
                        this->Compare(lhs->b, rhs->b);                           \
         }
 
-#define DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Op)                               \
-        bool IRComparator::Compare_(const Op * lhs, const Op * rhs)             \
+#define DEFINE_COMMUTATIVE_BINARY_OP__COMPARE(Op)                               \
+        bool IRComparator::_Compare(const Op * lhs, const Op * rhs)             \
         {                                                                       \
                 return (this->Compare(lhs->a, rhs->a) &&                        \
                         this->Compare(lhs->b, rhs->b)) ||                       \
@@ -85,10 +112,10 @@ bool IRComparator::Compare_(const PlaceholderOp * const lhs,
                         this->Compare(lhs->b, rhs->a));                         \
         }
 
-DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Add)
-DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Sub)
-DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Mul)
-DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Div)
+DEFINE_COMMUTATIVE_BINARY_OP__COMPARE(Add)
+DEFINE_NONCOMMUTATIVE_BINARY_OP__COMPARE(Sub)
+DEFINE_COMMUTATIVE_BINARY_OP__COMPARE(Mul)
+DEFINE_NONCOMMUTATIVE_BINARY_OP__COMPARE(Div)
 
 
 #define DISPATCH_TO_COMPARE(Op)                                                 \
@@ -101,14 +128,13 @@ DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Div)
                         {                                                       \
                                 return false;                                   \
                         }                                                       \
-                        return v->Compare_(static_cast < const Op * > (lhs.get()),  \
+                        return v->_Compare(static_cast < const Op * > (lhs.get()),  \
                                            static_cast < const Op * > (rhs.get())); \
                 })
 
 TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Variable)
 .DISPATCH_TO_COMPARE(Call)
-.DISPATCH_TO_COMPARE(PlaceholderOp)
 .DISPATCH_TO_COMPARE(Add)
 .DISPATCH_TO_COMPARE(Sub)
 .DISPATCH_TO_COMPARE(Mul)
