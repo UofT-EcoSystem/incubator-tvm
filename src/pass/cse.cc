@@ -78,7 +78,7 @@ bool IRComparator::_Compare(const Variable * const lhs,
                             const Variable * const rhs)
 {
         // > Each variable is UNIQUELY identified by its address.
-        RETURN(lhs == rhs);
+        RETURN(lhs->type == rhs->type);
 }
 
 
@@ -177,6 +177,21 @@ DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div)
                        lhs->value == rhs->value);                               \
         }
 
+
+bool IRComparator::_Compare(const Reduce * const lhs,
+                            const Reduce * const rhs)
+{
+        RETURN(_Compare(lhs->combiner->result, 
+                        rhs->combiner->result) &&  // Array < Expr >
+               _Compare(lhs->combiner->identity_element,
+                        rhs->combiner->identity_element) &&  // Array < Expr >
+               _Compare(lhs->source, rhs->source) &&  // Array < Expr >
+               _Compare(lhs->axis, rhs->axis) &&      // Array < IterVar >
+               Compare(lhs->condition, rhs->condition) &&  // Expr
+               lhs->value_index == rhs->value_index;
+}
+
+
 DEFINE_IMM_COMPARE(IntImm);
 DEFINE_IMM_COMPARE(UIntImm);
 DEFINE_IMM_COMPARE(FloatImm);
@@ -202,6 +217,7 @@ TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Sub)
 .DISPATCH_TO_COMPARE(Mul)
 .DISPATCH_TO_COMPARE(Div)
+.DISPATCH_TO_COMPARE(Reduce)
 .DISPATCH_TO_COMPARE(IntImm)
 .DISPATCH_TO_COMPARE(UIntImm)
 .DISPATCH_TO_COMPARE(FloatImm);
@@ -219,13 +235,20 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         }
 
 
-        Var x ("x");
-        Var y ("y");
+        Var x ("x"), y ("y"), z ("z");
         IRComparator cmp;
         LOG(INFO) << "x + y == y + x?: " << cmp.Compare(x + y, y + x);
         LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x + y, y * x);
         LOG(INFO) << "x * y + y == y + y * x?: " 
                   << cmp.Compare(x * y + y, y + y * x);
+        CommReducer combiner =
+                CommReducerNode::make({x}, {y}, {ir::Mul::make(x, y)},
+                                      {make_const(x->type, 1)});
+        LOG(INFO) << "Reduce(z) == Reduce(z)?: "
+                cmp.Compare(Reduce::make(combiner, {z}, nullptr,
+                                         make_const(Bool(1), true), 0),
+                            Reduce::make(combiner, {z}, nullptr,
+                                         make_const(Bool(1), true), 0))
 
         if (const ComputeOpNode * compute_op =
             src->op.as < ComputeOpNode > ())

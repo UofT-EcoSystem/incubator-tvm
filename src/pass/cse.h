@@ -40,6 +40,7 @@ public:
         bool _Compare(const Sub * const lhs, const Sub * const rhs);
         bool _Compare(const Mul * const lhs, const Mul * const rhs);
         bool _Compare(const Div * const lhs, const Div * const rhs);
+        bool _Compare(const Reduce * const lhs, const Reduce * const rhs);
         bool _Compare(const IntImm   * const lhs, const IntImm   * const rhs);
         bool _Compare(const UIntImm  * const lhs, const UIntImm  * const rhs);
         bool _Compare(const FloatImm * const lhs, const FloatImm * const rhs);
