@@ -8,13 +8,14 @@ namespace ir {
 
 
 #define DISPATCH_TO_COMPARE(op)                                                 \
-        set_dispatch < op > ([](const ObjectRef & lhs,                          \
-                                const ObjectRef & rhs, IRComparator * v)        \
-                               -> bool                                          \
-        {                                                                       \
-                v->Compare_(static_cast < const op * > (lhs.get()),             \
-                            static_cast < const op * > (rhs.get()));            \
-        })
+        set_dispatch < op > (                                                   \
+                [](const ObjectRef & lhs,                                       \
+                   const ObjectRef & rhs, IRComparator * v)                     \
+                  -> bool                                                       \
+                {                                                               \
+                        return v->Compare_(static_cast < const op * > (lhs.get()),  \
+                                           static_cast < const op * > (rhs.get())); \
+                })
 
 TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Variable)
