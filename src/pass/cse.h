@@ -33,6 +33,7 @@ public:
 #define NOT_IMPLEMENTED                                                         \
         {                                                                       \
                 LOG(FATAL) << "Comparator has not been implemented";            \
+                return false;                                                   \
         }
         bool Compare_(const Variable * lhs, const Variable * rhs) NOT_IMPLEMENTED
         bool Compare_(const LetStmt * lhs, const LetStmt * rhs) NOT_IMPLEMENTED
