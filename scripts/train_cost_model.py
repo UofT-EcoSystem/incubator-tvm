@@ -144,6 +144,7 @@ def train_xgb_model(log_file, n_lines, load_model, model_name):
             test_inputs.append(inp)
             test_results.append(res)
             test_ys.append(ansor.utils.array_mean(res.costs))
+    min_cost = np.min(test_ys)
 
     # Rebuild the test states and test search task
     task = test_inputs[0].task
@@ -163,10 +164,9 @@ def train_xgb_model(log_file, n_lines, load_model, model_name):
     print("Evaluation: a-peak@%d = %.4f" % (model.plan_size, score))
 
     # Remeasure to check against the saved records
-    print("========== Check against Saved Log File ==========")
+    print("========== Check against the Saved Log File ==========")
     indices = np.argsort(-preds)[:5]
     flop = task.compute_dag.flop_ct
-    min_cost = np.min(test_ys)
     for idx in indices:
         inp, res = test_inputs[idx], test_results[idx]
         s, bufs = task.compute_dag.apply_steps_from_state(inp.state)
