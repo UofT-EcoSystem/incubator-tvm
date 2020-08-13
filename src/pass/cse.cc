@@ -7,6 +7,13 @@ namespace tvm {
 namespace ir {
 
 
+IRComparator::FCompare & IRComparator::vtable()
+{
+        static FCompare inst;
+        return inst;
+}
+
+
 #define DISPATCH_TO_COMPARE(Op)                                                 \
         set_dispatch < Op > (                                                   \
                 [](const ObjectRef & lhs,                                       \
