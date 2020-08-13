@@ -186,7 +186,7 @@ bool IRComparator::_Compare(const Reduce * const lhs,
                _Compare(lhs->combiner->identity_element,
                         rhs->combiner->identity_element) &&  // Array < Expr >
                _Compare(lhs->source, rhs->source) &&  // Array < Expr >
-               _Compare(lhs->axis, rhs->axis) &&      // Array < IterVar >
+        //        _Compare(lhs->axis, rhs->axis) &&      // Array < IterVar >
                Compare(lhs->condition, rhs->condition) &&  // Expr
                lhs->value_index == rhs->value_index);
 }
