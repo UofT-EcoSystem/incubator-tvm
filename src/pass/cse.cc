@@ -22,20 +22,14 @@ bool IRComparator::Compare_(const Variable * const lhs,
         return lhs == rhs;
 }
 
+bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
+{
+        return lhs->type == rhs->type && 
+               lhs->name == rhs->name && 
+               lhs->call_type == rhs->call_type &&
+               lhs->value_index == rhs->value_index;
+}
 
-#define DISPATCH_TO_COMPARE(Op)                                                 \
-        set_dispatch < Op > (                                                   \
-                [](const ObjectRef & lhs,                                       \
-                   const ObjectRef & rhs, IRComparator * v)                     \
-                  -> bool                                                       \
-                {                                                               \
-                        if (lhs->type_index() != rhs->type_index())             \
-                        {                                                       \
-                                return false;                                   \
-                        }                                                       \
-                        return v->Compare_(static_cast < const Op * > (lhs.get()),  \
-                                           static_cast < const Op * > (rhs.get())); \
-                })
 
 #define DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Op)                            \
         bool IRComparator::Compare_(const Op * lhs, const Op * rhs)             \
@@ -53,12 +47,25 @@ bool IRComparator::Compare_(const Variable * const lhs,
                         this->Compare(lhs->b, rhs->a));                         \
         }
 
-
 DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Add)
 DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Sub)
 DEFINE_COMMUTATIVE_BINARY_OP_COMPARE_(Mul)
 DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE_(Div)
 
+
+#define DISPATCH_TO_COMPARE(Op)                                                 \
+        set_dispatch < Op > (                                                   \
+                [](const ObjectRef & lhs,                                       \
+                   const ObjectRef & rhs, IRComparator * v)                     \
+                  -> bool                                                       \
+                {                                                               \
+                        if (lhs->type_index() != rhs->type_index())             \
+                        {                                                       \
+                                return false;                                   \
+                        }                                                       \
+                        return v->Compare_(static_cast < const Op * > (lhs.get()),  \
+                                           static_cast < const Op * > (rhs.get())); \
+                })
 
 TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Variable)
