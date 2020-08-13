@@ -33,6 +33,7 @@ bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
         }
         if (lhs->call_type == Call::CallType::Halide)
         {
+                LOG(INFO) << lhs->func << " vs. " << rhs->func;
                 return this->Compare(lhs->func, rhs->func);
         }
         else if (lhs->call_type == Call::CallType::PureIntrinsic)
