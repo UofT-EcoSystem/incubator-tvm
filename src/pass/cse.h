@@ -8,7 +8,32 @@
 namespace tvm {
 namespace ir {
 
-/// @brief Eliminiate common subexpressions.
+
+class IRPreOrderVisitor : public IRVisitor
+{
+private:
+        std::function < void(const NodeRef &) >  _visit_func;
+        std::unordered_set < const Node * >      _visited_nodes;
+public:
+        explicit IRPreOrderVisitor(
+                std::function < void(const NodeRef &) > visit_func)
+                : _visit_func(visit_func) 
+        {}
+
+        void Visit(const NodeRef & node) final
+        {
+                if (_visited_nodes.count(node.get()) != 0)
+                {
+                        return;
+                }
+                _visited_nodes.insert(node.get());
+                _visit_func(node);
+                IRVisitor::Visit(node);
+        }
+};  // class IRPreOrderVisitor;
+
+
+/// @brief  Common Subexpression Elimination (Top-Level Function Call)
 void CSE(const Tensor & src,
          Tensor * const ptgt)
 {
