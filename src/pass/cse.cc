@@ -164,7 +164,7 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                        this->Compare(lhs->a, rhs->a) &&                         \
                        this->Compare(lhs->b, rhs->b);                           \
                 LOG(INFO) << "Returning " << ret;                               \
-                return ret;
+                return ret;                                                     \
         }
 
 #define DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Op)                                \
@@ -180,10 +180,10 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                 return ret;                                                     \
         }
 
-DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Add);
-DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Sub);
-DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Mul);
-DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div);
+DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Add)
+DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Sub)
+DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Mul)
+DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div)
 
 #define DEFINE_IMM_COMPARE(Imm)                                                 \
         bool IRComparator::_Compare(const Imm * const lhs,                      \
@@ -193,7 +193,7 @@ DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div);
                        lhs->type == rhs->type &&                                \
                        lhs->value == rhs->value;                                \
                 LOG(INFO) << "Returning " << ret;                               \
-                return ret;
+                return ret;                                                     \
         }
 
 DEFINE_IMM_COMPARE(IntImm);
