@@ -6,7 +6,7 @@
 
 #include <tvm/tensor.h>
 #include <tvm/ir_visitor.h>
-#include <tvm/operation.h>
+#include <tvm/tensor.h>
 
 
 using ::tvm::PlaceholderOp;
