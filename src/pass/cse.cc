@@ -133,15 +133,17 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
 }
 
 
-#define DEFINE_NONCOMMUTATIVE_BINARY_OP__COMPARE(Op)                            \
-        bool IRComparator::_Compare(const Op * lhs, const Op * rhs)             \
+#define DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Op)                             \
+        bool IRComparator::_Compare(const Op * const lhs,                       \
+                                    const Op * const rhs)                       \
         {                                                                       \
                 return this->Compare(lhs->a, rhs->a) &&                         \
                        this->Compare(lhs->b, rhs->b);                           \
         }
 
-#define DEFINE_COMMUTATIVE_BINARY_OP__COMPARE(Op)                               \
-        bool IRComparator::_Compare(const Op * lhs, const Op * rhs)             \
+#define DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Op)                                \
+        bool IRComparator::_Compare(const Op * const lhs,                       \
+                                    const Op * const rhs)                       \
         {                                                                       \
                 return (this->Compare(lhs->a, rhs->a) &&                        \
                         this->Compare(lhs->b, rhs->b)) ||                       \
@@ -149,11 +151,22 @@ bool IRComparator::_Compare(const Call * const lhs, const Call * const rhs)
                         this->Compare(lhs->b, rhs->a));                         \
         }
 
-DEFINE_COMMUTATIVE_BINARY_OP__COMPARE(Add)
-DEFINE_NONCOMMUTATIVE_BINARY_OP__COMPARE(Sub)
-DEFINE_COMMUTATIVE_BINARY_OP__COMPARE(Mul)
-DEFINE_NONCOMMUTATIVE_BINARY_OP__COMPARE(Div)
+DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Add);
+DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Sub);
+DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Mul);
+DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div);
 
+#define DEFINE_IMM_COMPARE(Imm)                                                 \
+        bool IRComparator::_Compare(const Imm * const lhs,                      \
+                                    const Imm * const rhs)                      \
+        {                                                                       \
+                return lhs->type == rhs->type &&                                \
+                       lhs->value == rhs->value;                                \
+        }
+
+DEFINE_IMM_COMPARE(IntImm);
+DEFINE_IMM_COMPARE(UIntImm);
+DEFINE_IMM_COMPARE(FloatImm);
 
 #define DISPATCH_TO_COMPARE(Op)                                                 \
         set_dispatch < Op > (                                                   \
@@ -175,7 +188,10 @@ TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(Add)
 .DISPATCH_TO_COMPARE(Sub)
 .DISPATCH_TO_COMPARE(Mul)
-.DISPATCH_TO_COMPARE(Div);
+.DISPATCH_TO_COMPARE(Div)
+.DISPATCH_TO_COMPARE(IntImm)
+.DISPATCH_TO_COMPARE(UIntImm)
+.DISPATCH_TO_COMPARE(FloatImm);
 
 
 void CSE(const Tensor & src, Tensor * const ptgt)
