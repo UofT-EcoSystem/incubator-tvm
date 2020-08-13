@@ -236,6 +236,7 @@ void CSE(const Tensor & src, Tensor * const ptgt)
 
 
         Var x ("x"), y ("y"), z ("z");
+        IterVar i;
         IRComparator cmp;
         LOG(INFO) << "x + y == y + x?: " << cmp.Compare(x + y, y + x);
         LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x + y, y * x);
@@ -244,11 +245,11 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         CommReducer combiner =
                 CommReducerNode::make({x}, {y}, {ir::Mul::make(x, y)},
                                       {make_const(x->type, 1)});
-        LOG(INFO) << "Reduce(z) == Reduce(z)?: "
-                cmp.Compare(Reduce::make(combiner, {z}, nullptr,
+        LOG(INFO) << "Reduce(z) == Reduce(z)?: " <<
+                cmp.Compare(Reduce::make(combiner, {z}, {i},
                                          make_const(Bool(1), true), 0),
-                            Reduce::make(combiner, {z}, nullptr,
-                                         make_const(Bool(1), true), 0))
+                            Reduce::make(combiner, {z}, {i},
+                                         make_const(Bool(1), true), 0));
 
         if (const ComputeOpNode * compute_op =
             src->op.as < ComputeOpNode > ())
