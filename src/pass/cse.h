@@ -30,10 +30,16 @@ public:
                 }
                 return false;
         }
+#define NOT_IMPLEMENTED                                                         \
+        {                                                                       \
+                LOG(FATAL) << "Comparator has not been implemented for "        \
+                           << *lhs << " vs. " << *rhs;                          \
+        }
         bool Compare_(const Variable * lhs, const Variable * rhs);
-        bool Compare_(const LetStmt * lhs, const LetStmt * rhs);
-        bool Compare_(const AttrStmt * lhs, const AttrStmt * rhs);
-        bool Compare_(const IfThenElse * lhs, const IfThenElse * rhs);
+        bool Compare_(const LetStmt * lhs, const LetStmt * rhs)   NOT_IMPLEMENTED
+        bool Compare_(const AttrStmt * lhs, const AttrStmt * rhs) NOT_IMPLEMENTED
+        bool Compare_(const IfThenElse * lhs,
+                      const IfThenElse * rhs);
         bool Compare_(const For * lhs, const For * RHS);
         bool Compare_(const Allocate * lhs, const Allocate * rhs);
         bool Compare_(const Load * lhs, const Load * rhs);
