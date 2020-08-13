@@ -51,8 +51,8 @@ public:
         bool _Compare(const Mul * const lhs, const Mul * const rhs);
         bool _Compare(const Div * const lhs, const Div * const rhs);
         bool _Compare(const Reduce * const lhs, const Reduce * const rhs);
-        bool _Compare(const IntImm   * const lhs, const IntImm   * const rhs);
-        bool _Compare(const UIntImm  * const lhs, const UIntImm  * const rhs);
+        bool _Compare(const IntImm * const lhs, const IntImm * const rhs);
+        bool _Compare(const UIntImm * const lhs, const UIntImm * const rhs);
         bool _Compare(const FloatImm * const lhs, const FloatImm * const rhs);
 };  // class IRComparator
 
@@ -259,8 +259,20 @@ TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(FloatImm);
 
 
+class IRPreOrderVisitor : public IRVisitor
+{
+
+};  // class IRPreOrderVisitor
 
 
+/// TODO: This should be @c Mutator instead of @c Visitor .
+class CSEVisitor : public IRPreOrderVisitor
+{
+private:
+        Expr _src_expr;
+public:
+        CSEVisitor(const Expr & src_expr) : _src_expr(src_expr) {}
+};  // class CSEVisitors
 
 
 void CSE(const Tensor & src, Tensor * const ptgt)
