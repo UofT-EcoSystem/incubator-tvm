@@ -248,8 +248,7 @@ void CSE(const Tensor & src, Tensor * const ptgt)
                                       {make_const(x->type, 1)});
         Expr reduce_z = Reduce::make(combiner, {z}, {i},
                                      make_const(Bool(1), true), 0);
-        LOG(INFO) << "Reduce(z) == Reduce(z)?: " <<
-                cmp.Compare(reduce_z, reduce_z);
+        LOG(INFO) << "Reduce(z) == Reduce(z)?: " << cmp.Compare(reduce_z, reduce_z);
 
         if (const ComputeOpNode * compute_op =
             src->op.as < ComputeOpNode > ())
