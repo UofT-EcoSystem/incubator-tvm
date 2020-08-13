@@ -24,6 +24,7 @@ bool IRComparator::Compare_(const Variable * const lhs,
 
 bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
 {
+        LOG(INFO) << lhs->func << " vs. " << rhs->func;
         return lhs->type == rhs->type && 
                lhs->name == rhs->name && 
                lhs->call_type == rhs->call_type &&
