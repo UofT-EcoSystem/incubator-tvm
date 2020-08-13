@@ -126,7 +126,9 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         IRComparator cmp;
         LOG(INFO) << "x + y == y + x?: " << cmp.Compare(x + y, y + x);
         LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x + y, y * x);
-        LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x * y + y, y + y * x);
+        LOG(INFO) << "x * y + y == y + y * x?: " 
+                  << cmp.Compare(x * y + y, y + y * x);
+        
 
 
         std::queue < Tensor > worklist;
