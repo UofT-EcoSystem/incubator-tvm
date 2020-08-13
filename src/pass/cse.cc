@@ -24,11 +24,39 @@ bool IRComparator::Compare_(const Variable * const lhs,
 
 bool IRComparator::Compare_(const Call * const lhs, const Call * const rhs)
 {
-        LOG(INFO) << lhs->func << " vs. " << rhs->func;
-        return lhs->type == rhs->type && 
-               lhs->name == rhs->name && 
-               lhs->call_type == rhs->call_type &&
-               lhs->value_index == rhs->value_index;
+        if (lhs->type != rhs->type || 
+            lhs->name != rhs->name ||
+            lhs->call_type != rhs->call_type ||
+            lhs->value_index != rhs->value_index)
+        {
+                return false;
+        }
+        if (lhs->call_type == Call::CallType::Halide)
+        {
+                return this->Compare(lhs->func, rhs->func);
+        }
+        else if (lhs->call_type == Call::CallType::PureIntrinsic)
+        {
+                if (lhs->name == "exp" ||
+                    lhs->name == "log" ||
+                    lhs->name == "sigmoid" ||
+                    lhs->name == "sqrt" ||
+                    lhs->name == "tanh" ||
+                    lhs->name == "pow" ||
+                    lhs->name == "fabs")
+                {
+                        return this->Compare(lhs->args[0], rhs->args[0]);
+                }
+                else 
+                {
+                        LOG(FATAL) << "Comparator has not been implemented "
+                                      "for name=" << lhs->name;
+                        return false;
+                }
+        }
+        LOG(FATAL) << "Comparator has not been implemented "
+                      "for call_type=" << lhs->call_type;
+        return false;
 }
 
 
