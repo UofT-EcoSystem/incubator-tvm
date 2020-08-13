@@ -134,7 +134,7 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         {
                 Expr body = compute_op->body[src->value_index];
 
-                cmp.Compare(body, body);
+                LOG(INFO) << "body == body?: " << cmp.Compare(body, body);
         }
 
 
