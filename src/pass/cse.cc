@@ -29,6 +29,10 @@ bool IRComparator::Compare_(const Variable * const lhs,
                    const ObjectRef & rhs, IRComparator * v)                     \
                   -> bool                                                       \
                 {                                                               \
+                        if (lhs->type_index() != rhs->type_index())             \
+                        {                                                       \
+                                return false;                                   \
+                        }                                                       \
                         return v->Compare_(static_cast < const Op * > (lhs.get()),  \
                                            static_cast < const Op * > (rhs.get())); \
                 })
