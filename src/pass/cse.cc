@@ -9,7 +9,7 @@
 #include "./cse.h"
 
 
-#define CHECKPOINT_RETURN 1
+#define CHECKPOINT_RETURN 0
 
 #if CHECKPOINT_RETURN
 #define RETURN(v)                                                               \
