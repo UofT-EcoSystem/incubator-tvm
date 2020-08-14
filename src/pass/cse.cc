@@ -329,8 +329,8 @@ public:
                 IRAssociativePreOrderVisitor ir_pre_order_visitor (
                         [&node, this](const NodeRef & src_node)
                         {
-                                LOG(INFO) << "Comparing with source node "
-                                          << src_node;
+                                // LOG(INFO) << "Comparing with source node "
+                                //           << src_node;
                                 if (this->_cmp.Compare(node, src_node))
                                 {
                                         LOG(INFO) << node << " == " << src_node;
