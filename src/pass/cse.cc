@@ -118,7 +118,8 @@ bool IRComparator::_Compare(const Variable * const lhs,
                             const Variable * const rhs)
 {
         // > Each variable is UNIQUELY identified by its address.
-        RETURN(lhs->type == rhs->type);
+        // RETURN(lhs->type == rhs->type);
+        RETURN(lhs == rhs);
 }
 
 
@@ -264,35 +265,14 @@ TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(FloatImm);
 
 
-class IRPreOrderVisitor : public IRVisitor
+class IRAssociativePreOrderVisitor : public IRVisitor
 {
 private:
         std::function < void(const NodeRef &) > _f;
+protected:
         std::unordered_set < const Node * > _visited_nodes;
 public:
-        IRPreOrderVisitor(std::function < void(const NodeRef &) > f) : _f(f) {}
-        void Visit(const NodeRef & node) final
-        {
-                if (_visited_nodes.count(node.get()) != 0)
-                {
-                        return;
-                }
-                _visited_nodes.insert(node.get());
-                _f(node);
-                IRVisitor::Visit(node);
-        }
-};
-
-
-/// TODO: This should be @c Mutator instead of @c Visitor .
-class CSEVisitor : public IRVisitor
-{
-private:
-        Expr _src_expr;
-        std::unordered_set < const Node * > _visited_nodes;
-        IRComparator _cmp;
-public:
-        CSEVisitor(const Expr & src_expr) : _src_expr(src_expr) {}
+        IRAssociativePreOrderVisitor(std::function < void(const NodeRef &) > f) : _f(f) {}
         /// @brief Override @c Add and @c Mul to take into account 
 #define DEFINE_ASSOCIATIVE_VISIT(Op)                                            \
         void Visit_(const Op * op) override                                     \
@@ -309,7 +289,31 @@ public:
         }
         DEFINE_ASSOCIATIVE_VISIT(Add)
         DEFINE_ASSOCIATIVE_VISIT(Mul)
-        void Visit(const NodeRef & node) final
+        void Visit(const NodeRef & node) override
+        {
+                if (_visited_nodes.count(node.get()) != 0)
+                {
+                        return;
+                }
+                _visited_nodes.insert(node.get());
+                _f(node);
+                IRVisitor::Visit(node);
+        }
+};
+
+
+/// TODO: This should be @c Mutator instead of @c Visitor .
+class CSEVisitor : public IRAssociativePreOrderVisitor
+{
+private:
+        Expr _src_expr;
+        IRComparator _cmp;
+public:
+        CSEVisitor(const Expr & src_expr)
+                : _src_expr(src_expr),
+                  IRAssociativePreOrderVisitor(nullptr)
+        {}
+        void Visit(const NodeRef & node) override final
         {
                 if (_visited_nodes.count(node.get()) != 0)
                 {
@@ -317,7 +321,7 @@ public:
                 }
                 _visited_nodes.insert(node.get());
                 LOG(INFO) << "Visiting node " << node;
-                IRPreOrderVisitor ir_pre_order_visitor (
+                IRAssociativePreOrderVisitor ir_pre_order_visitor (
                         [&node, this](const NodeRef & src_node)
                         {
                                 LOG(INFO) << "Comparing with source node "
