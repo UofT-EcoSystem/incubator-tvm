@@ -310,8 +310,8 @@ private:
         IRComparator _cmp;
 public:
         CSEVisitor(const Expr & src_expr)
-                : _src_expr(src_expr),
-                  IRAssociativePreOrderVisitor(nullptr)
+                : IRAssociativePreOrderVisitor(nullptr), 
+                  _src_expr(src_expr)
         {}
         void Visit(const NodeRef & node) override final
         {
