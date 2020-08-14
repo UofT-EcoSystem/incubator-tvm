@@ -209,14 +209,6 @@ DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Sub)
 DEFINE_COMMUTATIVE_BINARY_OP_COMPARE(Mul)
 DEFINE_NONCOMMUTATIVE_BINARY_OP_COMPARE(Div)
 
-#define DEFINE_IMM_COMPARE(Imm)                                                 \
-        bool IRComparator::_Compare(const Imm * const lhs,                      \
-                                    const Imm * const rhs)                      \
-        {                                                                       \
-                RETURN(lhs->type == rhs->type &&                                \
-                       lhs->value == rhs->value);                               \
-        }
-
 
 bool IRComparator::_Compare(const Reduce * const lhs,
                             const Reduce * const rhs)
@@ -232,9 +224,18 @@ bool IRComparator::_Compare(const Reduce * const lhs,
 }
 
 
-DEFINE_IMM_COMPARE(IntImm);
-DEFINE_IMM_COMPARE(UIntImm);
-DEFINE_IMM_COMPARE(FloatImm);
+#define DEFINE_IMM_COMPARE(Imm)                                                 \
+        bool IRComparator::_Compare(const Imm * const lhs,                      \
+                                    const Imm * const rhs)                      \
+        {                                                                       \
+                RETURN(lhs->type  == rhs->type &&                               \
+                       lhs->value == rhs->value);                               \
+        }
+
+
+DEFINE_IMM_COMPARE(IntImm)
+DEFINE_IMM_COMPARE(UIntImm)
+DEFINE_IMM_COMPARE(FloatImm)
 
 #define DISPATCH_TO_COMPARE(Op)                                                 \
         set_dispatch < Op > (                                                   \
@@ -292,6 +293,22 @@ private:
         IRComparator _cmp;
 public:
         CSEVisitor(const Expr & src_expr) : _src_expr(src_expr) {}
+        /// @brief Override @c Add and @c Mul to take into account 
+#define DEFINE_ASSOCIATIVE_VISIT(Op)                                            \
+        void Visit_(const Op * op) override                                     \
+        {                                                                       \
+                IRVisitor::Visit_(op);                                          \
+                if (const Op * lhs = op->a.as < Op > ())                        \
+                {                                                               \
+                        IRVisitor::Visit_(Op::make(lhs->b, op->b).as < Op > ());  \
+                }                                                               \
+                else if (const Op * rhs = op->b.as < Op > ())                   \
+                {                                                               \
+                        IRVisitor::Visit_(Op::make(rhs->a, op->a).as < Op > ());  \
+                }                                                               \
+        }
+        DEFINE_ASSOCIATIVE_VISIT(Add)
+        DEFINE_ASSOCIATIVE_VISIT(Mul)
         void Visit(const NodeRef & node) final
         {
                 if (_visited_nodes.count(node.get()) != 0)
