@@ -373,38 +373,19 @@ void CSE(const Tensor & src, Tensor * const ptgt)
                 Expr body = compute_op->body[src->value_index];
                 CHECK_EQ(cmp.Compare(body, body), true);
         }
-        CSEVisitor cse_visitor (z * x * x);
-        cse_visitor.Visit(x * x * y);
+        CSEVisitor(z * x * x).Visit(x * x * y);
 
-        std::queue < Tensor > worklist;
-        std::unordered_set < Tensor > visited_workitems;
-        worklist.push(tgt);
-        for (; !worklist.empty(); worklist.pop())
+        const ComputeOpNode * src_compute_op = src->op.as < ComputeOpNode > (),
+                            * tgt_compute_op = (*ptgt)->op
+                                               .as < ComputeOpNode > ();
+        
+        if (src_compute_op == nullptr ||
+            tgt_compute_op == nullptr)
         {
-                const Tensor & workitem = worklist.front();
-
-                if (visited_workitems.count(workitem) != 0)
-                {
-                        // continue;
-                }
-                visited_workitems.insert(workitem);
-
-                LOG(INFO) << "Visiting Tensor " << workitem->op->name;
-
-                if (const ComputeOpNode * compute_op =
-                    workitem->op.as < ComputeOpNode > ()) 
-                {
-                        for (const Tensor & input : compute_op->InputTensors())
-                        {
-                                worklist.push(input);
-                        }
-                }
-                if (const PlaceholderOpNode * placeholder_op = 
-                    workitem->op.as < PlaceholderOpNode > ())
-                {
-                        LOG(INFO) << "Visiting Placeholder " << workitem->op;
-                }
-        }  // for (workitem ∈ worklist)
+                return;
+        }
+        CSEVisitor(src_compute_op->body[src->value_index])
+            .Visit(tgt_compute_op->body[(*ptgt)->value_index]);
 }
 
 
