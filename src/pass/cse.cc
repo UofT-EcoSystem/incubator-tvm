@@ -277,15 +277,19 @@ public:
 #define DEFINE_ASSOCIATIVE_VISIT(Op)                                            \
         void Visit_(const Op * op) override                                     \
         {                                                                       \
-                LOG(INFO) << "Associative visitor is called";                   \
                 IRVisitor::Visit_(op);                                          \
                 if (const Op * lhs = op->a.as < Op > ())                        \
                 {                                                               \
-                        IRVisitor::Visit_(Op::make(lhs->b, op->b).as < Op > ());  \
+                        IRVisitor::Visit_(                                      \
+                                Op::make(lhs->a,                                \
+                                         Op::make(lhs->b, op->b))               \
+                                .as < Op > ());                                 \
                 }                                                               \
                 else if (const Op * rhs = op->b.as < Op > ())                   \
                 {                                                               \
-                        IRVisitor::Visit_(Op::make(rhs->a, op->a).as < Op > ());  \
+                        IRVisitor::Visit_(                                      \
+                                Op::make(Op::make(rhs->a, op->a),               \
+                                         rhs->b).as < Op > ());                 \
                 }                                                               \
         }
         DEFINE_ASSOCIATIVE_VISIT(Add)
@@ -353,23 +357,21 @@ void CSE(const Tensor & src, Tensor * const ptgt)
         Integer _0 (0), _4 (4);
         IterVar i = reduce_axis(Range(_0, _4), "i");
         IRComparator cmp;
-        LOG(INFO) << "x + y == y + x?: " << cmp.Compare(x + y, y + x);
-        LOG(INFO) << "x + y == y * x?: " << cmp.Compare(x + y, y * x);
-        LOG(INFO) << "x * y + y == y + y * x?: " 
-                  << cmp.Compare(x * y + y, y + y * x);
+        CHECK_EQ(cmp.Compare(x + y, y + x), true);
+        CHECK_EQ(cmp.Compare(x + y, y * x), false);
+        CHECK_EQ(cmp.Compare(x * y + y, y + y * x), true);
         CommReducer combiner =
                 CommReducerNode::make({x}, {y}, {ir::Mul::make(x, y)},
                                       {make_const(x->type, 1)});
         Expr reduce_z = Reduce::make(combiner, {z}, {i},
                                      make_const(Bool(1), true), 0);
-        LOG(INFO) << "Reduce(z) == Reduce(z)?: " << cmp.Compare(reduce_z, reduce_z);
+        CHECK_EQ(cmp.Compare(reduce_z, reduce_z), true);
 
         if (const ComputeOpNode * compute_op =
             src->op.as < ComputeOpNode > ())
         {
                 Expr body = compute_op->body[src->value_index];
-
-                LOG(INFO) << "body == body?: " << cmp.Compare(body, body);
+                CHECK_EQ(cmp.Compare(body, body), true);
         }
         CSEVisitor cse_visitor (z * x * x);
         cse_visitor.Visit(x * x * y);
