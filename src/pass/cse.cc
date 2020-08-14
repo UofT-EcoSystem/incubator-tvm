@@ -273,6 +273,7 @@ protected:
         std::unordered_set < const Node * > _visited_nodes;
 public:
         IRAssociativePreOrderVisitor(std::function < void(const NodeRef &) > f) : _f(f) {}
+        void Visit_(const Call * op) override;
         /// @brief Override @c Add and @c Mul to take into account 
 #define DEFINE_ASSOCIATIVE_VISIT(Op)                                            \
         void Visit_(const Op * op) override                                     \
@@ -305,6 +306,17 @@ public:
                 IRVisitor::Visit(node);
         }
 };
+
+
+void IRAssociativePreOrderVisitor::Visit_(const Call * op) 
+{
+        IRVisitor::Visit_(op);
+        if (const ComputeOpNode * compute_op =
+            op->func.as < ComputeOpNode > ())
+        {
+                IRVisitor::Visit(compute_op->body[op->value_index]);
+        }
+}
 
 
 /// TODO: This should be @c Mutator instead of @c Visitor .
