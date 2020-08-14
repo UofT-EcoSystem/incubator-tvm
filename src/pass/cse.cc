@@ -310,6 +310,7 @@ public:
                                         LOG(INFO) << node << " == " << src_node;
                                 }
                         });
+                ir_pre_order_visitor.Visit(_src_expr);
                 IRVisitor::Visit(node);
         }
 };  // class CSEVisitors
