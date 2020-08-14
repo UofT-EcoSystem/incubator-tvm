@@ -277,6 +277,7 @@ public:
 #define DEFINE_ASSOCIATIVE_VISIT(Op)                                            \
         void Visit_(const Op * op) override                                     \
         {                                                                       \
+                LOG(INFO) << "Associative visitor is called";                   \
                 IRVisitor::Visit_(op);                                          \
                 if (const Op * lhs = op->a.as < Op > ())                        \
                 {                                                               \
@@ -297,7 +298,7 @@ public:
                 }
                 _visited_nodes.insert(node.get());
                 _f(node);
-                this->Visit(node);
+                IRVisitor::Visit(node);
         }
 };
 
@@ -332,7 +333,7 @@ public:
                                 }
                         });
                 ir_pre_order_visitor.Visit(_src_expr);
-                this->Visit(node);
+                IRVisitor::Visit(node);
         }
 };  // class CSEVisitors
 
