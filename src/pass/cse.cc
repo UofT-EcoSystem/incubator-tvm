@@ -297,7 +297,7 @@ public:
                 }
                 _visited_nodes.insert(node.get());
                 _f(node);
-                IRVisitor::Visit(node);
+                this->Visit(node);
         }
 };
 
@@ -332,7 +332,7 @@ public:
                                 }
                         });
                 ir_pre_order_visitor.Visit(_src_expr);
-                IRVisitor::Visit(node);
+                this->Visit(node);
         }
 };  // class CSEVisitors
 
