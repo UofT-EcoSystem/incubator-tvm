@@ -1,3 +1,7 @@
+#include <functional>
+#include <queue>
+#include <unordered_set>
+
 #include <tvm/expr.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/operation.h>
@@ -259,12 +263,33 @@ TVM_STATIC_IR_FUNCTOR(IRComparator, vtable)
 .DISPATCH_TO_COMPARE(FloatImm);
 
 
+class IRPreOrderVisitor : public IRVisitor
+{
+private:
+        std::function < void(const NodeRef &) > _f;
+        std::unordered_set < const Node * > _visited_nodes;
+public:
+        IRPreOrderVisitor(std::function < void(const NodeRef &) > f) : _f(f) {}
+        void Visit(const NodeRef & node) final
+        {
+                if (_visited_nodes.count(node.get()) != 0)
+                {
+                        return;
+                }
+                _visited_nodes.insert(node.get());
+                _f(node);
+                IRVisitor::Visit(node);
+        }
+};
+
+
 /// TODO: This should be @c Mutator instead of @c Visitor .
 class CSEVisitor : public IRVisitor
 {
 private:
         Expr _src_expr;
         std::unordered_set < const Node * > _visited_nodes;
+        IRComparator _cmp;
 public:
         CSEVisitor(const Expr & src_expr) : _src_expr(src_expr) {}
         void Visit(const NodeRef & node) final
@@ -274,7 +299,14 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
-                LOG(INFO) << "Visiting Node " << node;
+                IRPreOrderVisitor ir_pre_order_visitor (
+                        [&node, this](const NodeRef & src_node)
+                        {
+                                if (this->_cmp.Compare(node, src_node))
+                                {
+                                        LOG(INFO) << node << " == " << src_node;
+                                }
+                        });
                 IRVisitor::Visit(node);
         }
 };  // class CSEVisitors
@@ -313,7 +345,7 @@ void CSE(const Tensor & src, Tensor * const ptgt)
 
                 LOG(INFO) << "body == body?: " << cmp.Compare(body, body);
         }
-        CSEVisitor cse_visitor (x * x);
+        CSEVisitor cse_visitor (z * x * x);
         cse_visitor.Visit(x * x * y);
 
         std::queue < Tensor > worklist;
