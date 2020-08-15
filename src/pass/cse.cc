@@ -35,7 +35,7 @@ Stmt CSE(Stmt stmt, Stmt src)
         // LOG(INFO) << "src: "  << src;
 
         IRPreOrderVisitor().Visit(stmt);
-        IRPreOrderVisitor().Visit(src);
+        // IRPreOrderVisitor().Visit(src);
 
         return stmt;
 }
