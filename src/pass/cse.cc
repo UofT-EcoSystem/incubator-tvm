@@ -20,6 +20,7 @@ public:
                         LOG(INFO) << "Visiting ProducerConsumer node "
                                   << op->func->func_name();
                 }
+                IRVisitor::Visit_(op);
         }
         void Visit(const NodeRef & node) override
         {
