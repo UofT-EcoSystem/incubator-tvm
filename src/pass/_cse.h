@@ -9,7 +9,7 @@ namespace ir {
 
 
 /// @brief  Common Subexpression Elimination (Top-Level Function Call)
-void CSE(const Tensor & src, Tensor *  const ptgt);
+void _CSE(const Tensor & src, Tensor *  const ptgt);
 
 
 }  // namespace ir
