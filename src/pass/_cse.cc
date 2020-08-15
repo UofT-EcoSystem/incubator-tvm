@@ -372,6 +372,8 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
+                LOG(INFO) << "[" << node->GetTypeKey() << "] "
+                          << node;
                 IRVisitor::Visit(node);
         }
 };
@@ -461,9 +463,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
 
-        TensorVisitor tensor_visitor;
-        
-        tensor_visitor.Visit(tgt->op);
+        TensorVisitor().Visit(tgt->op);
 }
 
 
