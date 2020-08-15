@@ -13,6 +13,14 @@ protected:
         std::unordered_set < const Node * > _visited_nodes;
 public:
         IRPreOrderVisitor() {}
+        void Visit_(const ProducerConsumer * op) override
+        {
+                if (op->is_producer) 
+                {
+                        LOG(INFO) << "Visiting ProducerConsumer node "
+                                  << op->func->func_name();
+                }
+        }
         void Visit(const NodeRef & node) override
         {
                 if (_visited_nodes.count(node.get()) != 0)
@@ -20,7 +28,6 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
-                LOG(INFO) << "Visiting [" << node->GetTypeKey() << "] " << node;
                 IRVisitor::Visit(node);
         }
 };  // class IRPreOrderVisitor
