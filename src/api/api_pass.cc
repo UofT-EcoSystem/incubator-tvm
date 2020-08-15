@@ -177,11 +177,5 @@ REGISTER_PASS(VerifyCompactBuffer);
 REGISTER_PASS(HoistIfThenElse);
 REGISTER_PASS(InferFragment)
 REGISTER_PASS(RemoveUnusedDimsRecursively);
-
-
-// <bojian/TVM-AutoDiff>
-REGISTER_PASS(CSE);
-
-
 }  // namespace ir
 }  // namespace tvm

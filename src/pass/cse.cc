@@ -1,3 +1,4 @@
+#include <tvm/api_registry.h>
 #include <tvm/ir_pass.h>
 
 
@@ -12,6 +13,8 @@ Stmt CSE(Stmt stmt, Stmt src)
         return stmt;
 }
 
+
+TVM_REGISTER_API("ir_pass.CSE").set_body_typed(CSE);
 
 }  // namespace ir
 }  // namespace tvm
