@@ -620,7 +620,7 @@ TVM_DLL Array<Tensor> RemoveUnusedDimsRecursively(const Array<Tensor> tensors);
 /// <bojian/TVM-AutoDiff>
 /// @brief  CSE
 /// @param  stmt  The statement to be optimized.
-TVM_DLL Stmt CSE(Stmt stmt);
+TVM_DLL Stmt CSE(Stmt stmt, Stmt src);
 
 
 }  // namespace ir

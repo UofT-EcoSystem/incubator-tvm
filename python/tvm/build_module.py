@@ -339,7 +339,10 @@ def lower(sch,
           args,
           name="default_function",
           binds=None,
-          simple_mode=False):
+          simple_mode=False
+          # <bojian/TVM-AutoDiff> Added an extra argument `src` for CSE.
+        , src=None
+          ):
     """Lowering step before build into target.
 
     Parameters
@@ -425,7 +428,8 @@ def lower(sch,
         stmt = ir_pass.InstrumentBoundCheckers(stmt)
     
     # <bojian/TVM-AutoDiff> CSE
-    stmt = ir_pass.CSE(stmt)
+    if src is not None:
+        stmt = ir_pass.CSE(stmt, src)
 
     if simple_mode:
         return stmt

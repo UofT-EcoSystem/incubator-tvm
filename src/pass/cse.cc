@@ -5,10 +5,10 @@ namespace tvm {
 namespace ir {
 
 
-Stmt CSE(Stmt stmt)
+Stmt CSE(Stmt stmt, Stmt src)
 {
-        LOG(INFO) << "Optimizing for statement " << stmt;
-
+        LOG(INFO) << "stmt: " << stmt;
+        LOG(INFO) << "src: "  << src;
         return stmt;
 }
 
