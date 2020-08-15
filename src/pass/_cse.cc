@@ -490,6 +490,8 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
 
+        TensorPostOrderVisitor().Visit(tgt);
+        /*
         std::queue < Tensor > worklist;
         std::unordered_set < Tensor > visited_tensors; 
         worklist.push(tgt);
@@ -519,6 +521,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                         LOG(INFO) << "Visiting [PlaceholderOp] " << workitem->op;
                 }
         }  // for (workitem ∈ worklist)
+         */
 }
 
 
