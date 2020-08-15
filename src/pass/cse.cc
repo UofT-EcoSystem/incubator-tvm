@@ -32,7 +32,7 @@ public:
 Stmt CSE(Stmt stmt, Stmt src)
 {
         LOG(INFO) << "stmt: " << stmt;
-        LOG(INFO) << "src: "  << src;
+        // LOG(INFO) << "src: "  << src;
 
         IRPreOrderVisitor().Visit(stmt);
         IRPreOrderVisitor().Visit(src);
