@@ -29,6 +29,8 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
+                LOG(INFO) << "Visiting [" << node->GetTypeKey() << "] "
+                          << node;
                 IRVisitor::Visit(node);
         }
 };  // class IRPreOrderVisitor
