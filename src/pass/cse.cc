@@ -39,7 +39,7 @@ public:
 }   // namespace anonymous
 
 
-Stmt CSE(Stmt stmt, Stmt src, Array < Buffer > arg_list)
+Stmt CSE(Stmt stmt, Stmt src)
 {
         // LOG(INFO) << "stmt: " << stmt;
         // LOG(INFO) << "src: "  << src;
