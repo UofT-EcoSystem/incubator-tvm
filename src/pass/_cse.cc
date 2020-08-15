@@ -360,9 +360,6 @@ public:
 
 class TensorVisitor : public IRVisitor
 {
-private:
-        void Visit_(const PlaceholderOpNode * const op);
-        void Visit_(const ComputeOpNode * const op);
 protected:
         std::unordered_set < const Node * > _visited_nodes;
 public:
@@ -375,41 +372,28 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
-                if (const ComputeOpNode * compute_op =
-                    node.as < ComputeOpNode > ())
-                {
-                        Visit_(compute_op);
-                        return;
-                }
-                if (const PlaceholderOpNode * placeholder_op = 
-                    node.as < PlaceholderOpNode > ())
-                {
-                        Visit_(placeholder_op);
-                        return;
-                }
                 IRVisitor::Visit(node);
         }
 };
-
-
-void TensorVisitor::Visit_(const PlaceholderOpNode * const op)
-{
-        LOG(INFO) << "Visiting placeholder op "
-                  << op->name;
-}
-
-
-void TensorVisitor::Visit_(const ComputeOpNode * const op)
-{
-        LOG(INFO) << "Visiting compute op " << op->name;
-}
 
 
 void TensorVisitor::Visit_(const Call * op)
 {
         if (op->call_type == Call::CallType::Halide)
         {
-                Visit(op->func);
+                if (const ComputeOpNode * compute_op =
+                    op->func.as < ComputeOpNode > ())
+                {
+                        LOG(INFO) << "Visiting compute op " << compute_op->name;
+                        _visited_nodes.insert(compute_op);
+                        Visit(compute_op->body[op->value_index]);
+                }
+                if (const PlaceholderOpNode * placeholder_op = 
+                    op->func.as < PlaceholderOpNode > ())
+                {
+                        LOG(INFO) << "Visiting placeholder op "
+                                  << placeholder_op->name;
+                }
         }
 }
 
