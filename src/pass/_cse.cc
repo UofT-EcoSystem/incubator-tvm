@@ -522,7 +522,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-
+        TensorPostOrderVisitor().Visit(src);
         TensorPostOrderVisitor().Visit(tgt);
         /*
         std::queue < Tensor > worklist;
