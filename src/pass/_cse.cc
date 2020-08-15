@@ -477,14 +477,9 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
 
-        if (const ComputeOpNode * compute_op =
-            (*ptgt)->op.as < ComputeOpNode > ())
-        {
-                for (const auto & axis : compute_op->axis)
-                {
-                        LOG(INFO) << 
-                }
-        }
+        TensorVisitor tensor_visitor;
+        
+        tensor_visitor.Visit(tgt->op);
 }
 
 
