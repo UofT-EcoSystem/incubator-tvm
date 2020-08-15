@@ -435,14 +435,25 @@ public:
                                 Visit(input_tensor);
                         }
                         LOG(INFO) << tensor;
-                        if (tensor->op->name == "X_red" || 
-                            tensor->op->name == "extracted_tensor")
+                        if (tensor->op->name == "X_red")
                         {
                                 LOG(INFO) << tensor->op;
                                 LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
                                 LOG(INFO) << "reduce_axis : "
                                           << IterVars2Str(compute_op->reduce_axis);
                                 LOG(INFO) << "body : " << compute_op->body[tensor->value_index];
+                        }
+                        if (compute_op->reduce_axis.size())
+                        {
+                                CHECK(compute_op->body[tensor->value_index]
+                                      .as < Reduce >())
+                                      << "Body statement must be a reduce node";
+                        }
+                        else 
+                        {
+                                LOG(INFO) << "[" << compute_op->body[tensor->value_index]
+                                                    ->GetTypeKey() << "] "
+                                          << compute_op->body[tensor->value_index];
                         }
                 }
         }
