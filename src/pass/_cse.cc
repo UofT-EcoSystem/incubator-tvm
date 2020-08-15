@@ -441,6 +441,7 @@ public:
                                 LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
                                 LOG(INFO) << "reduce_axis : "
                                           << IterVars2Str(compute_op->reduce_axis);
+                                LOG(INFO) << "body : " << compute_op->body[tensor->value_index];
                         }
                 }
         }
