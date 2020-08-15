@@ -499,7 +499,7 @@ DifferentiationResult Differentiate(const Tensor& output,
 
 
     Tensor in_arg = compute_adjoint(input);
-    // _CSE(output, &in_arg);
+    _CSE(output, &in_arg);
 
     result.push_back(in_arg);
   }
