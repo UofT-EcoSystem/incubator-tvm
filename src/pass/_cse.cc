@@ -24,6 +24,7 @@
 
 namespace tvm {
 namespace ir {
+namespace {
 
 
 class IRComparator
@@ -352,6 +353,9 @@ public:
                 IRVisitor::Visit(node);
         }
 };  // class CSEVisitors
+
+
+}   // namespace anonymous
 
 
 void _CSE(const Tensor & src, Tensor * const ptgt)
