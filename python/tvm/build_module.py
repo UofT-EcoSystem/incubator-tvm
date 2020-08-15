@@ -384,6 +384,10 @@ def lower(sch,
     if isinstance(sch, schedule.Schedule):
         stmt = form_body(sch)
 
+    # <bojian/TVM-AutoDiff> CSE
+    if src is not None:
+        stmt = ir_pass.CSE(stmt, src, arg_list)
+
     for f in lower_phase0:
         stmt = f(stmt)
 
@@ -426,10 +430,6 @@ def lower(sch,
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
         stmt = ir_pass.InstrumentBoundCheckers(stmt)
-    
-    # <bojian/TVM-AutoDiff> CSE
-    if src is not None:
-        stmt = ir_pass.CSE(stmt, src, arg_list)
 
     if simple_mode:
         return stmt
