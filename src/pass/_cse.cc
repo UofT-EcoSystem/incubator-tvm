@@ -401,6 +401,32 @@ void TensorVisitor::Visit(const NodeRef & node)
  */
 
 
+class TensorPostOrderVisitor
+{
+private:
+        std::unordered_set < Tensor > _visited_tensors;
+public:
+        void Visit(const Tensor & tensor)
+        {
+                if (_visited_tensors.count(tensor))
+                {
+                        return;
+                }
+                _visited_tensors.insert(tensor);
+                if (const ComputeOpNode * compute_op =
+                    tensor->op.as < ComputeOpNode > ()) 
+                {
+                        for (const Tensor & input_tensor : 
+                             compute_op->InputTensors())
+                        {
+                                Visit(input_tensor);
+                        }
+                }
+                LOG(INFO) << "Visiting [tensor] " << tensor;
+        }
+};
+
+
 }   // namespace anonymous
 
 
