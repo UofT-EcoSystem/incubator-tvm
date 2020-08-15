@@ -45,10 +45,10 @@ Stmt CSE(Stmt stmt, Stmt src, Array < Buffer > arg_list)
         IRPreOrderVisitor().Visit(stmt);
         // IRPreOrderVisitor().Visit(src);
 
-        for (const auto & buffer : arg_list)
-        {
-                LOG(INFO) << buffer;
-        }
+        // for (const auto & buffer : arg_list)
+        // {
+        //         LOG(INFO) << buffer;
+        // }
 
         return stmt;
 }
