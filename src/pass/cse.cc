@@ -15,11 +15,11 @@ public:
         IRPreOrderVisitor() {}
         void Visit_(const ProducerConsumer * op) override
         {
-                if (op->is_producer) 
-                {
-                        LOG(INFO) << "Visiting ProducerConsumer node "
-                                  << op->func->func_name();
-                }
+                // if (op->is_producer) 
+                // {
+                //         LOG(INFO) << "Visiting ProducerConsumer node "
+                //                   << op->func->func_name();
+                // }
                 IRVisitor::Visit_(op);
         }
         void Visit(const NodeRef & node) override
