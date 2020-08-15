@@ -6,7 +6,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/operation.h>
 
-#include "./cse.h"
+#include "./_cse.h"
 
 
 #define CHECKPOINT_RETURN 0
