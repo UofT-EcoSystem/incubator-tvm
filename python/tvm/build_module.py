@@ -386,7 +386,7 @@ def lower(sch,
 
     # <bojian/TVM-AutoDiff> CSE
     if src is not None:
-        stmt = ir_pass.CSE(stmt, src, arg_list)
+        stmt = ir_pass.CSE(stmt, src)
 
     for f in lower_phase0:
         stmt = f(stmt)
