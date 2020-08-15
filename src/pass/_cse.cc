@@ -435,7 +435,8 @@ public:
                                 Visit(input_tensor);
                         }
                         LOG(INFO) << tensor;
-                        if (tensor->op->name == "X_red")
+                        if (tensor->op->name == "X_red" || 
+                            tensor->op->name == "extracted_tensor")
                         {
                                 LOG(INFO) << tensor->op;
                                 LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
