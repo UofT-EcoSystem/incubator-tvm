@@ -29,7 +29,7 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
-                LOG(INFO) << node;
+                LOG(INFO) << "[" << node->GetTypeKey() << "] " << node;
                 IRVisitor::Visit(node);
         }
 };  // class IRPreOrderVisitor
