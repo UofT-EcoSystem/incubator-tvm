@@ -7,6 +7,8 @@ namespace ir {
 
 Stmt CSE(Stmt stmt)
 {
+        LOG(INFO) << "Optimizing for statement " << stmt;
+
         return stmt;
 }
 

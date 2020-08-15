@@ -423,6 +423,10 @@ def lower(sch,
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
         stmt = ir_pass.InstrumentBoundCheckers(stmt)
+    
+    # <bojian/TVM-AutoDiff> CSE
+    stmt = ir_pass.CSE(stmt)
+
     if simple_mode:
         return stmt
 
