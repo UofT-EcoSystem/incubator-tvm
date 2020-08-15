@@ -421,8 +421,8 @@ public:
                         {
                                 Visit(input_tensor);
                         }
+                        LOG(INFO) << tensor;
                 }
-                LOG(INFO) << "Visiting [tensor] " << tensor;
         }
 };
 
