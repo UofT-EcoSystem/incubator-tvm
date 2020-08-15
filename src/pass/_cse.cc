@@ -364,39 +364,39 @@ protected:
         std::unordered_set < const Node * > _visited_nodes;
 public:
         TensorVisitor() {}
-        void Visit_(const Call * op) override;
-        void Visit (const NodeRef & node) override
-        {
-                if (_visited_nodes.count(node.get()) != 0)
-                {
-                        return;
-                }
-                _visited_nodes.insert(node.get());
-                LOG(INFO) << "[" << node->GetTypeKey() << "] "
-                          << node;
-                IRVisitor::Visit(node);
-        }
+        void Visit(const NodeRef & node) override;
 };
 
 
-void TensorVisitor::Visit_(const Call * op)
+void TensorVisitor::Visit(const NodeRef & node)
 {
-        if (op->call_type == Call::CallType::Halide)
+        if (_visited_nodes.count(node.get()) != 0)
         {
-                if (const ComputeOpNode * compute_op =
-                    op->func.as < ComputeOpNode > ())
+                return;
+        }
+        _visited_nodes.insert(node.get());
+        LOG(INFO) << "[" << node->GetTypeKey() << "] "
+                  << node;
+        if (const Call * call = node.as < Call > ()) 
+        {
+                if (call->call_type == Call::CallType::Halide)
                 {
-                        LOG(INFO) << "Visiting compute op " << compute_op->name;
-                        _visited_nodes.insert(compute_op);
-                        Visit(compute_op->body[op->value_index]);
-                }
-                if (const PlaceholderOpNode * placeholder_op = 
-                    op->func.as < PlaceholderOpNode > ())
-                {
-                        LOG(INFO) << "Visiting placeholder op "
-                                  << placeholder_op->name;
+                        if (const ComputeOpNode * compute_op =
+                            call->func.as < ComputeOpNode > ())
+                        {
+                                LOG(INFO) << "Visiting compute op " << compute_op->name;
+                                _visited_nodes.insert(compute_op);
+                                Visit(compute_op->body[call->value_index]);
+                        }
+                        if (const PlaceholderOpNode * placeholder_op = 
+                            call->func.as < PlaceholderOpNode > ())
+                        {
+                                LOG(INFO) << "Visiting placeholder op "
+                                          << placeholder_op->name;
+                        }
                 }
         }
+        IRVisitor::Visit(node);
 }
 
 
@@ -463,7 +463,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
 
-        TensorVisitor().Visit(tgt->op);
+        TensorVisitor().Visit(tgt);
 }
 
 
