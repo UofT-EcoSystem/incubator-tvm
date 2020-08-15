@@ -357,7 +357,7 @@ public:
 };  // class CSEVisitors
  */
 
-
+/*
 class TensorVisitor : public IRVisitor
 {
 protected:
@@ -398,6 +398,7 @@ void TensorVisitor::Visit(const NodeRef & node)
         }
         IRVisitor::Visit(node);
 }
+ */
 
 
 }   // namespace anonymous
@@ -463,7 +464,35 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
 
-        TensorVisitor().Visit(tgt);
+        std::queue < Tensor > worklist;
+        std::unordered_set < Tensor > visited_tensors; 
+        worklist.push(tgt);
+        for (; !worklist.empty(); worklist.pop())
+        {
+                const Tensor & workitem = worklist.front();
+
+                if (visited_tensors.count(workitem) != 0)
+                {
+                        // continue;
+                }
+                visited_tensors.insert(workitem);
+
+                LOG(INFO) << "Visiting Tensor " << workitem->op->name;
+                if (const ComputeOpNode * compute_op =
+                    workitem->op.as < ComputeOpNode > ()) 
+                {
+                        LOG(INFO) << "Visiting [ComputeOp] " << workitem->op;
+                        for (const Tensor & input : compute_op->InputTensors())
+                        {
+                                worklist.push(input);
+                        }
+                }
+                if (const PlaceholderOpNode * placeholder_op = 
+                    workitem->op.as < PlaceholderOpNode > ())
+                {
+                        LOG(INFO) << "Visiting [PlaceholderOp] " << workitem->op;
+                }
+        }  // for (workitem ∈ worklist)
 }
 
 
