@@ -29,6 +29,7 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
+                LOG(INFO) << node;
                 IRVisitor::Visit(node);
         }
 };  // class IRPreOrderVisitor
@@ -39,7 +40,7 @@ public:
 
 Stmt CSE(Stmt stmt, Stmt src)
 {
-        LOG(INFO) << "stmt: " << stmt;
+        // LOG(INFO) << "stmt: " << stmt;
         // LOG(INFO) << "src: "  << src;
 
         IRPreOrderVisitor().Visit(stmt);
