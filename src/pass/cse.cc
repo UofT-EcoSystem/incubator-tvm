@@ -29,7 +29,6 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
-                LOG(INFO) << "[" << node->GetTypeKey() << "] " << node;
                 IRVisitor::Visit(node);
         }
 };  // class IRPreOrderVisitor
@@ -38,13 +37,18 @@ public:
 }   // namespace anonymous
 
 
-Stmt CSE(Stmt stmt, Stmt src)
+Stmt CSE(Stmt stmt, Stmt src, Array < Buffer > arg_list)
 {
         // LOG(INFO) << "stmt: " << stmt;
         // LOG(INFO) << "src: "  << src;
 
         IRPreOrderVisitor().Visit(stmt);
         // IRPreOrderVisitor().Visit(src);
+
+        for (const auto & buffer : arg_list)
+        {
+                LOG(INFO) << buffer;
+        }
 
         return stmt;
 }

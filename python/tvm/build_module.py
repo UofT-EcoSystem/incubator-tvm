@@ -429,7 +429,7 @@ def lower(sch,
     
     # <bojian/TVM-AutoDiff> CSE
     if src is not None:
-        stmt = ir_pass.CSE(stmt, src)
+        stmt = ir_pass.CSE(stmt, src, arg_list)
 
     if simple_mode:
         return stmt
