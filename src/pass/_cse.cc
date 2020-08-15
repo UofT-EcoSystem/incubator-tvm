@@ -338,18 +338,19 @@ public:
                         return;
                 }
                 _visited_nodes.insert(node.get());
-                LOG(INFO) << "Visiting node " << node;
-                IRAssociativePreOrderVisitor ir_pre_order_visitor (
-                        [&node, this](const NodeRef & src_node)
-                        {
-                                // LOG(INFO) << "Comparing with source node "
-                                //           << src_node;
-                                if (this->_cmp.Compare(node, src_node))
-                                {
-                                        LOG(INFO) << node << " == " << src_node;
-                                }
-                        });
-                ir_pre_order_visitor.Visit(_src_expr);
+                LOG(INFO) << "Visiting [" << node->GetTypeKey() << "] " 
+                          << node;
+                // IRAssociativePreOrderVisitor ir_pre_order_visitor (
+                //         [&node, this](const NodeRef & src_node)
+                //         {
+                //                 // LOG(INFO) << "Comparing with source node "
+                //                 //           << src_node;
+                //                 if (this->_cmp.Compare(node, src_node))
+                //                 {
+                //                         LOG(INFO) << node << " == " << src_node;
+                //                 }
+                //         });
+                // ir_pre_order_visitor.Visit(_src_expr);
                 IRVisitor::Visit(node);
         }
 };  // class CSEVisitors
