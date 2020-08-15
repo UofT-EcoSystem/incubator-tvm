@@ -401,6 +401,19 @@ void TensorVisitor::Visit(const NodeRef & node)
  */
 
 
+std::string IterVars2Str(const Array < IterVar > & iter_vars)
+{
+        std::ostringstream strout;
+        strout << "[";
+        for (const IterVar & iter_var : iter_vars)
+        {
+                strout << iter_var << ", ";
+        }
+        strout << "]";
+        return strout.str();
+}
+
+
 class TensorPostOrderVisitor
 {
 private:
@@ -425,6 +438,9 @@ public:
                         if (tensor->op->name == "X_red")
                         {
                                 LOG(INFO) << tensor->op;
+                                LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
+                                LOG(INFO) << "reduce_axis : "
+                                          << IterVars2Str(compute_op->reduce_axis);
                         }
                 }
         }
