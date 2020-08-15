@@ -9,6 +9,11 @@
 #include "./_cse.h"
 
 
+namespace tvm {
+namespace ir {
+namespace {
+
+/*
 #define CHECKPOINT_RETURN 0
 
 #if CHECKPOINT_RETURN
@@ -21,10 +26,6 @@
 #else
 #define RETURN(v)  return v
 #endif
-
-namespace tvm {
-namespace ir {
-namespace {
 
 
 class IRComparator
@@ -306,7 +307,7 @@ public:
                 _f(node);
                 IRVisitor::Visit(node);
         }
-};
+};  // class IRAssociativePreOrderVisit
 
 
 void IRAssociativePreOrderVisitor::Visit_(const Call * op) 
@@ -354,11 +355,69 @@ public:
                 IRVisitor::Visit(node);
         }
 };  // class CSEVisitors
+ */
+
+
+class TensorVisitor : public IRVisitor
+{
+private:
+        void Visit_(const PlaceholderOpNode * const op);
+        void Visit_(const ComputeOpNode * const op);
+protected:
+        std::unordered_set < const Node * > _visited_nodes;
+public:
+        TensorVisitor() {}
+        void Visit_(const Call * op) override;
+        void Visit (const NodeRef & node) override
+        {
+                if (_visited_nodes.count(node.get()) != 0)
+                {
+                        return;
+                }
+                _visited_nodes.insert(node.get());
+                if (const ComputeOpNode * compute_op =
+                    node.as < ComputeOpNode > ())
+                {
+                        Visit_(compute_op);
+                        return;
+                }
+                if (const PlaceholderOpNode * placeholder_op = 
+                    node.as < PlaceholderOpNode > ())
+                {
+                        Visit_(placeholder_op);
+                        return;
+                }
+                IRVisitor::Visit(node);
+        }
+};
+
+
+void TensorVisitor::Visit_(const PlaceholderOpNode * const op)
+{
+        LOG(INFO) << "Visiting placeholder op "
+                  << op->name;
+}
+
+
+void TensorVisitor::Visit_(const ComputeOpNode * const op)
+{
+        LOG(INFO) << "Visiting compute op " << op->name;
+}
+
+
+void TensorVisitor::Visit_(const Call * op)
+{
+        if (op->call_type == Call::CallType::Halide)
+        {
+                Visit(op->func);
+        }
+}
 
 
 }   // namespace anonymous
 
 
+/*
 void _CSE(const Tensor & src, Tensor * const ptgt)
 {
         Tensor & tgt = *ptgt;
@@ -403,6 +462,29 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         }
         CSEVisitor(src_compute_op->body[src->value_index])
             .Visit(tgt_compute_op->body[(*ptgt)->value_index]);
+}
+ */
+
+
+void _CSE(const Tensor & src, Tensor * const ptgt)
+{
+        Tensor & tgt = *ptgt;
+
+        // TODO: We limit the scope of analysis to compute.gamma.grad, but will
+        //       remove this limitation in later stages.
+        if (tgt->op->name != "compute.gamma.grad")
+        {
+                return;
+        }
+
+        if (const ComputeOpNode * compute_op =
+            (*ptgt)->op.as < ComputeOpNode > ())
+        {
+                for (const auto & axis : compute_op->axis)
+                {
+                        LOG(INFO) << 
+                }
+        }
 }
 
 
