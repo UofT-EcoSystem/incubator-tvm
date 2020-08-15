@@ -422,6 +422,10 @@ public:
                                 Visit(input_tensor);
                         }
                         LOG(INFO) << tensor;
+                        if (tensor->op->name == "X_red")
+                        {
+                                LOG(INFO) << tensor->op;
+                        }
                 }
         }
 };
