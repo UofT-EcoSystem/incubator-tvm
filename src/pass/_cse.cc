@@ -484,44 +484,76 @@ struct TensorExpr
 class TensorExprConstructor
 {
 private:
-        std::unordered_map < FunctionRef, TensorExprPtr > _visited_tensors;
+        std::unordered_map < FunctionRef, TensorExprPtr > _tensor_expr_map;
         std::unordered_map < NodeRef, 
-                             TensorExprPtr > _visited_nodes;
+                             TensorExprPtr > _node_tensorexpr_map;
 public:
         using FVisit
-                = NodeFunctor < void(const ObjectRef &, 
-                                TensorExprConstructor *) >;
+                = NodeFunctor < void(TensorExprConstructor * const, const ObjectRef &) >;
+        using FConstruct
+                = NodeFunctor < TensorExprPtr(TensorExprConstructor * const,
+                                              const ObjectRef &)
+                              >;
         static FVisit & vtable() { static FVisit inst; return inst; }
-        bool _Visit(const Call * const op) {}
-        bool _Visit(const Add * const op) {}
-        bool _Visit(const Sub * const op) {}
-        bool _Visit(const Mul * const op) {}
-        bool _Visit(const Div * const op) {}
-        bool _Visit(const Reduce * const op) {}
-        bool _Visit(const IntImm * const imm) {}
-        bool _Visit(const UIntImm * const imm) {}
-        bool _Visit(const FloatImm * const imm) {}
+        static FConstruct & ctable()
+        {
+                static FConstruct inst;
+                return inst;
+        }
+
+        void _Visit(const Call * const op)
+        {
+
+        }
+
+#define DEFINE_BINARY_OP_VISIT(Op)                                              \
+        void _Visit(const Op * const op)                                        \
+        {                                                                       \
+                Visit(op->a);                                                   \
+                Visit(op->b);                                                   \
+        }
+        DEFINE_BINARY_OP_VISIT(Add)
+        DEFINE_BINARY_OP_VISIT(Sub)
+        DEFINE_BINARY_OP_VISIT(Mul)
+        DEFINE_BINARY_OP_VISIT(Div)
+
+        bool _Visit(const Reduce * const op)
+        {
+
+        }
+
+#define DEFINE_IMM_VISIT(Imm)                                                   \
+        void _Visit(const Imm * const imm) {}
+        DEFINE_IMM_VISIT(IntImm)
+        DEFINE_IMM_VISIT(UIntImm)
+        DEFINE_IMM_VISIT(FloatImm)
+
                 
         void Visit(const NodeRef & node)
         {
-                static const FVisit & f = vtable();
+                static const FVisit & fvisit = vtable();
+                static const FConstruct & fconstruct = ctable();
                 if (node.defined() && 
-                    _visited_nodes.find(node) == _visited_nodes.end())
+                    (_node_tensorexpr_map.find(node) ==
+                     _node_tensorexpr_map.end()))
                 {
-                        _visited_nodes.emplace(node.get(), TensorExpr());
-                        f(node, this);
+                        TensorExprPtr & tensor_expr
+                                = _node_tensorexpr_map.emplace(node.get(), nullptr)
+                                  .first->second;
+                        fvisit(this, node);
+                        tensor_expr = Construct(this, node);
                 }
         }
 
 
         void VisitTensor(const Tensor & tensor)
         {
-                if (_visited_tensors.count(tensor->op))
+                if (_tensor_expr_map.count(tensor->op))
                 {
                         return;
                 }
                 TensorExprPtr & tensor_expr
-                        = _visited_tensors.emplace(
+                        = _tensor_expr_map.emplace(
                                 tensor->op, nullptr).first->second;
                 
                 if (const ComputeOpNode * compute_op =
@@ -535,7 +567,8 @@ public:
                         const Expr & body_stmt
                                 = compute_op->body[tensor->value_index];
                         Visit(body_stmt);
-                        tensor_expr = _visited_nodes.at(body_stmt);
+                        tensor_expr = _node_tensorexpr_map.at(body_stmt);
+                        CHECK(tensor_expr != nullptr);
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
                 {
@@ -544,14 +577,16 @@ public:
                 }
                 else
                 {
-                        LOG(FATAL) << "Unknown tensor op type " << tensor->op->GetTypeKey();
+                        LOG(FATAL) << "Unknown tensor op type: "
+                                   << tensor->op->GetTypeKey();
                 }  // if (tensor->op.as < ComputeOpNode > ())
         }
 };
 
 
 #define DISPATCH_TO_VISIT(Op)                                                   \
-        set_dispatch < Op > ([](const ObjectRef & node, TensorExprConstructor * v)  \
+        set_dispatch < Op > ([](TensorExprConstructor * const v,                \
+                                const ObjectRef & node)                         \
                 {                                                               \
                         v->_Visit(static_cast < const Op * > (node.get()));     \
                 })
