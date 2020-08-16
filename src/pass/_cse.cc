@@ -469,18 +469,33 @@ std::string IterVars2Str(const Array < IterVar > & iter_vars)
 namespace {
 
 
+struct TensorExpr
+{
+        std::vector < const TensorExpr * > operands;
+        NodeRef op;
+};
+
+
 class TensorPostOrderVisitor
 {
 private:
-        std::unordered_set < Tensor > _visited_tensors;
+        std::unordered_map < Tensor, TensorExpr > _visited_tensors;
 public:
+        /// @brief Reduction
+
+        /// @brief Injective Compute Operation
+        void VisitInjective(const ComputeOpNode * const compute_op, 
+                            const int value_index)
+        {
+                
+        }
         void Visit(const Tensor & tensor)
         {
                 if (_visited_tensors.count(tensor))
                 {
                         return;
                 }
-                _visited_tensors.insert(tensor);
+                auto iter = _visited_tensors.emplace(tensor, TensorExpr()).first;
                 if (const ComputeOpNode * compute_op =
                     tensor->op.as < ComputeOpNode > ()) 
                 {
@@ -510,16 +525,16 @@ public:
                                                     ->GetTypeKey() << "] "
                                           << compute_op->body[tensor->value_index];
                         }
+                }  // if (tensor->op.as < ComputeOpNode > ())
+                else if (tensor->op.as < PlaceholderOpNode > ())
+                {
+                        iter->second.op = tensor->op;
                 }
+                else
+                {
+                        LOG(FATAL) << "Unknown tensor op type " << tensor->op->GetTypeKey();
+                }  // if (tensor->op.as < ComputeOpNode > ())
         }
-};
-
-
-/// @brief 
-struct TensorExpr
-{
-        std::vector < const TensorExpr * > operands;
-        NodeRef op;
 };
 
 
