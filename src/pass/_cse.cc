@@ -469,28 +469,60 @@ std::string IterVars2Str(const Array < IterVar > & iter_vars)
 namespace {
 
 
+struct TensorExpr;
+
+typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
+
 struct TensorExpr
 {
         NodeRef op;
-        std::vector < const TensorExpr * > operands;
+        std::vector < TensorExprPtr > operands;
 };
 
 
-class TensorExprConstructor : public IRVisitor
+
+class TensorExprConstructor
 {
 private:
-        std::unordered_map < Tensor, TensorExpr > _visited_tensors;
+        std::unordered_map < FunctionRef, TensorExprPtr > _visited_tensors;
+        std::unordered_map < NodeRef, 
+                             TensorExprPtr > _visited_nodes;
 public:
+        using FVisit
+                = NodeFunctor < void(const ObjectRef &, 
+                                TensorExprConstructor *) >;
+        static FVisit & vtable() { static FVisit inst; return inst; }
+        bool _Visit(const Call * const op) {}
+        bool _Visit(const Add * const op) {}
+        bool _Visit(const Sub * const op) {}
+        bool _Visit(const Mul * const op) {}
+        bool _Visit(const Div * const op) {}
+        bool _Visit(const Reduce * const op) {}
+        bool _Visit(const IntImm * const imm) {}
+        bool _Visit(const UIntImm * const imm) {}
+        bool _Visit(const FloatImm * const imm) {}
+                
+        void Visit(const NodeRef & node)
+        {
+                static const FVisit & f = vtable();
+                if (node.defined() && 
+                    _visited_nodes.find(node) == _visited_nodes.end())
+                {
+                        _visited_nodes.emplace(node.get(), TensorExpr());
+                        f(node, this);
+                }
+        }
+
 
         void VisitTensor(const Tensor & tensor)
         {
-                if (_visited_tensors.count(tensor))
+                if (_visited_tensors.count(tensor->op))
                 {
                         return;
                 }
-                auto tensor_expr
-                        = _visited_tensors.emplace(tensor, TensorExpr()).first;
-                NodeRef & tensor_expr_op = tensor_expr->second.op;
+                TensorExprPtr & tensor_expr
+                        = _visited_tensors.emplace(
+                                tensor->op, nullptr).first->second;
                 
                 if (const ComputeOpNode * compute_op =
                     tensor->op.as < ComputeOpNode > ()) 
@@ -500,11 +532,15 @@ public:
                         {
                                 VisitTensor(input_tensor);
                         }
-                        tensor_expr_op = compute_op->body[tensor->value_index];
+                        const Expr & body_stmt
+                                = compute_op->body[tensor->value_index];
+                        Visit(body_stmt);
+                        tensor_expr = _visited_nodes.at(body_stmt);
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
                 {
-                        tensor_expr_op = tensor->op;
+                        tensor_expr = std::make_shared < TensorExpr >();
+                        tensor_expr->op = tensor->op;
                 }
                 else
                 {
@@ -512,6 +548,22 @@ public:
                 }  // if (tensor->op.as < ComputeOpNode > ())
         }
 };
+
+
+#define DISPATCH_TO_VISIT(Op)                                                   \
+        set_dispatch < Op > ([](const ObjectRef & node, TensorExprConstructor * v)  \
+                {                                                               \
+                        v->_Visit(static_cast < const Op * > (node.get()));     \
+                })
+TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, vtable)
+        .DISPATCH_TO_VISIT(Call)
+        .DISPATCH_TO_VISIT(Add)
+        .DISPATCH_TO_VISIT(Mul)
+        .DISPATCH_TO_VISIT(Div)
+        .DISPATCH_TO_VISIT(Reduce)
+        .DISPATCH_TO_VISIT(IntImm)
+        .DISPATCH_TO_VISIT(UIntImm)
+        .DISPATCH_TO_VISIT(FloatImm);
 
 
 }  // namespace anonymous
@@ -528,38 +580,6 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
         TensorExprConstructor().VisitTensor(src);
-        // TensorExprConstructor().Visit(tgt);
-        /*
-        std::queue < Tensor > worklist;
-        std::unordered_set < Tensor > visited_tensors; 
-        worklist.push(tgt);
-        for (; !worklist.empty(); worklist.pop())
-        {
-                const Tensor & workitem = worklist.front();
-
-                if (visited_tensors.count(workitem) != 0)
-                {
-                        // continue;
-                }
-                visited_tensors.insert(workitem);
-
-                LOG(INFO) << "Visiting Tensor " << workitem->op->name;
-                if (const ComputeOpNode * compute_op =
-                    workitem->op.as < ComputeOpNode > ()) 
-                {
-                        LOG(INFO) << "Visiting [ComputeOp] " << workitem->op;
-                        for (const Tensor & input : compute_op->InputTensors())
-                        {
-                                worklist.push(input);
-                        }
-                }
-                if (const PlaceholderOpNode * placeholder_op = 
-                    workitem->op.as < PlaceholderOpNode > ())
-                {
-                        LOG(INFO) << "Visiting [PlaceholderOp] " << workitem->op;
-                }
-        }  // for (workitem ∈ worklist)
-         */
 }
 
 
