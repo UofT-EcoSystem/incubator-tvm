@@ -522,7 +522,6 @@ public:
                 {
                         expr->operands.push_back(Construct(op->args[0]));
                 }
-                LOG(FATAL) << "NOT Implemented";
         }
 
 #define DEFINE_BINARY_OP_CSTR(Op)                                               \
@@ -619,6 +618,7 @@ public:
                                 TensorExpr * const expr,                        \
                                 TensorExprConstructor * const v)                \
                 {                                                               \
+                        LOG(INFO) << "Constructing from " << node;              \
                         v->_Construct(static_cast < const Op * > (node.get()),  \
                                       expr);                                    \
                 })
