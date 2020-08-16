@@ -401,65 +401,6 @@ void TensorVisitor::Visit(const NodeRef & node)
  */
 
 
-std::string IterVars2Str(const Array < IterVar > & iter_vars)
-{
-        std::ostringstream strout;
-        strout << "[";
-        for (const IterVar & iter_var : iter_vars)
-        {
-                strout << iter_var << ", ";
-        }
-        strout << "]";
-        return strout.str();
-}
-
-
-class TensorPostOrderVisitor
-{
-private:
-        std::unordered_set < Tensor > _visited_tensors;
-public:
-        void Visit(const Tensor & tensor)
-        {
-                if (_visited_tensors.count(tensor))
-                {
-                        return;
-                }
-                _visited_tensors.insert(tensor);
-                if (const ComputeOpNode * compute_op =
-                    tensor->op.as < ComputeOpNode > ()) 
-                {
-                        for (const Tensor & input_tensor : 
-                             compute_op->InputTensors())
-                        {
-                                Visit(input_tensor);
-                        }
-                        LOG(INFO) << tensor;
-                        if (tensor->op->name == "X_red")
-                        {
-                                LOG(INFO) << tensor->op;
-                                LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
-                                LOG(INFO) << "reduce_axis : "
-                                          << IterVars2Str(compute_op->reduce_axis);
-                                LOG(INFO) << "body : " << compute_op->body[tensor->value_index];
-                        }
-                        if (compute_op->reduce_axis.size())
-                        {
-                                CHECK(compute_op->body[tensor->value_index]
-                                      .as < Reduce >())
-                                      << "Body statement must be a reduce node";
-                        }
-                        else 
-                        {
-                                LOG(INFO) << "[" << compute_op->body[tensor->value_index]
-                                                    ->GetTypeKey() << "] "
-                                          << compute_op->body[tensor->value_index];
-                        }
-                }
-        }
-};
-
-
 }   // namespace anonymous
 
 
@@ -510,6 +451,79 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
             .Visit(tgt_compute_op->body[(*ptgt)->value_index]);
 }
  */
+
+
+std::string IterVars2Str(const Array < IterVar > & iter_vars)
+{
+        std::ostringstream strout;
+        strout << "[";
+        for (const IterVar & iter_var : iter_vars)
+        {
+                strout << iter_var << ", ";
+        }
+        strout << "]";
+        return strout.str();
+}
+
+
+namespace {
+
+
+class TensorPostOrderVisitor
+{
+private:
+        std::unordered_set < Tensor > _visited_tensors;
+public:
+        void Visit(const Tensor & tensor)
+        {
+                if (_visited_tensors.count(tensor))
+                {
+                        return;
+                }
+                _visited_tensors.insert(tensor);
+                if (const ComputeOpNode * compute_op =
+                    tensor->op.as < ComputeOpNode > ()) 
+                {
+                        for (const Tensor & input_tensor : 
+                             compute_op->InputTensors())
+                        {
+                                Visit(input_tensor);
+                        }
+                        LOG(INFO) << tensor;
+                        if (tensor->op->name == "X_red")
+                        {
+                                LOG(INFO) << tensor->op;
+                                LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
+                                LOG(INFO) << "reduce_axis : "
+                                          << IterVars2Str(compute_op->reduce_axis);
+                                LOG(INFO) << "body : " << compute_op->body[tensor->value_index];
+                        }
+                        if (compute_op->reduce_axis.size())
+                        {
+                                CHECK(compute_op->body[tensor->value_index]
+                                      .as < Reduce >())
+                                      << "Body statement must be a reduce node";
+                        }
+                        else 
+                        {
+                                LOG(INFO) << "[" << compute_op->body[tensor->value_index]
+                                                    ->GetTypeKey() << "] "
+                                          << compute_op->body[tensor->value_index];
+                        }
+                }
+        }
+};
+
+
+/// @brief 
+struct TensorExpr
+{
+        std::vector < const TensorExpr * > operands;
+        NodeRef op;
+};
+
+
+}  // namespace anonymous
 
 
 void _CSE(const Tensor & src, Tensor * const ptgt)
