@@ -469,16 +469,27 @@ std::string IterVars2Str(const Array < IterVar > & iter_vars)
 namespace {
 
 
-struct TensorExpr;
-
-typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
-
 struct TensorExpr
 {
         NodeRef op;
-        std::vector < TensorExprPtr > operands;
+        std::vector < std::shared_ptr < TensorExpr > > operands;
+        
+        std::string toString(const unsigned indent = 0)
+        {
+                std::ostringstream strout;
+                for (unsigned i = 0; i < indent; ++i)
+                {
+                        strout << " ";
+                }
+                strout << op << "\n";
+                for (const auto & operand : operands)
+                {
+                        strout << operand->toString(indent + 2);
+                }
+                return strout.str();
+        }
 };
-
+typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
 
 
 class TensorExprConstructor
@@ -522,7 +533,9 @@ public:
         }
 
 #define DEFINE_IMM_CSTR(Imm)                                                    \
-        void _Construct(const Imm * const imm, TensorExpr * const expr) {}
+        void _Construct(const Imm * const imm,                                  \
+                        TensorExpr * const expr)                                \
+        {}
         DEFINE_IMM_CSTR(IntImm)
         DEFINE_IMM_CSTR(UIntImm)
         DEFINE_IMM_CSTR(FloatImm)
@@ -583,6 +596,8 @@ public:
                         LOG(FATAL) << "Unknown tensor op type: "
                                    << tensor->op->GetTypeKey();
                 }  // if (tensor->op.as < ComputeOpNode > ())
+                LOG(INFO) << "Tensor [" << tensor << "]";
+                LOG(INFO) << tensor_expr->toString();
         }
 };
 
