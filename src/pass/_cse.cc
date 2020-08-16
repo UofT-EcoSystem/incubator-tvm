@@ -489,72 +489,61 @@ private:
         std::unordered_map < const Node *, 
                              TensorExprPtr > _node_tensorexpr_map;
 public:
-        using FVisit
-                = NodeFunctor < void(const ObjectRef &, TensorExprConstructor * const) >;
         using FConstruct
-                = NodeFunctor < TensorExprPtr(const ObjectRef &,
-                                              TensorExprConstructor * const)
+                = NodeFunctor < void(const ObjectRef &,
+                                     TensorExpr * const,
+                                     TensorExprConstructor * const)
                               >;
-        static FVisit & vtable() { static FVisit inst; return inst; }
-        static FConstruct & ctable()
+        static FConstruct & cstrtable() { static FConstruct inst; return inst; }
+
+        void _Construct(const Call * const op,
+                        TensorExpr * const expr)
         {
-                static FConstruct inst;
-                return inst;
+                return;
         }
 
-        void _Visit(const Call * const op)
-        {
-
-        }
-        TensorExprPtr _Construct(const Call * const op)
-        {
-                return nullptr;
-        }
-
-#define DEFINE_BINARY_OP_VISIT(Op)                                              \
-        void _Visit(const Op * const op)                                        \
-        {                                                                       \
-                Visit(op->a);                                                   \
-                Visit(op->b);                                                   \
-        }
-        DEFINE_BINARY_OP_VISIT(Add)
-        DEFINE_BINARY_OP_VISIT(Sub)
-        DEFINE_BINARY_OP_VISIT(Mul)
-        DEFINE_BINARY_OP_VISIT(Div)
-#define DEFINE_BINARY_OP_CONSTRUCT(Op)                                          \
-        TensorExprPtr _Construct(const Op * const op)                           \
+#define DEFINE_BINARY_OP_CSTR(Op)                                               \
+        void _Construct(const Op * const op,                                    \
+                        TensorExpr * const expr)                                \
         {                                                                       \
                 expr->operands.push_back(Construct(op->a));                     \
                 expr->operands.push_back(Construct(op->b));                     \
         }
+        DEFINE_BINARY_OP_CSTR(Add)
+        DEFINE_BINARY_OP_CSTR(Sub)
+        DEFINE_BINARY_OP_CSTR(Mul)
+        DEFINE_BINARY_OP_CSTR(Div)
 
 
-        void _Visit(const Reduce * const op)
+        void _Construct(const Reduce * const op,
+                        TensorExpr * const expr)
         {
 
         }
 
-#define DEFINE_IMM_VISIT(Imm)                                                   \
-        void _Visit(const Imm * const imm) {}
-        DEFINE_IMM_VISIT(IntImm)
-        DEFINE_IMM_VISIT(UIntImm)
-        DEFINE_IMM_VISIT(FloatImm)
+#define DEFINE_IMM_CSTR(Imm)                                                    \
+        void _Construct(const Imm * const imm, TensorExpr * const expr) {}
+        DEFINE_IMM_CSTR(IntImm)
+        DEFINE_IMM_CSTR(UIntImm)
+        DEFINE_IMM_CSTR(FloatImm)
 
                 
-        void Visit(const NodeRef & node)
+        TensorExprPtr Construct(const NodeRef & node)
         {
-                static const FVisit & fvisit = vtable();
-                static const FConstruct & fconstruct = ctable();
+                static const FConstruct & fconstruct = cstrtable();
+                auto node_tensorexpr_map_iter
+                        = _node_tensorexpr_map.find(node.get());
                 if (node.defined() && 
-                    (_node_tensorexpr_map.find(node.get()) ==
-                     _node_tensorexpr_map.end()))
+                    node_tensorexpr_map_iter == _node_tensorexpr_map.end())
                 {
                         TensorExprPtr & tensor_expr
-                                = _node_tensorexpr_map.emplace(node.get(), nullptr)
+                                = _node_tensorexpr_map.emplace(node.get(), new TensorExpr())
                                   .first->second;
-                        fvisit(node, this);
-                        tensor_expr = fconstruct(node, this);
+                        tensor_expr->op = node;
+                        fconstruct(node, tensor_expr.get(), this);
+                        return tensor_expr;
                 }
+                return node_tensorexpr_map_iter->second;
         }
 
 
@@ -582,9 +571,7 @@ public:
                         }
                         const Expr & body_stmt
                                 = compute_op->body[tensor->value_index];
-                        Visit(body_stmt);
-                        tensor_expr = _node_tensorexpr_map.at(body_stmt.get());
-                        CHECK(tensor_expr != nullptr);
+                        tensor_expr = Construct(body_stmt);
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
                 {
@@ -600,21 +587,23 @@ public:
 };
 
 
-#define DISPATCH_TO_VISIT(Op)                                                   \
+#define DISPATCH_TO_CSTR(Op)                                                    \
         set_dispatch < Op > ([](const ObjectRef & node,                         \
+                                TensorExpr * const expr,                        \
                                 TensorExprConstructor * const v)                \
                 {                                                               \
-                        v->_Visit(static_cast < const Op * > (node.get()));     \
+                        v->_Construct(static_cast < const Op * > (node.get()),  \
+                                      expr);                                    \
                 })
-TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, vtable)
-        .DISPATCH_TO_VISIT(Call)
-        .DISPATCH_TO_VISIT(Add)
-        .DISPATCH_TO_VISIT(Mul)
-        .DISPATCH_TO_VISIT(Div)
-        .DISPATCH_TO_VISIT(Reduce)
-        .DISPATCH_TO_VISIT(IntImm)
-        .DISPATCH_TO_VISIT(UIntImm)
-        .DISPATCH_TO_VISIT(FloatImm);
+TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
+        .DISPATCH_TO_CSTR(Call)
+        .DISPATCH_TO_CSTR(Add)
+        .DISPATCH_TO_CSTR(Mul)
+        .DISPATCH_TO_CSTR(Div)
+        .DISPATCH_TO_CSTR(Reduce)
+        .DISPATCH_TO_CSTR(IntImm)
+        .DISPATCH_TO_CSTR(UIntImm)
+        .DISPATCH_TO_CSTR(FloatImm);
 
 
 }  // namespace anonymous
