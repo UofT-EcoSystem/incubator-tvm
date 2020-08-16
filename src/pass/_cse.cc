@@ -522,6 +522,9 @@ public:
                 {
                         expr->operands.push_back(Construct(op->args[0]));
                 }
+                LOG(INFO) << "call_type=" << op->call_type;
+                LOG(INFO) << "name=" << op->name;
+                LOG(INFO) << "func=" << op->func;
         }
 
 #define DEFINE_BINARY_OP_CSTR(Op)                                               \
@@ -618,7 +621,6 @@ public:
                                 TensorExpr * const expr,                        \
                                 TensorExprConstructor * const v)                \
                 {                                                               \
-                        LOG(INFO) << "Constructing from " << node;              \
                         v->_Construct(static_cast < const Op * > (node.get()),  \
                                       expr);                                    \
                 })
