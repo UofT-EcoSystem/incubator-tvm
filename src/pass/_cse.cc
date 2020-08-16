@@ -484,8 +484,9 @@ struct TensorExpr
 class TensorExprConstructor
 {
 private:
-        std::unordered_map < FunctionRef, TensorExprPtr > _tensor_expr_map;
-        std::unordered_map < NodeRef, 
+        std::unordered_map < const FunctionBaseNode *,
+                             TensorExprPtr > _tensor_expr_map;
+        std::unordered_map < const Node *, 
                              TensorExprPtr > _node_tensorexpr_map;
 public:
         using FVisit
@@ -534,27 +535,31 @@ public:
                 static const FVisit & fvisit = vtable();
                 static const FConstruct & fconstruct = ctable();
                 if (node.defined() && 
-                    (_node_tensorexpr_map.find(node) ==
+                    (_node_tensorexpr_map.find(node.get()) ==
                      _node_tensorexpr_map.end()))
                 {
                         TensorExprPtr & tensor_expr
                                 = _node_tensorexpr_map.emplace(node.get(), nullptr)
                                   .first->second;
                         fvisit(this, node);
-                        tensor_expr = Construct(this, node);
+                        // tensor_expr = Construct(this, node);
                 }
         }
 
 
         void VisitTensor(const Tensor & tensor)
         {
-                if (_tensor_expr_map.count(tensor->op))
+                const FunctionBaseNode * tensor_op_func
+                        = tensor->op.as < FunctionBaseNode > ();
+                CHECK(tensor_op_func != nullptr);
+
+                if (_tensor_expr_map.count(tensor_op_func))
                 {
                         return;
                 }
                 TensorExprPtr & tensor_expr
                         = _tensor_expr_map.emplace(
-                                tensor->op, nullptr).first->second;
+                                tensor_op_func, nullptr).first->second;
                 
                 if (const ComputeOpNode * compute_op =
                     tensor->op.as < ComputeOpNode > ()) 
@@ -567,7 +572,7 @@ public:
                         const Expr & body_stmt
                                 = compute_op->body[tensor->value_index];
                         Visit(body_stmt);
-                        tensor_expr = _node_tensorexpr_map.at(body_stmt);
+                        tensor_expr = _node_tensorexpr_map.at(body_stmt.get());
                         CHECK(tensor_expr != nullptr);
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
