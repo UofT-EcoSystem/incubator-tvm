@@ -651,6 +651,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
                 return;
         }
         TensorExprConstructor().VisitTensor(src);
+        TensorExprConstructor().VisitTensor(tgt);
 }
 
 
