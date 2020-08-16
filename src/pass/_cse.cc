@@ -506,6 +506,10 @@ public:
         {
 
         }
+        TensorExprPtr _Construct(const Call * const op)
+        {
+                return nullptr;
+        }
 
 #define DEFINE_BINARY_OP_VISIT(Op)                                              \
         void _Visit(const Op * const op)                                        \
@@ -517,6 +521,13 @@ public:
         DEFINE_BINARY_OP_VISIT(Sub)
         DEFINE_BINARY_OP_VISIT(Mul)
         DEFINE_BINARY_OP_VISIT(Div)
+#define DEFINE_BINARY_OP_CONSTRUCT(Op)                                          \
+        TensorExprPtr _Construct(const Op * const op)                           \
+        {                                                                       \
+                expr->operands.push_back(Construct(op->a));                     \
+                expr->operands.push_back(Construct(op->b));                     \
+        }
+
 
         void _Visit(const Reduce * const op)
         {
