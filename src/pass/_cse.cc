@@ -511,6 +511,13 @@ public:
         void _Construct(const Call * const op,
                         TensorExpr * const expr)
         {
+                if (op->call_type == Call::CallType::Halide)
+                {
+                        const FunctionBaseNode * call_func
+                                = op->func.as < FunctionBaseNode > ();
+                        CHECK(call_func != nullptr);
+                        *expr = *_tensor_expr_map.at(call_func);
+                }
                 return;
         }
 
