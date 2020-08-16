@@ -526,11 +526,11 @@ public:
         DEFINE_BINARY_OP_CSTR(Mul)
         DEFINE_BINARY_OP_CSTR(Div)
 
-
         void _Construct(const Reduce * const op,
                         TensorExpr * const expr)
         {
-
+                expr->operands.push_back(
+                        Construct(op->source[op->value_index]));
         }
 
 #define DEFINE_IMM_CSTR(Imm)                                                    \
