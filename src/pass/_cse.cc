@@ -490,10 +490,10 @@ private:
                              TensorExprPtr > _node_tensorexpr_map;
 public:
         using FVisit
-                = NodeFunctor < void(TensorExprConstructor * const, const ObjectRef &) >;
+                = NodeFunctor < void(const ObjectRef &, TensorExprConstructor * const) >;
         using FConstruct
-                = NodeFunctor < TensorExprPtr(TensorExprConstructor * const,
-                                              const ObjectRef &)
+                = NodeFunctor < TensorExprPtr(const ObjectRef &,
+                                              TensorExprConstructor * const)
                               >;
         static FVisit & vtable() { static FVisit inst; return inst; }
         static FConstruct & ctable()
@@ -541,8 +541,8 @@ public:
                         TensorExprPtr & tensor_expr
                                 = _node_tensorexpr_map.emplace(node.get(), nullptr)
                                   .first->second;
-                        fvisit(this, node);
-                        // tensor_expr = Construct(this, node);
+                        fvisit(node, this);
+                        tensor_expr = fconstruct(node, this);
                 }
         }
 
@@ -590,8 +590,8 @@ public:
 
 
 #define DISPATCH_TO_VISIT(Op)                                                   \
-        set_dispatch < Op > ([](TensorExprConstructor * const v,                \
-                                const ObjectRef & node)                         \
+        set_dispatch < Op > ([](const ObjectRef & node,                         \
+                                TensorExprConstructor * const v)                \
                 {                                                               \
                         v->_Visit(static_cast < const Op * > (node.get()));     \
                 })
