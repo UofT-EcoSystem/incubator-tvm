@@ -476,7 +476,7 @@ struct TensorExpr
 };
 
 
-class TensorPostOrderVisitor
+class TensorExprConstructor
 {
 private:
         std::unordered_map < Tensor, TensorExpr > _visited_tensors;
@@ -487,9 +487,9 @@ public:
         void VisitInjective(const ComputeOpNode * const compute_op, 
                             const int value_index)
         {
-                
+
         }
-        void Visit(const Tensor & tensor)
+        void VisitTensor(const Tensor & tensor)
         {
                 if (_visited_tensors.count(tensor))
                 {
@@ -502,28 +502,15 @@ public:
                         for (const Tensor & input_tensor : 
                              compute_op->InputTensors())
                         {
-                                Visit(input_tensor);
-                        }
-                        LOG(INFO) << tensor;
-                        if (tensor->op->name == "X_red")
-                        {
-                                LOG(INFO) << tensor->op;
-                                LOG(INFO) << "axis : " << IterVars2Str(compute_op->axis);
-                                LOG(INFO) << "reduce_axis : "
-                                          << IterVars2Str(compute_op->reduce_axis);
-                                LOG(INFO) << "body : " << compute_op->body[tensor->value_index];
+                                VisitTensor(input_tensor);
                         }
                         if (compute_op->reduce_axis.size())
                         {
-                                CHECK(compute_op->body[tensor->value_index]
-                                      .as < Reduce >())
-                                      << "Body statement must be a reduce node";
+                                // reduction
                         }
                         else 
                         {
-                                LOG(INFO) << "[" << compute_op->body[tensor->value_index]
-                                                    ->GetTypeKey() << "] "
-                                          << compute_op->body[tensor->value_index];
+                                // injective operation
                         }
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
@@ -551,8 +538,8 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-        TensorPostOrderVisitor().Visit(src);
-        TensorPostOrderVisitor().Visit(tgt);
+        TensorExprConstructor().VisitTensor(src);
+        // TensorExprConstructor().Visit(tgt);
         /*
         std::queue < Tensor > worklist;
         std::unordered_set < Tensor > visited_tensors; 
