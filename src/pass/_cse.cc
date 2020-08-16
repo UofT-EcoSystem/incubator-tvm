@@ -518,7 +518,11 @@ public:
                         CHECK(call_func != nullptr);
                         *expr = *_tensor_expr_map.at(call_func);
                 }
-                return;
+                else if (op->call_type == Call::CallType::PureIntrinsic)
+                {
+                        expr->operands.push_back(Construct(op->args[0]));
+                }
+                LOG(FATAL) << "NOT Implemented";
         }
 
 #define DEFINE_BINARY_OP_CSTR(Op)                                               \
