@@ -518,7 +518,7 @@ public:
         DEFINE_BINARY_OP_VISIT(Mul)
         DEFINE_BINARY_OP_VISIT(Div)
 
-        bool _Visit(const Reduce * const op)
+        void _Visit(const Reduce * const op)
         {
 
         }
