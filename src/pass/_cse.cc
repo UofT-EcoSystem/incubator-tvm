@@ -477,11 +477,11 @@ struct TensorExpr
         std::string toString(const unsigned indent = 0)
         {
                 std::ostringstream strout;
+                strout << op << "\n";
                 for (unsigned i = 0; i < indent; ++i)
                 {
                         strout << " ";
                 }
-                strout << op << "\n";
                 for (const auto & operand : operands)
                 {
                         strout << operand->toString(indent + 2);
