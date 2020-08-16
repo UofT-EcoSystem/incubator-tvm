@@ -522,9 +522,10 @@ public:
                 {
                         expr->operands.push_back(Construct(op->args[0]));
                 }
-                LOG(INFO) << "call_type=" << op->call_type;
-                LOG(INFO) << "name=" << op->name;
-                LOG(INFO) << "func=" << op->func;
+                else
+                {
+                        LOG(FATAL) << "NOT Implemented";
+                }
         }
 
 #define DEFINE_BINARY_OP_CSTR(Op)                                               \
