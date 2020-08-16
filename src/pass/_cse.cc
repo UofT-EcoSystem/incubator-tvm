@@ -471,31 +471,27 @@ namespace {
 
 struct TensorExpr
 {
-        std::vector < const TensorExpr * > operands;
         NodeRef op;
+        std::vector < const TensorExpr * > operands;
 };
 
 
-class TensorExprConstructor
+class TensorExprConstructor : public IRVisitor
 {
 private:
         std::unordered_map < Tensor, TensorExpr > _visited_tensors;
 public:
-        /// @brief Reduction
 
-        /// @brief Injective Compute Operation
-        void VisitInjective(const ComputeOpNode * const compute_op, 
-                            const int value_index)
-        {
-
-        }
         void VisitTensor(const Tensor & tensor)
         {
                 if (_visited_tensors.count(tensor))
                 {
                         return;
                 }
-                auto iter = _visited_tensors.emplace(tensor, TensorExpr()).first;
+                auto tensor_expr
+                        = _visited_tensors.emplace(tensor, TensorExpr()).first;
+                NodeRef & tensor_expr_op = tensor_expr->second.op;
+                
                 if (const ComputeOpNode * compute_op =
                     tensor->op.as < ComputeOpNode > ()) 
                 {
@@ -504,18 +500,11 @@ public:
                         {
                                 VisitTensor(input_tensor);
                         }
-                        if (compute_op->reduce_axis.size())
-                        {
-                                // reduction
-                        }
-                        else 
-                        {
-                                // injective operation
-                        }
+                        tensor_expr_op = compute_op->body[tensor->value_index];
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
                 {
-                        iter->second.op = tensor->op;
+                        tensor_expr_op = tensor->op;
                 }
                 else
                 {
