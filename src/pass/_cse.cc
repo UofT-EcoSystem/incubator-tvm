@@ -613,6 +613,7 @@ public:
 TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
         .DISPATCH_TO_CSTR(Call)
         .DISPATCH_TO_CSTR(Add)
+        .DISPATCH_TO_CSTR(Sub)
         .DISPATCH_TO_CSTR(Mul)
         .DISPATCH_TO_CSTR(Div)
         .DISPATCH_TO_CSTR(Reduce)
