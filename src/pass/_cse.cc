@@ -3,6 +3,7 @@
 #include <unordered_set>
 
 #include <tvm/expr.h>
+#include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/operation.h>
 
@@ -576,7 +577,7 @@ public:
         }
 
 
-        void VisitTensor(const Tensor & tensor)
+        void Visit(const Tensor & tensor)
         {
                 const FunctionBaseNode * tensor_op_func
                         = tensor->op.as < FunctionBaseNode > ();
@@ -596,7 +597,7 @@ public:
                         for (const Tensor & input_tensor : 
                              compute_op->InputTensors())
                         {
-                                VisitTensor(input_tensor);
+                                Visit(input_tensor);
                         }
                         const Expr & body_stmt
                                 = compute_op->body[tensor->value_index];
@@ -638,6 +639,25 @@ TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
         .DISPATCH_TO_CSTR(FloatImm);
 
 
+
+class TensorAutoInliner
+{
+private:
+
+public:
+        void Mutate(Tensor * const ptensor)
+        {
+                Tensor & tensor = *ptensor;
+
+                if (const ComputeOpNode * compute_op =
+                    tensor->op.as < ComputeOpNode > ()) 
+                {
+
+                }
+        }
+};
+
+
 }  // namespace anonymous
 
 
@@ -651,8 +671,8 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-        TensorExprConstructor().VisitTensor(src);
-        TensorExprConstructor().VisitTensor(tgt);
+        TensorExprConstructor().Visit(src);
+        TensorExprConstructor().Visit(tgt);
 }
 
 
