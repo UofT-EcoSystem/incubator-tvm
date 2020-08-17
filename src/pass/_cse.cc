@@ -754,6 +754,8 @@ public:
                                                 inliner.Mutate(Evaluate::make(
                                                        GetBodyStmt(o)
                                                 )).as < Evaluate > ()->value);
+                                        LOG(INFO) << "Inlining " << icompute_op->name << " into "
+                                                  << ocompute_op->name;
                                         LOG(INFO) << "New Body: " << new_body;
                                         _tensor_bodystmt_map[o] = ComputeOpNode::make(
                                                 ocompute_op->name,
