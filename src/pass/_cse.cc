@@ -712,9 +712,16 @@ public:
                                 inliner.func = (*ptensor)->op,
                                 inliner.args = args,
                                 inliner.body = compute_op->body[tensor->value_index];
-                                LOG(INFO) << inliner.Mutate(Evaluate::make(
+
+                                Expr new_body = Simplify(inliner.Mutate(Evaluate::make(
                                         parent_compute_op->body[parent->value_index]
-                                        ));
+                                        )).as < Evaluate > ()->value);
+                                ComputeOpNode::make(
+                                        parent_compute_op->name,
+                                        parent_compute_op->tag, 
+                                        parent_compute_op->attrs,
+                                        parent_compute_op->axis,
+                                        {new_body}).output(0);
                         }  // if (pparent != nullptr && 
                            //     compute_op->IsInjective())
                 }  // if (tensor->op.as < ComputeOpNode > ()) 
