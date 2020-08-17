@@ -640,10 +640,22 @@ TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
         .DISPATCH_TO_CSTR(FloatImm);
 
 
+typedef std::pair < Operation, int >  OpValueIdxPair;
+
+Expr OpValueIdxPair2BodyStmt(const OpValueIdxPair & op_valueidx_pair)
+{
+        const ComputeOpNode * compute_op
+                = op_valueidx_pair.first.as < ComputeOpNode > ();
+        CHECK(compute_op != nullptr);
+        return compute_op->body[op_valueidx_pair.second];
+}
+
+
 
 struct BodyStmtAutoInliner : public IRMutator
 {
-        FunctionRef func; Array < Var > args; Expr body;
+        FunctionRef func; Array < Var > args; 
+        std::pair < Operation, int > op_valueidx_pair;
 
         Expr Mutate_(const Call * op, const Expr & e) final
         {
@@ -653,17 +665,32 @@ struct BodyStmtAutoInliner : public IRMutator
                 if (op->func == this->func)
                 {
                         CHECK_EQ(op->value_index, 0);
-                        expr = this->body;
-                        CHECK_EQ(this->args.size(), op->args.size());
+                        CHECK_EQ(op->call_type, Call::CallType::Halide);
 
-                        Map < Var, Expr > vmap;
-                        for (size_t i = 0; i < this->args.size(); ++i)
+                        const ComputeOpNode * compute_op
+                                = op_valueidx_pair.first.as < ComputeOpNode > ();
+                        if (compute_op->reduce_axis.empty())
                         {
-                                vmap.Set(this->args[i], op->args[i]);
+                                expr = OpValueIdxPair2BodyStmt(op_valueidx_pair);
+                                CHECK_EQ(args.size(), op->args.size());
+
+                                Map < Var, Expr > vmap;
+                                for (size_t i = 0; i < this->args.size(); ++i)
+                                {
+                                        vmap.Set(this->args[i], op->args[i]);
+                                }
+                                expr = Substitute(Evaluate::make(expr), vmap)
+                                       .as < Evaluate > ()->value;
+                                return expr;
                         }
-                        expr = Substitute(Evaluate::make(expr), vmap)
-                               .as < Evaluate > ()->value;
-                        return expr;
+                        else 
+                        {
+                                return Call::make(op->type,
+                                                  op->name,
+                                                  op->args,
+                                                  op->call_type,
+                                                  op_valueidx_pair.first);
+                        }
                 }           
                 else
                 {
@@ -682,23 +709,18 @@ private:
                 _tensor_reverse_map;
         std::unordered_map < Tensor, Operation > _tensor_bodystmt_map;
 
-        Expr GetBodyStmt(const Tensor & tensor)
+        std::pair < Operation, int > GetOpValueIdxPair(const Tensor & tensor)
         {
                 auto iter = _tensor_bodystmt_map.find(tensor);
 
                 if (iter != _tensor_bodystmt_map.end())
                 {
-                        const ComputeOpNode * compute_op
-                                = iter->second.as < ComputeOpNode > ();
-                        CHECK(compute_op != nullptr);
-                        return compute_op->body[0];
+                        return std::make_pair(iter->second, 0);
                 }
                 else 
                 {
-                        const ComputeOpNode * compute_op
-                                = tensor->op.as < ComputeOpNode > ();
-                        CHECK(compute_op != nullptr);    
-                        return compute_op->body[tensor->value_index];
+                        return std::make_pair(tensor->op,
+                                              tensor->value_index);
                 }
         }
         void PostOrderVisit(const Tensor & tensor)
@@ -736,8 +758,7 @@ public:
                                 const ComputeOpNode
                                         * icompute_op = i->op.as < ComputeOpNode > (),
                                         * ocompute_op = o->op.as < ComputeOpNode > ();
-                                if (icompute_op != nullptr && ocompute_op != nullptr &&
-                                    icompute_op->reduce_axis.empty())
+                                if (icompute_op != nullptr && ocompute_op != nullptr)
                                 {
                                         Array < Var > args;
                                         for (const IterVar & iv : icompute_op->axis)
@@ -748,11 +769,11 @@ public:
 
                                         inliner.func = i->op,
                                         inliner.args = args,
-                                        inliner.body = GetBodyStmt(i);
+                                        inliner.op_valueidx_pair = GetOpValueIdxPair(i);
 
                                         Expr new_body = Simplify(
                                                 inliner.Mutate(Evaluate::make(
-                                                       GetBodyStmt(o)
+                                                       OpValueIdxPair2BodyStmt(GetOpValueIdxPair(o))
                                                 )).as < Evaluate > ()->value);
                                         LOG(INFO) << "Inlining " << icompute_op->name << " into "
                                                   << ocompute_op->name;
