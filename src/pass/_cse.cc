@@ -524,7 +524,8 @@ public:
                 }
                 else
                 {
-                        LOG(FATAL) << "NOT Implemented";
+                        LOG(FATAL) << "NOT Implemented for "
+                                   << GetRef < Expr > (op);
                 }
         }
 
