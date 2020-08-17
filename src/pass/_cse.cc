@@ -796,64 +796,6 @@ public:
 };
 
 
-/*
-class TensorAutoInliner
-{
-private:
-        std::unordered_map < Tensor, std::vector < Tensor > > _tensor_reverse_map;
-public:
-        void Mutate(Tensor * const ptensor,
-                    Tensor * const pparent = nullptr)
-        {
-                Tensor & tensor = *ptensor;
-                if (const ComputeOpNode * compute_op =
-                    tensor->op.as < ComputeOpNode > ()) 
-                {
-                        for (const auto & input_tensor :
-                             compute_op->InputTensors())
-                        {
-                                Tensor input_tensor_mutable = input_tensor;
-                                if (input_tensor->op.as < ComputeOpNode > ())
-                                {
-                                        Mutate(&input_tensor_mutable, ptensor);
-                                }
-                        }
-                        if (pparent != nullptr &&
-                            compute_op->reduce_axis.empty())
-                        {
-                                Tensor & parent = *pparent;
-                                const ComputeOpNode * parent_compute_op
-                                        = parent->op.as < ComputeOpNode > ();
-                                CHECK(parent_compute_op != nullptr);
-                                Array < Var > args;
-                                for (const IterVar & iv : compute_op->axis)
-                                {
-                                        args.push_back(iv->var);
-                                }
-                                BodyStmtAutoInliner inliner;
-
-                                inliner.func = (*ptensor)->op,
-                                inliner.args = args,
-                                inliner.body = compute_op->body[tensor->value_index];
-
-                                Expr new_body = Simplify(inliner.Mutate(Evaluate::make(
-                                        parent_compute_op->body[parent->value_index]
-                                        )).as < Evaluate > ()->value);
-                                LOG(INFO) << new_body;
-                                ComputeOpNode::make(
-                                        parent_compute_op->name,
-                                        parent_compute_op->tag, 
-                                        parent_compute_op->attrs,
-                                        parent_compute_op->axis,
-                                        {new_body}).output(0);
-                        }  // if (pparent != nullptr && 
-                           //     compute_op->IsInjective())
-                }  // if (tensor->op.as < ComputeOpNode > ()) 
-        }
-};
- */
-
-
 }  // namespace anonymous
 
 
