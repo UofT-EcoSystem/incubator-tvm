@@ -5,6 +5,7 @@
 #include <tvm/expr.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
+#include <tvm/ir_pass.h>
 #include <tvm/operation.h>
 
 #include "./_cse.h"
@@ -640,20 +641,84 @@ TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
 
 
 
+struct BodyStmtAutoInliner : public IRMutator
+{
+        FunctionRef func; Array < Var > args; Expr body;
+
+        Expr Mutate_(const Call * op, const Expr & e) final
+        {
+                Expr expr = IRMutator::Mutate_(op, e);
+                op = expr.as < Call > ();
+
+                if (op->func == this->func)
+                {
+                        CHECK_EQ(op->value_index, 0);
+                        expr = this->body;
+                        CHECK_EQ(this->args.size(), op->args.size());
+
+                        Map < Var, Expr > vmap;
+                        for (size_t i = 0; i < this->args.size(); ++i)
+                        {
+                                vmap.Set(this->args[i], op->args[i]);
+                        }
+                        expr = Substitute(Evaluate::make(expr), vmap)
+                               .as < Evaluate > ()->value;
+                        return expr;
+                }           
+                else
+                {
+                        return expr;
+                }
+        }
+
+};  // BodyStmtAutoInliner
+
+
 class TensorAutoInliner
 {
 private:
-
+        std::unordered_map < Tensor, std::vector < Tensor > > _tensor_reverse_map;
 public:
-        void Mutate(Tensor * const ptensor)
+        void Mutate(Tensor * const ptensor,
+                    Tensor * const pparent = nullptr)
         {
                 Tensor & tensor = *ptensor;
-
                 if (const ComputeOpNode * compute_op =
                     tensor->op.as < ComputeOpNode > ()) 
                 {
+                        for (const auto & input_tensor :
+                             compute_op->InputTensors())
+                        {
+                                Tensor input_tensor_mutable = input_tensor;
+                                if (const ComputeOpNode * input_compute_op = 
+                                    input_tensor->op.as < ComputeOpNode > ())
+                                {
+                                        Mutate(&input_tensor_mutable, ptensor);
+                                }
+                        }
+                        if (pparent != nullptr &&
+                            compute_op->reduce_axis.empty())
+                        {
+                                Tensor & parent = *pparent;
+                                const ComputeOpNode * parent_compute_op
+                                        = parent->op.as < ComputeOpNode > ();
+                                CHECK(parent_compute_op != nullptr);
+                                Array < Var > args;
+                                for (const IterVar & iv : compute_op->axis)
+                                {
+                                        args.push_back(iv->var);
+                                }
+                                BodyStmtAutoInliner inliner;
 
-                }
+                                inliner.func = (*ptensor)->op,
+                                inliner.args = args,
+                                inliner.body = compute_op->body[tensor->value_index];
+                                inliner.Mutate(Evaluate::make(
+                                        parent_compute_op->body[parent->value_index]
+                                        ));
+                        }  // if (pparent != nullptr && 
+                           //     compute_op->IsInjective())
+                }  // if (tensor->op.as < ComputeOpNode > ()) 
         }
 };
 
@@ -671,8 +736,9 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-        TensorExprConstructor().Visit(src);
-        TensorExprConstructor().Visit(tgt);
+        // TensorExprConstructor().Visit(src);
+        // TensorExprConstructor().Visit(tgt);
+        TensorAutoInliner().Mutate(ptgt);
 }
 
 
