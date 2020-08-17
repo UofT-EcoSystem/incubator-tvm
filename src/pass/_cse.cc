@@ -677,6 +677,106 @@ struct BodyStmtAutoInliner : public IRMutator
 class TensorAutoInliner
 {
 private:
+        std::vector < Tensor > _tensor_postorder;
+        std::unordered_map < Tensor, std::unordered_set < Tensor > >
+                _tensor_reverse_map;
+        std::unordered_map < Tensor, Operation > _tensor_bodystmt_map;
+
+        Expr GetBodyStmt(const Tensor & tensor)
+        {
+                auto iter = _tensor_bodystmt_map.find(tensor);
+
+                if (iter != _tensor_bodystmt_map.end())
+                {
+                        const ComputeOpNode * compute_op
+                                = iter->second.as < ComputeOpNode > ();
+                        CHECK(compute_op != nullptr);
+                        return compute_op->body[0];
+                }
+                else 
+                {
+                        const ComputeOpNode * compute_op
+                                = tensor->op.as < ComputeOpNode > ();
+                        CHECK(compute_op != nullptr);    
+                        return compute_op->body[tensor->value_index];
+                }
+        }
+        void PostOrderVisit(const Tensor & tensor)
+        {
+                if (std::find(_tensor_postorder.begin(),
+                              _tensor_postorder.end(), tensor) !=
+                    _tensor_postorder.end())
+                {
+                        return;
+                }
+                _tensor_postorder.insert(_tensor_postorder.begin(),
+                                         tensor);
+                if (const ComputeOpNode * compute_op =
+                    tensor->op.as < ComputeOpNode > ()) 
+                {
+                        for (const Tensor & input_tensor :
+                             compute_op->InputTensors())
+                        {
+                                PostOrderVisit(input_tensor);
+                                _tensor_reverse_map[input_tensor].insert(tensor);
+                        }
+                }
+        }
+public:
+        void Mutate(Tensor * const ptensor)
+        {
+                Tensor & tensor = *ptensor;
+                PostOrderVisit(tensor);
+                for (const Tensor & i : _tensor_postorder)
+                {
+                        std::unordered_set < Tensor > reverse_input_tensors
+                                = _tensor_reverse_map[i];
+                        for (const Tensor & o : reverse_input_tensors)
+                        {
+                                const ComputeOpNode
+                                        * icompute_op = i->op.as < ComputeOpNode > (),
+                                        * ocompute_op = o->op.as < ComputeOpNode > ();
+                                if (icompute_op != nullptr && ocompute_op != nullptr &&
+                                    icompute_op->reduce_axis.empty())
+                                {
+                                        Array < Var > args;
+                                        for (const IterVar & iv : icompute_op->axis)
+                                        {
+                                                args.push_back(iv->var);
+                                        }
+                                        BodyStmtAutoInliner inliner;
+
+                                        inliner.func = i->op,
+                                        inliner.args = args,
+                                        inliner.body = GetBodyStmt(i);
+
+                                        Expr new_body = Simplify(
+                                                inliner.Mutate(Evaluate::make(
+                                                       GetBodyStmt(o)
+                                                )).as < Evaluate > ()->value);
+                                        LOG(INFO) << "New Body: " << new_body;
+                                        _tensor_bodystmt_map[o] = ComputeOpNode::make(
+                                                ocompute_op->name,
+                                                ocompute_op->tag, 
+                                                ocompute_op->attrs,
+                                                ocompute_op->axis,
+                                                {new_body});
+                                }
+                        }
+                }
+                auto iter = _tensor_bodystmt_map.find(tensor);
+                if (iter != _tensor_bodystmt_map.end())
+                {
+                        tensor = iter->second.output(0);
+                }
+        }
+};
+
+
+/*
+class TensorAutoInliner
+{
+private:
         std::unordered_map < Tensor, std::vector < Tensor > > _tensor_reverse_map;
 public:
         void Mutate(Tensor * const ptensor,
@@ -728,6 +828,7 @@ public:
                 }  // if (tensor->op.as < ComputeOpNode > ()) 
         }
 };
+ */
 
 
 }  // namespace anonymous
