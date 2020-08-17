@@ -690,8 +690,7 @@ public:
                              compute_op->InputTensors())
                         {
                                 Tensor input_tensor_mutable = input_tensor;
-                                if (const ComputeOpNode * input_compute_op = 
-                                    input_tensor->op.as < ComputeOpNode > ())
+                                if (input_tensor->op.as < ComputeOpNode > ())
                                 {
                                         Mutate(&input_tensor_mutable, ptensor);
                                 }
@@ -713,7 +712,7 @@ public:
                                 inliner.func = (*ptensor)->op,
                                 inliner.args = args,
                                 inliner.body = compute_op->body[tensor->value_index];
-                                inliner.Mutate(Evaluate::make(
+                                LOG(INFO) << inliner.Mutate(Evaluate::make(
                                         parent_compute_op->body[parent->value_index]
                                         ));
                         }  // if (pparent != nullptr && 
