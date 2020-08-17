@@ -716,6 +716,7 @@ public:
                                 Expr new_body = Simplify(inliner.Mutate(Evaluate::make(
                                         parent_compute_op->body[parent->value_index]
                                         )).as < Evaluate > ()->value);
+                                LOG(INFO) << new_body;
                                 ComputeOpNode::make(
                                         parent_compute_op->name,
                                         parent_compute_op->tag, 
