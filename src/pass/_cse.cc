@@ -747,8 +747,7 @@ private:
 public:
         void Mutate(Tensor * const ptensor)
         {
-                Tensor & tensor = *ptensor;
-                PostOrderVisit(tensor);
+                PostOrderVisit(*ptensor);
                 for (const Tensor & i : _tensor_postorder)
                 {
                         std::unordered_set < Tensor > reverse_input_tensors
@@ -787,10 +786,10 @@ public:
                                 }
                         }
                 }
-                auto iter = _tensor_bodystmt_map.find(tensor);
+                auto iter = _tensor_bodystmt_map.find(*ptensor);
                 if (iter != _tensor_bodystmt_map.end())
                 {
-                        tensor = iter->second.output(0);
+                        *ptensor = iter->second.output(0);
                 }
         }
 };
@@ -801,17 +800,15 @@ public:
 
 void _CSE(const Tensor & src, Tensor * const ptgt)
 {
-        Tensor & tgt = *ptgt;
-
         // TODO: We limit the scope of analysis to compute.gamma.grad, but will
         //       remove this limitation in later stages.
-        if (tgt->op->name != "compute.gamma.grad")
+        if ((*ptgt)->op->name != "compute.gamma.grad")
         {
                 return;
         }
-        // TensorExprConstructor().Visit(src);
-        // TensorExprConstructor().Visit(tgt);
         TensorAutoInliner().Mutate(ptgt);
+        // TensorExprConstructor().Visit(src);
+        TensorExprConstructor().Visit(*ptgt);
 }
 
 
