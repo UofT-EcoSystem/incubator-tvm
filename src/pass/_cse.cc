@@ -522,8 +522,7 @@ private:
                                 = args[arg_idx].as < Variable > ();
                         for (const IterVar & iv : axis)
                         {
-                                if (args[arg_idx].as < Variable > () ==
-                                    iv->var.get())
+                                if (var == iv->var.get())
                                 {
                                         (*ordered_axis).Set(arg_idx, iv);
                                 }
