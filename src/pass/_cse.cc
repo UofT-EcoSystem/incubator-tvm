@@ -475,8 +475,8 @@ namespace {
 
 struct TensorExpr
 {
-        NodeRef op; bool is_canonical;
-        Array < IterVar > axis;
+        NodeRef op;
+        Array < IterVar > axis, ordered_axis;
         std::vector < std::shared_ptr < TensorExpr > > operands;
         
         std::string toString(const unsigned indent = 0)
@@ -488,9 +488,9 @@ struct TensorExpr
                         strout << " ";
                 }
                 strout << op << " @" << op.get();
-                // strout << " [axis=" << Axis2Str(axis) << ", " 
-                //             "is_canonical="
-                //        << std::boolalpha << is_canonical << std::noboolalpha << "]";
+                strout << " [axis=" << Axis2Str(axis) << ", " 
+                          "ordered_axis="
+                       << Axis2Str(ordered_axis) << "]";
                 for (const auto & operand : operands)
                 {
                         strout << operand->toString(indent + 2);
@@ -508,6 +508,28 @@ private:
                              TensorExprPtr > _tensor_expr_map;
         std::unordered_map < const Node *, 
                              TensorExprPtr > _node_tensorexpr_map;
+
+
+        void ArgsToOrderedAxis(const Array < Expr > & args,
+                               const Array < IterVar > & axis,
+                               Array < IterVar > * ordered_axis)
+        {
+                *ordered_axis = Array(args.size(), IterVar(nullptr));
+
+                for (size_t arg_idx = 0; arg_idx < args.size(); ++arg_idx)
+                {
+                        const Variable * var
+                                = args[arg_idx].as < Variable > ();
+                        for (const IterVar & iv : axis)
+                        {
+                                if (args[arg_idx].as < Variable > () ==
+                                    iv->var.get())
+                                {
+                                        (*ordered_axis).Set(arg_idx, iv);
+                                }
+                        }
+                }
+        }
 public:
         using FConstruct
                 = NodeFunctor < void(const ObjectRef &,
@@ -527,11 +549,14 @@ public:
                         Array < IterVar > expr_axis = expr->axis;
                         *expr = *_tensor_expr_map.at(call_func);
                         expr->axis = expr_axis;
-                        // expr->is_canonical = 
+                        ArgsToOrderedAxis(op->args, expr_axis,
+                                          &expr->ordered_axis);
                 }
                 else if (op->call_type == Call::CallType::PureIntrinsic)
                 {
                         expr->operands.push_back(Construct(op->args[0], expr->axis));
+                        expr->ordered_axis
+                                = expr->operands[0]->ordered_axis;
                 }
                 else
                 {
@@ -546,6 +571,14 @@ public:
         {                                                                       \
                 expr->operands.push_back(Construct(op->a, expr->axis));         \
                 expr->operands.push_back(Construct(op->b, expr->axis));         \
+                for (const TensorExprPtr & operand                              \
+                     : expr->operands)                                          \
+                {                                                               \
+                        expr->ordered_axis =                                    \
+                                operand->ordered_axis.size() >                  \
+                                expr->ordered_axis.size() ?                     \
+                                operand->ordered_axis : expr->ordered_axis;     \
+                }                                                               \
         }
         DEFINE_BINARY_OP_CSTR(Add)
         DEFINE_BINARY_OP_CSTR(Sub)
@@ -563,6 +596,7 @@ public:
                 }
                 expr->operands.push_back(
                         Construct(op->source[op->value_index], source_axis));
+                expr->ordered_axis = expr->axis;
         }
 
 #define DEFINE_IMM_CSTR(Imm)                                                    \
