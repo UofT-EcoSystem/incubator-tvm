@@ -702,7 +702,7 @@ struct BodyStmtAutoInliner : public IRMutator
                         }
                         else 
                         {
-                                LOG(INFO) << "Calling " << op_valueidx_pair.first;
+                                // LOG(INFO) << "Calling " << op_valueidx_pair.first;
                                 return Call::make(op->type,
                                                   op->name,
                                                   op->args,
@@ -734,12 +734,12 @@ private:
 
                 if (iter != _tensor_bodystmt_map.end())
                 {
-                        LOG(INFO) << "Body Stmt: " << iter->second;
+                        // LOG(INFO) << "Body Stmt: " << iter->second;
                         return std::make_pair(iter->second, 0);
                 }
                 else 
                 {
-                        LOG(INFO) << "Body Stmt: " << tensor->op;
+                        // LOG(INFO) << "Body Stmt: " << tensor->op;
                         return std::make_pair(tensor->op,
                                               tensor->value_index);
                 }
@@ -769,10 +769,10 @@ public:
         {
                 PostOrderVisit(*ptensor);
 
-                for (const Tensor & t : _tensor_postorder)
-                {
-                        LOG(INFO) << t;
-                }
+                // for (const Tensor & t : _tensor_postorder)
+                // {
+                //         LOG(INFO) << t;
+                // }
 
                 for (const Tensor & i : _tensor_postorder)
                 {
@@ -800,18 +800,18 @@ public:
                                                 inliner.Mutate(Evaluate::make(
                                                        OpValueIdxPair2BodyStmt(GetOpValueIdxPair(o))
                                                 )).as < Evaluate > ()->value);
-                                        LOG(INFO) << "Inlining " << icompute_op->name 
-                                                  << " @" << icompute_op << " into "
-                                                  << ocompute_op->name << " @" << ocompute_op;
-                                        LOG(INFO) << "New Body: " << new_body;
+                                        // LOG(INFO) << "Inlining " << icompute_op->name 
+                                        //           << " @" << icompute_op << " into "
+                                        //           << ocompute_op->name << " @" << ocompute_op;
+                                        // LOG(INFO) << "New Body: " << new_body;
                                         _tensor_bodystmt_map[o] = ComputeOpNode::make(
                                                 ocompute_op->name,
                                                 ocompute_op->tag, 
                                                 ocompute_op->attrs,
                                                 ocompute_op->axis,
                                                 {new_body});
-                                        LOG(INFO) << "Operation " << _tensor_bodystmt_map[o]
-                                                  << " @" << _tensor_bodystmt_map[o].get();
+                                        // LOG(INFO) << "Operation " << _tensor_bodystmt_map[o]
+                                        //           << " @" << _tensor_bodystmt_map[o].get();
                                 }
                         }
                 }
@@ -833,7 +833,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-        LOG(INFO) << PrintTensorRecursively(*ptgt);
+        // LOG(INFO) << PrintTensorRecursively(*ptgt);
 
         // TODO: We limit the scope of analysis to compute.gamma.grad, but will
         //       remove this limitation in later stages.
