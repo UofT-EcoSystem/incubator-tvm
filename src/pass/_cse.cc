@@ -752,8 +752,6 @@ private:
                 {
                         return;
                 }
-                _tensor_postorder.insert(_tensor_postorder.begin(),
-                                         tensor);
                 if (const ComputeOpNode * compute_op =
                     tensor->op.as < ComputeOpNode > ()) 
                 {
@@ -764,6 +762,7 @@ private:
                                 _tensor_reverse_map[input_tensor].insert(tensor);
                         }
                 }
+                _tensor_postorder.push_back(tensor);
         }
 public:
         void Mutate(Tensor * const ptensor)
