@@ -487,10 +487,10 @@ struct TensorExpr
                 {
                         strout << " ";
                 }
-                strout << op << " @" << op.get();
-                strout << " [axis=" << Axis2Str(axis) << ", " 
-                          "ordered_axis="
-                       << Axis2Str(ordered_axis) << "]";
+                strout << op << " @" << op.get() << " ["
+                        //   "axis=" << Axis2Str(axis) << ", " 
+                          "ordered_axis=" << Axis2Str(ordered_axis) 
+                       << "]";
                 for (const auto & operand : operands)
                 {
                         strout << operand->toString(indent + 2);
