@@ -514,7 +514,7 @@ private:
                                const Array < IterVar > & axis,
                                Array < IterVar > * ordered_axis)
         {
-                *ordered_axis = Array(args.size(), IterVar(nullptr));
+                *ordered_axis = Array < IterVar > (args.size(), IterVar(nullptr));
 
                 for (size_t arg_idx = 0; arg_idx < args.size(); ++arg_idx)
                 {
