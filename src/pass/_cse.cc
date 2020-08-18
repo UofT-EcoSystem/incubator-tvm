@@ -832,6 +832,8 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
+        LOG(INFO) << PrintTensorRecursively(*ptgt);
+
         // TODO: We limit the scope of analysis to compute.gamma.grad, but will
         //       remove this limitation in later stages.
         TensorAutoInliner().Mutate(ptgt);
