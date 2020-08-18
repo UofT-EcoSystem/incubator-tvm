@@ -732,10 +732,12 @@ private:
 
                 if (iter != _tensor_bodystmt_map.end())
                 {
+                        LOG(INFO) << "Body Stmt: " << iter->second;
                         return std::make_pair(iter->second, 0);
                 }
                 else 
                 {
+                        LOG(INFO) << "Body Stmt: " << tensor->op;
                         return std::make_pair(tensor->op,
                                               tensor->value_index);
                 }
