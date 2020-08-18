@@ -2,6 +2,7 @@
 #include <queue>
 #include <unordered_set>
 
+#include <dmlc/parameter.h>
 #include <tvm/expr.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
@@ -815,6 +816,10 @@ public:
 
 void _CSE(const Tensor & src, Tensor * const ptgt)
 {
+        if (!dmlc::GetEnv("USE_CSE", 0))
+        {
+                return;
+        }
         // TODO: We limit the scope of analysis to compute.gamma.grad, but will
         //       remove this limitation in later stages.
         TensorAutoInliner().Mutate(ptgt);
