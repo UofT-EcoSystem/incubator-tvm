@@ -745,7 +745,7 @@ struct BodyStmtAutoInliner : public IRMutator
                 }           
                 else
                 {
-                        LOG(INFO) << op->func << " != " << this->func;
+                        // LOG(INFO) << op->func << " != " << this->func;
                         return expr;
                 }
         }
