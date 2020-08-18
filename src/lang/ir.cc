@@ -815,7 +815,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 .set_dispatch<Call>([](const ObjectRef& node, IRPrinter* p) {
     auto* op = static_cast<const Call*>(node.get());
-    p->stream << op->name << "(";
+    // <bojian/TVM-AutoDiff>
+    p->stream << op->name << "@" << op << "(";
     for (size_t i = 0; i < op->args.size(); ++i) {
       p->Print(op->args[i]);
       if (i < op->args.size() - 1) {
