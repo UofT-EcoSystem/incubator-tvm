@@ -17,7 +17,7 @@ std::string PrintTensorName(const Tensor& tensor) {
   }
 
   std::ostringstream oss;
-  oss << tensor->op->name << "[" << tensor->value_index << "]";
+  oss << tensor->op->name << "[" << tensor->value_index << "] " << "@" << tensor->op.get();
   return oss.str();
 }
 
@@ -47,7 +47,7 @@ std::string PrintTensorsRecursively(const Array<Tensor>& tensors) {
   while (!unprocessed.empty()) {
     Tensor cur = unprocessed.back();
     unprocessed.pop_back();
-    if (processed.count(cur) > 0) continue;
+    // if (processed.count(cur) > 0) continue;
     processed.insert(cur);
 
     oss << "tensor " << PrintTensorName(cur) << " : " << cur->dtype << " " << cur->shape << "\n";
