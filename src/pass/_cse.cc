@@ -486,10 +486,10 @@ struct TensorExpr
                 {
                         strout << " ";
                 }
-                strout << op
-                       << " [axis=" << Axis2Str(axis) << ", " 
-                            "is_canonical="
-                       << std::boolalpha << is_canonical << std::noboolalpha << "]";
+                strout << op;
+                // strout << " [axis=" << Axis2Str(axis) << ", " 
+                //             "is_canonical="
+                //        << std::boolalpha << is_canonical << std::noboolalpha << "]";
                 for (const auto & operand : operands)
                 {
                         strout << operand->toString(indent + 2);
