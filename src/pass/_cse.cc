@@ -455,11 +455,11 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
  */
 
 
-std::string IterVars2Str(const Array < IterVar > & iter_vars)
+std::string Axis2Str(const Array < IterVar > & axis)
 {
         std::ostringstream strout;
         strout << "[";
-        for (const IterVar & iter_var : iter_vars)
+        for (const IterVar & iter_var : axis)
         {
                 strout << iter_var << ", ";
         }
@@ -473,7 +473,8 @@ namespace {
 
 struct TensorExpr
 {
-        NodeRef op;
+        NodeRef op; bool is_canonical;
+        Array < IterVar > axis;
         std::vector < std::shared_ptr < TensorExpr > > operands;
         
         std::string toString(const unsigned indent = 0)
@@ -484,7 +485,10 @@ struct TensorExpr
                 {
                         strout << " ";
                 }
-                strout << op;
+                strout << op
+                       << " [axis=" << Axis2Str(axis) << ", " 
+                            "is_canonical="
+                       << std::boolalpha << is_canonical << std::noboolalpha << "]";
                 for (const auto & operand : operands)
                 {
                         strout << operand->toString(indent + 2);
@@ -522,11 +526,11 @@ public:
                 }
                 else if (op->call_type == Call::CallType::PureIntrinsic)
                 {
-                        expr->operands.push_back(Construct(op->args[0]));
+                        expr->operands.push_back(Construct(op->args[0], expr->axis));
                 }
                 else
                 {
-                        LOG(FATAL) << "NOT Implemented for "
+                        LOG(FATAL) << "NOT implemented for "
                                    << GetRef < Expr > (op);
                 }
         }
@@ -535,8 +539,8 @@ public:
         void _Construct(const Op * const op,                                    \
                         TensorExpr * const expr)                                \
         {                                                                       \
-                expr->operands.push_back(Construct(op->a));                     \
-                expr->operands.push_back(Construct(op->b));                     \
+                expr->operands.push_back(Construct(op->a, expr->axis));         \
+                expr->operands.push_back(Construct(op->b, expr->axis));         \
         }
         DEFINE_BINARY_OP_CSTR(Add)
         DEFINE_BINARY_OP_CSTR(Sub)
@@ -546,8 +550,14 @@ public:
         void _Construct(const Reduce * const op,
                         TensorExpr * const expr)
         {
+                Array < IterVar > source_axis = expr->axis;
+                for (const IterVar & reduce_axis
+                     : op->axis)
+                {
+                        source_axis.push_back(reduce_axis);
+                }
                 expr->operands.push_back(
-                        Construct(op->source[op->value_index]));
+                        Construct(op->source[op->value_index], source_axis));
         }
 
 #define DEFINE_IMM_CSTR(Imm)                                                    \
@@ -559,7 +569,8 @@ public:
         DEFINE_IMM_CSTR(FloatImm)
 
                 
-        TensorExprPtr Construct(const NodeRef & node)
+        TensorExprPtr Construct(const NodeRef & node,
+                                const Array < IterVar > & axis)
         {
                 static const FConstruct & fconstruct = cstrtable();
                 auto node_tensorexpr_map_iter
@@ -571,6 +582,7 @@ public:
                                 = _node_tensorexpr_map.emplace(node.get(), new TensorExpr())
                                   .first->second;
                         tensor_expr->op = node;
+                        tensor_expr->axis = axis;
                         fconstruct(node, tensor_expr.get(), this);
                         return tensor_expr;
                 }
@@ -602,7 +614,7 @@ public:
                         }
                         const Expr & body_stmt
                                 = compute_op->body[tensor->value_index];
-                        tensor_expr = Construct(body_stmt);
+                        tensor_expr = Construct(body_stmt, compute_op->axis);
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
                 {
