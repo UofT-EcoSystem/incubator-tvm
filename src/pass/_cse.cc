@@ -472,6 +472,17 @@ std::string Axis2Str(const Array < IterVar > & axis)
 
 namespace {
 
+#if CHECKPOINT_RETURN
+#define RETURN(v)                                                               \
+        do {                                                                    \
+                bool ret = (v);                                                 \
+                LOG(INFO) << std::boolalpha << ret << std::noboolalpha;         \
+                return ret;                                                     \
+        } while(0)
+#else
+#define RETURN(v)  return (v)
+#endif
+
 
 struct TensorExpr
 {
@@ -496,6 +507,67 @@ struct TensorExpr
                         strout << operand->toString(indent + 2);
                 }
                 return strout.str();
+        }
+
+        using FCompare = NodeFunctor < bool(const ObjectRef &, const TensorExpr &,
+                                            TensorExpr * const) >;
+        static FCompare & cmptable()
+        {
+                static FCompare inst;
+                return inst;
+        }
+
+#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Op)                                \
+        bool _Compare(const Op * const op, const TensorExpr & other)            \
+        {                                                                       \
+                CHECK(this->operands.size() == 2);                              \
+                CHECK(other.operands.size() == 2);                              \
+                RETURN(((*this->operands[0]) == (*other.operands[0]) &&         \
+                        (*this->operands[1]) == (*other.operands[1])) ||        \
+                       ((*this->operands[0]) == (*other.operands[1]) &&         \
+                        (*this->operands[1]) == (*other.operands[0])));         \
+        }
+#define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(Op)                             \
+        bool _Compare(const Op * const op, const TensorExpr & other)            \
+        {                                                                       \
+                CHECK(this->operands.size() == 2);                              \
+                CHECK(other.operands.size() == 2);                              \
+                RETURN(((*this->operands[0]) == (*other.operands[0]) &&         \
+                        (*this->operands[1]) == (*other.operands[1])));         \
+        }
+        DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Add)
+        DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(Sub)
+        DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Mul)
+        DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(Div)
+
+        bool _Compare(const Reduce * const op,
+                      const TensorExpr & other)
+        {
+                return false;
+        }
+
+#define DEFINE_IMM_COMPARE(Imm)                                                 \
+        bool _Compares(const Imm * const imm, const TensorExpr & other)         \
+        {                                                                       \
+                const Imm * other_imm                                           \
+                        = other.op.as < Imm > ();                               \
+                CHECK(other_imm != nullptr);                                    \
+                return imm->value == other_imm->value;                          \
+        }
+        DEFINE_IMM_COMPARE(IntImm)
+        DEFINE_IMM_COMPARE(UIntImm)
+        DEFINE_IMM_COMPARE(FloatImm)
+
+
+        bool operator==(const TensorExpr & other)
+        {
+                static const FCompare & fcompare = cmptable();
+                if (this->op.defined() &&
+                    other.op.defined())
+                {
+                        return fcompare(this->op, other, this);
+                }
+                return false;
         }
 };
 typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
