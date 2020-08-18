@@ -526,7 +526,7 @@ public:
                         Array < IterVar > expr_axis = expr->axis;
                         *expr = *_tensor_expr_map.at(call_func);
                         expr->axis = expr_axis;
-                        expr->is_canonical = 
+                        // expr->is_canonical = 
                 }
                 else if (op->call_type == Call::CallType::PureIntrinsic)
                 {
