@@ -807,6 +807,8 @@ public:
                                                 ocompute_op->attrs,
                                                 ocompute_op->axis,
                                                 {new_body});
+                                        LOG(INFO) << "Operation " << _tensor_bodystmt_map[o]
+                                                  << " @" << _tensor_bodystmt_map[o].get();
                                 }
                         }
                 }
