@@ -486,7 +486,7 @@ struct TensorExpr
                 {
                         strout << " ";
                 }
-                strout << op;
+                strout << op << " @" << op.get();
                 // strout << " [axis=" << Axis2Str(axis) << ", " 
                 //             "is_canonical="
                 //        << std::boolalpha << is_canonical << std::noboolalpha << "]";
