@@ -522,7 +522,9 @@ public:
                         const FunctionBaseNode * call_func
                                 = op->func.as < FunctionBaseNode > ();
                         CHECK(call_func != nullptr);
+                        Array < IterVar > expr_axis = expr->axis;
                         *expr = *_tensor_expr_map.at(call_func);
+                        expr->axis = expr_axis;
                 }
                 else if (op->call_type == Call::CallType::PureIntrinsic)
                 {
