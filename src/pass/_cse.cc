@@ -832,7 +832,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-        LOG(INFO) << PrintTensorRecursively(*ptgt);
+        // LOG(INFO) << PrintTensorRecursively(*ptgt);
 
         // TODO: We limit the scope of analysis to compute.gamma.grad, but will
         //       remove this limitation in later stages.
@@ -840,7 +840,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         // TensorExprConstructor().Visit(src);
         TensorExprConstructor().Visit(*ptgt);
 
-        LOG(INFO) << PrintTensorRecursively(*ptgt);
+        // LOG(INFO) << PrintTensorRecursively(*ptgt);
 
 }
 
