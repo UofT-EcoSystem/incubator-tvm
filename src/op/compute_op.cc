@@ -262,6 +262,7 @@ void BaseComputeOpNode::GatherBound(
   for (size_t i = 0; i < this->axis.size(); ++i) {
     Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
     // CHECK(!out_dom_map->count(this->axis[i]));
+    LOG(INFO) << "Inserting axis " << this->axis[i] << " for operation " << self;
     if (out_dom_map->count(this->axis[i])) {
       LOG(INFO) << this->axis[i] << " has already been inserted!";
       continue;
