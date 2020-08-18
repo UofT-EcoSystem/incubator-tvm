@@ -10,6 +10,7 @@
 #include <tvm/operation.h>
 
 #include "./_cse.h"
+#include "./zero_elimination.h"
 
 
 namespace tvm {
@@ -832,6 +833,9 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         TensorAutoInliner().Mutate(ptgt);
         // TensorExprConstructor().Visit(src);
         TensorExprConstructor().Visit(*ptgt);
+
+        LOG(INFO) << PrintTensorRecursively(*ptgt);
+
 }
 
 
