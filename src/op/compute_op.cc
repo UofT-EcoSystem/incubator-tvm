@@ -264,6 +264,7 @@ void BaseComputeOpNode::GatherBound(
     // CHECK(!out_dom_map->count(this->axis[i]));
     if (out_dom_map->count(this->axis[i])) {
       LOG(INFO) << this->axis[i] << " has already been inserted!";
+      continue;
     }
     (*out_dom_map)[this->axis[i]] = r;
   }
@@ -271,6 +272,7 @@ void BaseComputeOpNode::GatherBound(
     // CHECK(!out_dom_map->count(this->reduce_axis[i]));
     if (out_dom_map->count(this->reduce_axis[i])) {
       LOG(INFO) << this->axis[i] << " has already been inserted!";
+      continue;
     }
     (*out_dom_map)[this->reduce_axis[i]] = this->reduce_axis[i]->dom;
   }
