@@ -764,6 +764,12 @@ public:
         void Mutate(Tensor * const ptensor)
         {
                 PostOrderVisit(*ptensor);
+
+                for (const Tensor & t : _tensor_postorder)
+                {
+                        LOG(INFO) << t;
+                }
+
                 for (const Tensor & i : _tensor_postorder)
                 {
                         std::unordered_set < Tensor > reverse_input_tensors
