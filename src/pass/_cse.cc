@@ -525,6 +525,7 @@ public:
                         Array < IterVar > expr_axis = expr->axis;
                         *expr = *_tensor_expr_map.at(call_func);
                         expr->axis = expr_axis;
+                        expr->is_canonical = 
                 }
                 else if (op->call_type == Call::CallType::PureIntrinsic)
                 {
@@ -816,10 +817,6 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
 {
         // TODO: We limit the scope of analysis to compute.gamma.grad, but will
         //       remove this limitation in later stages.
-        if ((*ptgt)->op->name != "compute.gamma.grad")
-        {
-                return;
-        }
         TensorAutoInliner().Mutate(ptgt);
         // TensorExprConstructor().Visit(src);
         TensorExprConstructor().Visit(*ptgt);
