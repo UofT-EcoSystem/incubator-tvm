@@ -17,7 +17,7 @@ std::string PrintTensorName(const Tensor& tensor) {
   }
 
   std::ostringstream oss;
-  oss << tensor->op->name << "[" << tensor->value_index << "] " << "@" << tensor->op.get();
+  oss << tensor->op->name << "[" << tensor->value_index << "] " << "@" << tensor->op;
   return oss.str();
 }
 
