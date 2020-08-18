@@ -702,6 +702,7 @@ struct BodyStmtAutoInliner : public IRMutator
                         }
                         else 
                         {
+                                LOG(INFO) << "Calling " << op_valueidx_pair.first;
                                 return Call::make(op->type,
                                                   op->name,
                                                   op->args,
