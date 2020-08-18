@@ -540,17 +540,62 @@ struct TensorExpr
         DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Mul)
         DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(Div)
 
+
+        enum class ReduceOpType {C_ADD, C_MUL, C_UNK};
+
+        static ReduceOpType
+        InferReduceOpType(const CommReducer & comm_reducer)
+        {
+                if (comm_reducer->lhs.size() != 1 ||
+                    comm_reducer->rhs.size() != 1 || 
+                    comm_reducer->result.size() != 1)
+                {
+                        return ReduceOpType::C_UNK;
+                }
+                const Add * op = comm_reducer->result[0].as < Add > ();
+                if ((op != nullptr) &&
+                    op->a == comm_reducer->lhs[0] &&
+                    op->b == comm_reducer->rhs[0])
+                {
+                        return ReduceOpType::C_ADD;
+                }
+                const Mul * op = comm_reducer->result[0].as < Mul > ();
+                if ((op != nullptr) &&
+                    op->a == comm_reducer->lhs[0] &&
+                    op->b == comm_reducer->rhs[0])
+                {
+                        return ReduceOpType::C_MUL;
+                }
+                return ReduceOpType::C_UNK;
+        }
+
         bool _Compare(const Reduce * const op,
                       const TensorExpr & other)
         {
-                return false;
+                // Two reductions are considered the same if they are the same 
+                // in terms of ALL of the following aspects
+                // 
+                //   - Combiner
+                //     - ReduceOp
+                //     - IdentityElement
+                //   - Source
+                //   - Axis
+                //   - Condition
+                const Reduce * other_op = other.op.as < Reduce > ();
+                CHECK(other_op != nullptr);
+                bool same_combiner, same_source, same_axis, same_condition;
+
+                same_combiner
+
+                return same_combiner && 
+                       same_source && 
+                       same_axis && same_condition;        
         }
 
 #define DEFINE_IMM_COMPARE(Imm)                                                 \
-        bool _Compares(const Imm * const imm, const TensorExpr & other)         \
+        bool _Compare(const Imm * const imm, const TensorExpr & other)          \
         {                                                                       \
-                const Imm * other_imm                                           \
-                        = other.op.as < Imm > ();                               \
+                const Imm * other_imm = other.op.as < Imm > ();                 \
                 CHECK(other_imm != nullptr);                                    \
                 return imm->value == other_imm->value;                          \
         }
