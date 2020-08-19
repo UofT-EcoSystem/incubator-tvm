@@ -895,6 +895,12 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
   for (size_t stage_id = 0; stage_id < (*state)->stages.size(); ++stage_id) {
     if (NeedsMultilevelTiling(policy->cur_task, *state, stage_id)) {
       const Stage& stage = (*state)->stages[stage_id];
+      if (stage->compute_at != kIter) {
+        // This stage is not multi-level tiled,
+        // so it must be produced by RuleCrossThreadReduction.
+        CHECK(HasCrossThreadReduction(*state, stage_id));
+        continue;
+      }
       CHECK_EQ(stage->compute_at, kIter);
       const auto res = (*state)->attach_map->stage_to_attach_iter.find(stage_id);
       CHECK(res != (*state)->attach_map->stage_to_attach_iter.end());
