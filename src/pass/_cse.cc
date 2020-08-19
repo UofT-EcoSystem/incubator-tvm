@@ -473,13 +473,16 @@ std::string Axis2Str(const Array < IterVar > & axis)
 namespace {
 
 
-#define CHECKPOINT_RETURN 0
+#define CHECKPOINT_RETURN 1
 
 #if CHECKPOINT_RETURN
 #define RETURN(v)                                                               \
         do {                                                                    \
                 bool ret = (v);                                                 \
-                LOG(INFO) << std::boolalpha << ret << std::noboolalpha;         \
+                if (!ret)                                                       \
+                {                                                               \
+                        LOG(INFO) << this->op << " != " << other.op;            \
+                }                                                               \
                 return ret;                                                     \
         } while(0)
 #else
@@ -519,13 +522,7 @@ struct TensorExpr
         bool _Compare(const Call * const op, const TensorExpr & other)
         {
                 CHECK(op->call_type == Call::CallType::PureIntrinsic);
-                bool operand_comparison = (*this->operands[0]) == (*other.operands[0]);
-                if (!operand_comparison)
-                {
-                        LOG(INFO) << (*this->operands[0]).op << " != " 
-                                  << (*other.operands[0]).op;
-                }
-                RETURN(operand_comparison);
+                RETURN((*this->operands[0]) == (*other.operands[0]));
         }
 
         bool _Compare(const PlaceholderOpNode * const op,
@@ -645,7 +642,7 @@ public:
 
                 if (op == other_op)
                 {
-                        return true;
+                        RETURN(true);
                 }
 
                 CHECK(this->operands.size() == 1);
@@ -668,7 +665,7 @@ public:
                 if (lhs_ordered_reduce_axis.size() != rhs_ordered_reduce_axis.size() || 
                     lhs_ordered_reduce_axis.size() == 0)
                 {
-                        return false;
+                        RETURN(false);
                 }
                 for (size_t i = 0; i < lhs_ordered_reduce_axis.size(); ++i)
                 {
@@ -684,19 +681,17 @@ public:
                 same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
                                  lhs_reduce_cond_type != ReduceCondType::C_Unk;
 
-                if (same_combiner && 
-                    same_source && 
-                    same_ordered_reduce_axis &&
-                    same_condition)
-                {
-                        LOG(INFO) << GetRef < Expr > (op) << " == " << other.op;
-                }
-                else 
-                {
-                        LOG(INFO) << GetRef < Expr > (op) << " != " << other.op;
-                }
-
-
+                // if (same_combiner && 
+                //     same_source && 
+                //     same_ordered_reduce_axis &&
+                //     same_condition)
+                // {
+                //         LOG(INFO) << GetRef < Expr > (op) << " == " << other.op;
+                // }
+                // else 
+                // {
+                //         LOG(INFO) << GetRef < Expr > (op) << " != " << other.op;
+                // }
                 RETURN(same_combiner && 
                        same_source && 
                        same_ordered_reduce_axis &&
@@ -736,10 +731,10 @@ typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
                 {                                                               \
                         if (node->type_index() != other.op->type_index())       \
                         {                                                       \
-                                RETURN(false);                                  \
+                                return false;                                  \
                         }                                                       \
-                        RETURN(_this->_Compare(static_cast < const Op * > (node.get()),  \
-                                               other));                                  \
+                        return _this->_Compare(static_cast < const Op * > (node.get()),  \
+                                               other);                                   \
                 })
 TVM_STATIC_IR_FUNCTOR(TensorExpr, cmptable)
         .DISPATCH_TO_CMP(Call)
