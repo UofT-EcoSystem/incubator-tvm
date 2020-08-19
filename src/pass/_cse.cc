@@ -473,7 +473,7 @@ std::string Axis2Str(const Array < IterVar > & axis)
 namespace {
 
 
-#define CHECKPOINT_RETURN 1
+#define CHECKPOINT_RETURN 0
 
 #if CHECKPOINT_RETURN
 #define RETURN(v)                                                               \
@@ -677,6 +677,16 @@ public:
                         rhs_reduce_cond_type = InferReduceCondType(other_op->condition);
                 same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
                                  lhs_reduce_cond_type != ReduceCondType::C_Unk;
+
+                if (!(same_combiner && 
+                       same_source && 
+                       same_ordered_reduce_axis &&
+                       same_condition))
+                {
+                        LOG(INFO) << GetRef < Expr > (op) << " != " << other.op;
+                }
+
+
                 RETURN(same_combiner && 
                        same_source && 
                        same_ordered_reduce_axis &&
