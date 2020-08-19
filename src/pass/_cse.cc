@@ -609,7 +609,7 @@ private:
                         {
                                 LOG(INFO) << source_ordered_axis << " vs. "
                                           << reduce_axis;
-                                if (source_ordered_axis[i].same_as(reduce_axis))
+                                if (source_ordered_axis[i].same_as(iv))
                                 {
                                         ret.push_back(i);
                                 }
