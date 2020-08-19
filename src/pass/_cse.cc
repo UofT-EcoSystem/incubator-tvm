@@ -511,11 +511,7 @@ struct TensorExpr
 
         using FCompare = NodeFunctor < bool(const ObjectRef &, const TensorExpr &,
                                             TensorExpr * const) >;
-        static FCompare & cmptable()
-        {
-                static FCompare inst;
-                return inst;
-        }
+        static FCompare & cmptable() { static FCompare inst; return inst; }
 
 #define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Op)                                \
         bool _Compare(const Op * const op, const TensorExpr & other)            \
@@ -693,13 +689,36 @@ public:
 typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
 
 
+#define DISPATCH_TO_CMP(Op)                                                     \
+        set_dispatch < Op > ([](const ObjectRef & node, const TensorExpr & other,  \
+                                TensorExpr * const _this)                       \
+                             ->bool                                             \
+                {                                                               \
+                        return _this->_Compare(static_cast < const Op * > (node.get()),  \
+                                               other);                                   \
+                })
+TVM_STATIC_IR_FUNCTOR(TensorExpr, cmptable)
+        .DISPATCH_TO_CMP(Add)
+        .DISPATCH_TO_CMP(Sub)
+        .DISPATCH_TO_CMP(Mul)
+        .DISPATCH_TO_CMP(Div)
+        .DISPATCH_TO_CMP(Reduce)
+        .DISPATCH_TO_CMP(IntImm)
+        .DISPATCH_TO_CMP(UIntImm)
+        .DISPATCH_TO_CMP(FloatImm);
+
+
+class CSEMutator;
+
 class TensorExprConstructor
 {
 private:
+        friend class CSEMutator;
+
         std::unordered_map < const FunctionBaseNode *,
                              TensorExprPtr > _tensor_expr_map;
         std::unordered_map < const Node *, 
-                             TensorExprPtr > _node_tensorexpr_map;
+                             TensorExprPtr > _node_tensor_expr_map;
 
 
         void ArgsToOrderedAxis(const Array < Expr > & args,
@@ -803,20 +822,20 @@ public:
                                 const Array < IterVar > & axis)
         {
                 static const FConstruct & fconstruct = cstrtable();
-                auto node_tensorexpr_map_iter
-                        = _node_tensorexpr_map.find(node.get());
+                auto node_tensor_expr_map_iter
+                        = _node_tensor_expr_map.find(node.get());
                 if (node.defined() && 
-                    node_tensorexpr_map_iter == _node_tensorexpr_map.end())
+                    node_tensor_expr_map_iter == _node_tensor_expr_map.end())
                 {
                         TensorExprPtr & tensor_expr
-                                = _node_tensorexpr_map.emplace(node.get(), new TensorExpr())
+                                = _node_tensor_expr_map.emplace(node.get(), new TensorExpr())
                                   .first->second;
                         tensor_expr->op = node;
                         tensor_expr->axis = axis;
                         fconstruct(node, tensor_expr.get(), this);
                         return tensor_expr;
                 }
-                return node_tensorexpr_map_iter->second;
+                return node_tensor_expr_map_iter->second;
         }
 
 
@@ -865,10 +884,10 @@ public:
 #define DISPATCH_TO_CSTR(Op)                                                    \
         set_dispatch < Op > ([](const ObjectRef & node,                         \
                                 TensorExpr * const expr,                        \
-                                TensorExprConstructor * const v)                \
+                                TensorExprConstructor * const _this)            \
                 {                                                               \
-                        v->_Construct(static_cast < const Op * > (node.get()),  \
-                                      expr);                                    \
+                        _this->_Construct(static_cast < const Op * > (node.get()),  \
+                                          expr);                                    \
                 })
 TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
         .DISPATCH_TO_CSTR(Call)
@@ -881,6 +900,26 @@ TVM_STATIC_IR_FUNCTOR(TensorExprConstructor, cstrtable)
         .DISPATCH_TO_CSTR(UIntImm)
         .DISPATCH_TO_CSTR(FloatImm);
 
+
+class CSEMutator
+{
+private:
+        TensorExprConstructor _src_tensor_expr_constr, 
+                              _tgt_tensor_expr_constr;
+public:
+        CSEMutator(const Tensor & src,
+                   const Tensor & tgt)
+        {
+                _src_tensor_expr_constr.Visit(src);
+                _tgt_tensor_expr_constr.Visit(tgt);
+        }
+
+};
+
+
+// =============================================================================
+// AutoInliner
+// =============================================================================s
 
 typedef std::pair < Operation, int >  OpValueIdxPair;
 
@@ -1063,7 +1102,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
 
         TensorAutoInliner().Mutate(ptgt);
         // TensorExprConstructor().Visit(src);
-        TensorExprConstructor().Visit(*ptgt);
+        // TensorExprConstructor().Visit(*ptgt);
 
         // LOG(INFO) << PrintTensorRecursively(*ptgt);
 }
