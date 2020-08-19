@@ -1052,6 +1052,7 @@ public:
 }  // namespace anonymous
 
 
+// TODO: Make sure that the argument is changed to a list of tensors.
 void _CSE(const Tensor & src, Tensor * const ptgt)
 {
         if (!dmlc::GetEnv("USE_CSE", 0))
@@ -1060,14 +1061,11 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         }
         // LOG(INFO) << PrintTensorRecursively(*ptgt);
 
-        // TODO: We limit the scope of analysis to compute.gamma.grad, but will
-        //       remove this limitation in later stages.
         TensorAutoInliner().Mutate(ptgt);
         // TensorExprConstructor().Visit(src);
         TensorExprConstructor().Visit(*ptgt);
 
         // LOG(INFO) << PrintTensorRecursively(*ptgt);
-
 }
 
 
