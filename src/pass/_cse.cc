@@ -523,10 +523,10 @@ struct TensorExpr
 
         bool _Compare(const Call * const op, const TensorExpr & other)
         {
-                s_enable_ret_checkpoint = true;
+                // s_enable_ret_checkpoint = true;
                 CHECK(op->call_type == Call::CallType::PureIntrinsic);
                 bool operand_equal = (*this->operands[0]) == (*other.operands[0]);
-                s_enable_ret_checkpoint = false;
+                // s_enable_ret_checkpoint = false;
                 RETURN(operand_equal);
         }
 
@@ -687,10 +687,10 @@ public:
                 same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
                                  lhs_reduce_cond_type != ReduceCondType::C_Unk;
 
-                LOG(INFO) << same_combiner;
-                LOG(INFO) << same_source;
-                LOG(INFO) << same_ordered_reduce_axis;
-                LOG(INFO) << same_condition;
+                // LOG(INFO) << same_combiner;
+                // LOG(INFO) << same_source;
+                // LOG(INFO) << same_ordered_reduce_axis;
+                // LOG(INFO) << same_condition;
                 // if (same_combiner && 
                 //     same_source && 
                 //     same_ordered_reduce_axis &&
