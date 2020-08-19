@@ -1047,7 +1047,7 @@ public:
                 if (src_node_tensor_expr_pair.first != nullptr)
                 {
                         LOG(INFO) << "feature_map_" + std::to_string(s_feature_map_counter)
-                                  << "=" << GetRef < Expr > (src_node_tensor_expr_pair.first);
+                                  << "=" << expr;
 
 
                         Array < Expr > feature_map_shape, args;
