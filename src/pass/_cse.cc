@@ -572,6 +572,7 @@ private:
                                * reducer_rhs = comm_reducer->rhs[0].as < Variable > ();  \
                 const FloatImm * identity_element                               \
                         = comm_reducer->identity_element.as < FloatImm > ();    \
+                LOG(INFO) << comm_reducer->identity_element;  \
                 if (op != nullptr &&                                            \
                     op_a == reducer_lhs &&                                      \
                     op_b == reducer_rhs &&                                      \
@@ -582,6 +583,7 @@ private:
         }
                 CHECK_COMM_REDUCER_OP_TYPE(Add, 0)
                 CHECK_COMM_REDUCER_OP_TYPE(Mul, 1)
+                LOG(INFO) << "Finished checking";
                 return CommReducerOpType::C_Unk;
         }
         static std::vector < size_t >
