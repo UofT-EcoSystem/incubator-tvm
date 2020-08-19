@@ -1046,6 +1046,10 @@ public:
                         = _src_tensor_expr_constr.Find(*tgt_tensor_expr);
                 if (src_node_tensor_expr_pair.first != nullptr)
                 {
+                        LOG(INFO) << "feature_map_" + std::to_string(s_feature_map_counter)
+                                  << "=" << GetRef < Expr > (src_node_tensor_expr_pair.first);
+
+
                         Array < Expr > feature_map_shape, args;
                         for (const IterVar & iv : 
                              tgt_tensor_expr->ordered_axis)
