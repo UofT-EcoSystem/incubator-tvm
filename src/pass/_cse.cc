@@ -525,9 +525,9 @@ struct TensorExpr
         {
                 s_enable_ret_checkpoint = true;
                 CHECK(op->call_type == Call::CallType::PureIntrinsic);
-                bool ret = (*this->operands[0]) == (*other.operands[0]);
+                bool operand_equal = (*this->operands[0]) == (*other.operands[0]);
                 s_enable_ret_checkpoint = false;
-                RETURN(ret);
+                RETURN(operand_equal);
         }
 
         bool _Compare(const PlaceholderOpNode * const op,
