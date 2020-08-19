@@ -19,8 +19,11 @@
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
+from tvm.contrib import cusparse
 from ..util import traverse_inline
 from .. import nn
+from .. import generic, tag
+from ..util import traverse_inline, get_const_tuple
 
 
 @autotvm.register_topi_compute("sparse_dense.cuda")
@@ -96,3 +99,22 @@ def schedule_sparse_dense(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+@autotvm.register_topi_compute("sparse_dense_cusparse.cuda")
+def sparse_dense_cusparse(cfg, data, weight_data, weight_indices, weight_indptr):
+    """Compute sparse dense using cusparse library"""
+    M, K = get_const_tuple(data.shape)
+    nnzb, bs, _ = get_const_tuple(weight_data.shape)
+    N = weight_indptr.shape[0]
+    # nnzb*bs*bs*bs*2 for * and + in dense matmul for each block
+    # nnzb for access into the indices
+    # N for access into the indptrs
+    cfg.add_flop(nnzb * bs * bs * bs * 2 + nnzb + N)
+    return cusparse.sparse_dense(data, weight_data, weight_indices, weight_indptr)
+
+
+@autotvm.register_topi_schedule("sparse_dense_cusparse.cuda")
+def schedule_sparse_dense_cusparse(_, outs):
+    """Create schedule for sparse dense using cusparse"""
+    return generic.schedule_extern(outs)

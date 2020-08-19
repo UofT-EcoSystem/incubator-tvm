@@ -597,6 +597,12 @@ def sparse_dense_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_sparse_dense),
         name="sparse_dense.cuda",
         plevel=10)
+    if target.target_name == "cuda" and "cusparse" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_sparse_dense(topi.cuda.sparse_dense_cusparse),
+            wrap_topi_schedule(topi.cuda.schedule_sparse_dense_cusparse),
+            name="sparse_dense_cusparse.cuda",
+            plevel=15)
     return strategy
 
 
