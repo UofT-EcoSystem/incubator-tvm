@@ -678,10 +678,14 @@ public:
                 same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
                                  lhs_reduce_cond_type != ReduceCondType::C_Unk;
 
-                if (!(same_combiner && 
-                       same_source && 
-                       same_ordered_reduce_axis &&
-                       same_condition))
+                if (same_combiner && 
+                    same_source && 
+                    same_ordered_reduce_axis &&
+                    same_condition)
+                {
+                        LOG(INFO) << GetRef < Expr > (op) << " == " << other.op;
+                }
+                else 
                 {
                         LOG(INFO) << GetRef < Expr > (op) << " != " << other.op;
                 }
