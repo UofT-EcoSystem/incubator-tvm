@@ -1001,6 +1001,9 @@ public:
         {                                                                       \
                 return expr;                                                    \
         }
+        DEFINE_IMM_OPTIMIZE(IntImm)
+        DEFINE_IMM_OPTIMIZE(UIntImm)
+        DEFINE_IMM_OPTIMIZE(FloatImm)
 
         Expr Optimize(const Expr & expr)
         {
