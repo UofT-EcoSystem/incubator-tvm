@@ -540,56 +540,131 @@ struct TensorExpr
         DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Mul)
         DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(Div)
 
-
-        enum class ReduceOpType {C_ADD, C_MUL, C_UNK};
-
-        static ReduceOpType
-        InferReduceOpType(const CommReducer & comm_reducer)
+private:
+        enum class CommReducerOpType {C_Add, C_Mul, C_Unk};
+        static CommReducerOpType
+        InferCommReducerOpType(const CommReducer & comm_reducer)
         {
                 if (comm_reducer->lhs.size() != 1 ||
                     comm_reducer->rhs.size() != 1 || 
-                    comm_reducer->result.size() != 1)
+                    comm_reducer->result.size() != 1 || 
+                    comm_reducer->identity_element.size() != 1)
                 {
-                        return ReduceOpType::C_UNK;
+                        return CommReducerOpType::C_Unk;
                 }
-                const Add * op = comm_reducer->result[0].as < Add > ();
-                if ((op != nullptr) &&
-                    op->a == comm_reducer->lhs[0] &&
-                    op->b == comm_reducer->rhs[0])
+#define CHECK_COMM_REDUCER_OP_TYPE(Op, identity_value)                          \
+        {                                                                       \
+                const Op * op = comm_reducer->result[0].as < Op > ();           \
+                const Variable * op_a = op->a.as < Variable > (),               \
+                               * op_b = op->b.as < Variable > (),               \
+                               * reducer_lhs = comm_reducer->lhs[0].as < Variable > (),  \
+                               * reducer_rhs = comm_reducer->rhs[0].as < Variable > ();  \
+                const FloatImm * identity_element                               \
+                        = comm_reducer->identity_element.as < FloatImm > ();    \
+                if (op != nullptr &&                                            \
+                    op_a == reducer_lhs &&                                      \
+                    op_b == reducer_rhs &&                                      \
+                    identity_element->value == identity_value)                  \
+                {                                                               \
+                        return CommReducerOpType::C_ ## Op;                     \
+                }                                                               \
+        }
+                CHECK_COMM_REDUCER_OP_TYPE(Add, 0)
+                CHECK_COMM_REDUCER_OP_TYPE(Mul, 1)
+                return CommReducerOpType::C_Unk;
+        }
+        static std::vector < size_t >
+        InferOrderedReduceAxis(const Array < IterVar > & source_ordered_axis,
+                               const Array < IterVar > & reduce_axis)
+        {
+                std::vector < size_t > ret;
+
+                for (size_t i = 0; i < source_ordered_axis.size(); ++i)
                 {
-                        return ReduceOpType::C_ADD;
+                        for (const IterVar & iv : reduce_axis)
+                        {
+                                if (source_ordered_axis[i]
+                                    == reduce_axis)
+                                {
+                                        ret.push_back(i);
+                                }
+                        }
                 }
-                const Mul * op = comm_reducer->result[0].as < Mul > ();
-                if ((op != nullptr) &&
-                    op->a == comm_reducer->lhs[0] &&
-                    op->b == comm_reducer->rhs[0])
+                return ret;
+        }
+        enum class ReduceCondType {C_Always, C_Unk};
+        static ReduceCondType
+        InferReduceCondType(const Expr & cond)
+        {
+                const UIntImm * cond_as_uint = cond.as < UIntImm > ();
+                if (cond_as_uint != nullptr &&
+                    cond_as_uint->value == 1)
                 {
-                        return ReduceOpType::C_MUL;
+                        return ReduceCondType::C_Always;
                 }
-                return ReduceOpType::C_UNK;
+                return ReduceCondType::C_Unk;
         }
 
+public:
         bool _Compare(const Reduce * const op,
                       const TensorExpr & other)
         {
                 // Two reductions are considered the same if they are the same 
                 // in terms of ALL of the following aspects
                 // 
-                //   - Combiner
-                //     - ReduceOp
+                //   - CommReducer
+                //     - OpType
                 //     - IdentityElement
                 //   - Source
                 //   - Axis
                 //   - Condition
                 const Reduce * other_op = other.op.as < Reduce > ();
                 CHECK(other_op != nullptr);
-                bool same_combiner, same_source, same_axis, same_condition;
 
-                same_combiner
+                if (op == other_op)
+                {
+                        return true;
+                }
 
+                CHECK(this->operands.size() == 1);
+                CHECK(other.operands.size() == 1);
+                bool same_combiner, same_source,
+                     same_ordered_reduce_axis = true,
+                     same_condition;
+
+                CommReducerOpType
+                        lhs_comm_reducer_op_type = InferCommReducerOpType(op->combiner),
+                        rhs_comm_reducer_op_type = InferCommReducerOpType(other_op->combiner);
+                same_combiner = lhs_comm_reducer_op_type == rhs_comm_reducer_op_type &&
+                                lhs_comm_reducer_op_type != CommReducerOpType::C_Unk;
+                same_source = (*this->operands[0]) == (*other.operands[0]);
+                std::vector < size_t >
+                        lhs_ordered_reduce_axis = InferOrderedReduceAxis(
+                                this->operands[0]->ordered_axis, op->axis),
+                        rhs_ordered_reduce_axis = InferOrderedReduceAxis(
+                                other.operands[0]->ordered_axis, other_op->axis);
+                if (lhs_ordered_reduce_axis.size() != rhs_ordered_reduce_axis.size() || 
+                    lhs_ordered_reduce_axis.size() == 0)
+                {
+                        return false;
+                }
+                for (size_t i = 0; i < lhs_ordered_reduce_axis.size(); ++i)
+                {
+                        if (lhs_ordered_reduce_axis[i] !=
+                            rhs_ordered_reduce_axis[i])
+                        {
+                                same_ordered_reduce_axis = false;
+                        }
+                }
+                ReduceCondType
+                        lhs_reduce_cond_type = InferReduceCondType(op->condition),
+                        rhs_reduce_cond_type = InferReduceCondType(other_op->condition);
+                same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
+                                 lhs_reduce_cond_type != ReduceCondType::C_Unk;
                 return same_combiner && 
                        same_source && 
-                       same_axis && same_condition;        
+                       same_ordered_reduce_axis &&
+                       same_condition;
         }
 
 #define DEFINE_IMM_COMPARE(Imm)                                                 \
