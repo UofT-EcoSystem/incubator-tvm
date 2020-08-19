@@ -571,11 +571,11 @@ private:
                                * reducer_lhs = comm_reducer->lhs[0].as < Variable > (),  \
                                * reducer_rhs = comm_reducer->rhs[0].as < Variable > ();  \
                 const FloatImm * identity_element                               \
-                        = comm_reducer->identity_element.as < FloatImm > ();    \
-                LOG(INFO) << comm_reducer->identity_element;  \
+                        = comm_reducer->identity_element[0].as < FloatImm > (); \
                 if (op != nullptr &&                                            \
                     op_a == reducer_lhs &&                                      \
                     op_b == reducer_rhs &&                                      \
+                    identity_element != nullptr &&                              \
                     identity_element->value == identity_value)                  \
                 {                                                               \
                         return CommReducerOpType::C_ ## Op;                     \
