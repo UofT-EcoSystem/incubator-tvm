@@ -524,7 +524,8 @@ struct TensorExpr
         {
                 const PlaceholderOpNode * other_op
                         = other.op.as < PlaceholderOpNode > ();
-                LOG(INFO) << GetRef < Expr > (op) << " vs. " << other.toString();
+                LOG(INFO) << GetRef < Operation > (op) << " vs. " 
+                          << other.toString();
                 CHECK(other_op != nullptr);
                 RETURN(op == other_op);
         }
