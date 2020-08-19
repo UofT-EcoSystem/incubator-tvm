@@ -716,14 +716,10 @@ typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
                 {                                                               \
                         if (node->type_index() != other.op->type_index())       \
                         {                                                       \
-                                return false;                                   \
+                                RETURN(false);                                  \
                         }                                                       \
-                        else  \
-                        {  \
-                                return true;  \
-                        }  \
-                        return _this->_Compare(static_cast < const Op * > (node.get()),  \
-                                               other);                                   \
+                        RETURN(_this->_Compare(static_cast < const Op * > (node.get()),  \
+                                               other));                                  \
                 })
 TVM_STATIC_IR_FUNCTOR(TensorExpr, cmptable)
         .DISPATCH_TO_CMP(Call)
@@ -1002,7 +998,20 @@ public:
         Expr _Optimize(const Reduce * const op,
                        const Expr & expr)
         {
-                return expr;
+                Expr source = Optimize(op->source[op->value_index]);
+
+                if (source.same_as(op->source[op->value_index]))
+                {
+                        return expr;
+                }
+                else
+                {
+                        return Reduce::make(op->combiner,
+                                            {source},
+                                            op->axis,
+                                            op->condition,
+                                            0);
+                }
         }
 
 #define DEFINE_IMM_OPTIMIZE(Imm)                                                \
@@ -1045,7 +1054,7 @@ public:
                                         feature_map_shape,
                                         Float(32));
                         return Call::make(Float(32), 
-                                          "",
+                                          feature_map_placeholder->name,
                                           args,
                                           Call::CallType::Halide,
                                           feature_map_placeholder,
