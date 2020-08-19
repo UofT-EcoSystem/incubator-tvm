@@ -885,7 +885,7 @@ public:
         }
 
 
-        void Visit(const Tensor & tensor)
+        const TensorExprPtr & Visit(const Tensor & tensor)
         {
                 const FunctionBaseNode * tensor_op_func
                         = tensor->op.as < FunctionBaseNode > ();
@@ -921,8 +921,7 @@ public:
                         LOG(FATAL) << "Unknown tensor op type: "
                                    << tensor->op->GetTypeKey();
                 }  // if (tensor->op.as < ComputeOpNode > ())
-                LOG(INFO) << "Tensor [" << tensor << "]";
-                LOG(INFO) << tensor_expr->toString();
+                return tensor_expr;
         }
 
 
@@ -971,8 +970,8 @@ public:
         CSEMutator(const Tensor & src,
                    const Tensor & tgt)
         {
-                _src_tensor_expr_constr.Visit(src);
-                _tgt_tensor_expr_constr.Visit(tgt);
+                LOG(INFO) << _src_tensor_expr_constr.Visit(src)->toString();
+                LOG(INFO) << _tgt_tensor_expr_constr.Visit(tgt)->toString();
         }
 
         using FOptimize = NodeFunctor < Expr(const ObjectRef &, const Expr &,
