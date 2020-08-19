@@ -608,7 +608,7 @@ private:
                         for (const IterVar & iv : reduce_axis)
                         {
                                 if (source_ordered_axis[i]
-                                    == reduce_axis)
+                                    .same_as(reduce_axis))
                                 {
                                         ret.push_back(i);
                                 }
