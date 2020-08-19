@@ -524,8 +524,6 @@ struct TensorExpr
         {
                 const PlaceholderOpNode * other_op
                         = other.op.as < PlaceholderOpNode > ();
-                LOG(INFO) << GetRef < Operation > (op) << " vs. " 
-                          << other.toString();
                 CHECK(other_op != nullptr);
                 RETURN(op == other_op);
         }
@@ -684,8 +682,6 @@ public:
         bool _Compare(const Imm * const imm, const TensorExpr & other)          \
         {                                                                       \
                 const Imm * other_imm = other.op.as < Imm > ();                 \
-                LOG(INFO) << other.toString(); \
-                LOG(INFO) << other.op; \
                 CHECK(other_imm != nullptr);                                    \
                 RETURN(imm->value == other_imm->value);                         \
         }
