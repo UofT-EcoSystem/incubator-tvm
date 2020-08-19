@@ -669,6 +669,7 @@ public:
                                 other.operands[0]->ordered_axis, other_op->axis);
                 for (const size_t i : lhs_ordered_reduce_axis) LOG(INFO) << i;
                 for (const size_t i : rhs_ordered_reduce_axis) LOG(INFO) << i;
+                LOG(INFO) << lhs_ordered_reduce_axis.size();
                 if (lhs_ordered_reduce_axis.size() != rhs_ordered_reduce_axis.size() || 
                     lhs_ordered_reduce_axis.size() == 0)
                 {
