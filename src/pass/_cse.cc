@@ -686,6 +686,10 @@ public:
                 same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
                                  lhs_reduce_cond_type != ReduceCondType::C_Unk;
 
+                LOG(INFO) << same_combiner;
+                LOG(INFO) << same_source;
+                LOG(INFO) << same_ordered_reduce_axis;
+                LOG(INFO) << same_condition;
                 // if (same_combiner && 
                 //     same_source && 
                 //     same_ordered_reduce_axis &&
