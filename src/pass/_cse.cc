@@ -475,11 +475,13 @@ namespace {
 
 #define CHECKPOINT_RETURN 1
 
+static bool s_enable_ret_checkpoint = false;
+
 #if CHECKPOINT_RETURN
 #define RETURN(v)                                                               \
         do {                                                                    \
                 bool ret = (v);                                                 \
-                if (!ret)                                                       \
+                if (!ret && s_enable_ret_checkpoint)                                       \
                 {                                                               \
                         LOG(INFO) << this->op << " != " << other.op;            \
                 }                                                               \
@@ -521,8 +523,11 @@ struct TensorExpr
 
         bool _Compare(const Call * const op, const TensorExpr & other)
         {
+                s_enable_ret_checkpoint = true;
                 CHECK(op->call_type == Call::CallType::PureIntrinsic);
-                RETURN((*this->operands[0]) == (*other.operands[0]));
+                bool ret = (*this->operands[0]) == (*other.operands[0]);
+                s_enable_ret_checkpoint = false;
+                RETURN(ret);
         }
 
         bool _Compare(const PlaceholderOpNode * const op,
