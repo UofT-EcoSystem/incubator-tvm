@@ -513,6 +513,12 @@ struct TensorExpr
                                             TensorExpr * const) >;
         static FCompare & cmptable() { static FCompare inst; return inst; }
 
+        bool _Compare(const Call * const op, const TensorExpr & other)
+        {
+                CHECK(op->call_type == Call::CallType::PureIntrinsic);
+                RETURN((*this->operands[0]) == (*other.operands[0]));
+        }
+
 #define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Op)                                \
         bool _Compare(const Op * const op, const TensorExpr & other)            \
         {                                                                       \
@@ -657,10 +663,10 @@ public:
                         rhs_reduce_cond_type = InferReduceCondType(other_op->condition);
                 same_condition = lhs_reduce_cond_type == rhs_reduce_cond_type &&
                                  lhs_reduce_cond_type != ReduceCondType::C_Unk;
-                return same_combiner && 
+                RETURN(same_combiner && 
                        same_source && 
                        same_ordered_reduce_axis &&
-                       same_condition;
+                       same_condition);
         }
 
 #define DEFINE_IMM_COMPARE(Imm)                                                 \
@@ -668,7 +674,7 @@ public:
         {                                                                       \
                 const Imm * other_imm = other.op.as < Imm > ();                 \
                 CHECK(other_imm != nullptr);                                    \
-                return imm->value == other_imm->value;                          \
+                RETURN(imm->value == other_imm->value);                         \
         }
         DEFINE_IMM_COMPARE(IntImm)
         DEFINE_IMM_COMPARE(UIntImm)
@@ -698,6 +704,7 @@ typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
                                                other);                                   \
                 })
 TVM_STATIC_IR_FUNCTOR(TensorExpr, cmptable)
+        .DISPATCH_TO_CMP(Call)
         .DISPATCH_TO_CMP(Add)
         .DISPATCH_TO_CMP(Sub)
         .DISPATCH_TO_CMP(Mul)
@@ -721,11 +728,11 @@ private:
                              TensorExprPtr > _node_tensor_expr_map;
 
 
-        void ArgsToOrderedAxis(const Array < Expr > & args,
-                               const Array < IterVar > & axis,
-                               Array < IterVar > * ordered_axis)
+        static Array < IterVar >
+        ArgsToOrderedAxis(const Array < Expr > & args,
+                          const Array < IterVar > & axis)
         {
-                *ordered_axis = Array < IterVar > (args.size(), IterVar(nullptr));
+                Array < IterVar > ordered_axis (args.size(), IterVar(nullptr));
 
                 for (size_t arg_idx = 0; arg_idx < args.size(); ++arg_idx)
                 {
@@ -735,10 +742,11 @@ private:
                         {
                                 if (var == iv->var.get())
                                 {
-                                        (*ordered_axis).Set(arg_idx, iv);
+                                        ordered_axis.Set(arg_idx, iv);
                                 }
                         }
                 }
+                return ordered_axis;
         }
 public:
         using FConstruct
@@ -759,8 +767,7 @@ public:
                         Array < IterVar > expr_axis = expr->axis;
                         *expr = *_tensor_expr_map.at(call_func);
                         expr->axis = expr_axis;
-                        ArgsToOrderedAxis(op->args, expr_axis,
-                                          &expr->ordered_axis);
+                        expr->ordered_axis = ArgsToOrderedAxis(op->args, expr_axis);
                 }
                 else if (op->call_type == Call::CallType::PureIntrinsic)
                 {
@@ -878,6 +885,21 @@ public:
                 LOG(INFO) << "Tensor [" << tensor << "]";
                 LOG(INFO) << tensor_expr->toString();
         }
+
+
+        std::pair < const Node *, TensorExprPtr >
+        Find(const TensorExpr & expr) const
+        {
+                for (const auto & node_tensor_expr_pair 
+                     : _node_tensor_expr_map)
+                {
+                        if ((*node_tensor_expr_pair.second) == expr)
+                        {
+                                return node_tensor_expr_pair;
+                        }
+                }
+                return std::make_pair < const Node *, TensorExprPtr > (nullptr, nullptr);
+        }
 };
 
 
@@ -913,7 +935,24 @@ public:
                 _src_tensor_expr_constr.Visit(src);
                 _tgt_tensor_expr_constr.Visit(tgt);
         }
+        Expr _Optimize(const Call * const op, const Expr & expr)
+        {
+                return expr;
+        }
+#define DEFINE_BINARY_OP_OPTIMIZE(Op)                                           \
+        Expr _Optimize(const Op * const op, const Expr & expr)
 
+        Expr _Optimize(const Reduce * const op,
+                       const Expr & expr)
+        {
+                return expr;
+        }
+
+#define DEFINE_IMM_OPTIMIZE(Imm)                                                \
+        Expr _Optimize(const Imm * const imm, const Expr & expr)                \
+        {                                                                       \
+                return expr;                                                    \
+        }
 };
 
 
@@ -930,7 +969,6 @@ Expr OpValueIdxPair2BodyStmt(const OpValueIdxPair & op_valueidx_pair)
         CHECK(compute_op != nullptr);
         return compute_op->body[op_valueidx_pair.second];
 }
-
 
 
 struct BodyStmtAutoInliner : public IRMutator
