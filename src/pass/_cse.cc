@@ -713,7 +713,7 @@ typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
                                 TensorExpr * const _this)                       \
                              ->bool                                             \
                 {                                                               \
-                        if (node->_type_index != other.op->_type_index)         \
+                        if (node->type_index() != other.op->type_index())       \
                         {                                                       \
                                 return false;                                   \
                         }                                                       \
