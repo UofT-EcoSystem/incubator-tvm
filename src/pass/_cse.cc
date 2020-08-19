@@ -518,8 +518,14 @@ struct TensorExpr
 
         bool _Compare(const Call * const op, const TensorExpr & other)
         {
-                CHECK(op->call_type == Call::CallType::PureIntrinsic);       
-                RETURN((*this->operands[0]) == (*other.operands[0]));
+                CHECK(op->call_type == Call::CallType::PureIntrinsic);
+                bool operand_comparison = (*this->operands[0]) == (*other.operands[0]);
+                if (!operand_comparison)
+                {
+                        LOG(INFO) << (*this->operands[0]).op << " != " 
+                                  << (*other.operands[0]).op;
+                }
+                RETURN(operand_comparison);
         }
 
         bool _Compare(const PlaceholderOpNode * const op,
