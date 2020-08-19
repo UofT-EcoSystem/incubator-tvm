@@ -86,6 +86,6 @@ The results will be saved to `results.tsv`
   ```
 - Nvidia GPU
   ```
-  python3 evaluate_all_networks.py --backend nvidia-gpu --log-file ~/Ansor-exp/saved_logs/2020-07-17-ansor-network-gpu.json
+  python3 evaluate_all_networks.py --backend nvidia-gpu --log-file ~/Ansor-exp/saved_logs/2020-08-20-ansor-network-gpu.json
   ```
 
