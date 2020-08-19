@@ -1048,6 +1048,7 @@ public:
                 {
                         LOG(INFO) << "feature_map_" + std::to_string(s_feature_map_counter)
                                   << "=" << expr;
+                        LOG(INFO) << src_node_tensor_expr_pair.second->toString();
 
 
                         Array < Expr > feature_map_shape, args;
