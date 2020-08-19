@@ -515,8 +515,17 @@ struct TensorExpr
 
         bool _Compare(const Call * const op, const TensorExpr & other)
         {
-                CHECK(op->call_type == Call::CallType::PureIntrinsic);
+                CHECK(op->call_type == Call::CallType::PureIntrinsic);       
                 RETURN((*this->operands[0]) == (*other.operands[0]));
+        }
+
+        bool _Compare(const PlaceholderOpNode * const op,
+                      const TensorExpr & other)
+        {
+                const PlaceholderOpNode * other_op
+                        = other.op.as < PlaceholderOpNode > ();
+                CHECK(other_op != nullptr);
+                RETURN(op == other_op);
         }
 
 #define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Op)                                \
@@ -700,11 +709,16 @@ typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
                                 TensorExpr * const _this)                       \
                              ->bool                                             \
                 {                                                               \
+                        if (node->_type_index != other.op->_type_index)         \
+                        {                                                       \
+                                return false;                                   \
+                        }                                                       \
                         return _this->_Compare(static_cast < const Op * > (node.get()),  \
                                                other);                                   \
                 })
 TVM_STATIC_IR_FUNCTOR(TensorExpr, cmptable)
         .DISPATCH_TO_CMP(Call)
+        .DISPATCH_TO_CMP(PlaceholderOpNode)
         .DISPATCH_TO_CMP(Add)
         .DISPATCH_TO_CMP(Sub)
         .DISPATCH_TO_CMP(Mul)
@@ -874,7 +888,7 @@ public:
                 }  // if (tensor->op.as < ComputeOpNode > ())
                 else if (tensor->op.as < PlaceholderOpNode > ())
                 {
-                        tensor_expr = std::make_shared < TensorExpr >();
+                        tensor_expr = std::make_shared < TensorExpr > ();
                         tensor_expr->op = tensor->op;
                 }
                 else
@@ -935,12 +949,46 @@ public:
                 _src_tensor_expr_constr.Visit(src);
                 _tgt_tensor_expr_constr.Visit(tgt);
         }
+
+        using FOptimize = NodeFunctor < Expr(const ObjectRef &, const Expr &,
+                                             CSEMutator * const) >;
+        static FOptimize & optable() { static FOptimize inst; return inst; }
+
         Expr _Optimize(const Call * const op, const Expr & expr)
         {
+                if (op->call_type == Call::CallType::PureIntrinsic)
+                {
+                        Expr new_arg = Optimize(op->args[0]);
+                        if (new_arg.same_as(op->args[0])) { return expr; }
+                        else 
+                        {
+                                return Call::make(op->type, op->name,
+                                                  {new_arg},
+                                                  op->call_type,
+                                                  op->func,
+                                                  op->value_index);
+                        }
+                }
                 return expr;
         }
 #define DEFINE_BINARY_OP_OPTIMIZE(Op)                                           \
-        Expr _Optimize(const Op * const op, const Expr & expr)
+        Expr _Optimize(const Op * const op, const Expr & expr)                  \
+        {                                                                       \
+                Expr a = Optimize(op->a);                                       \
+                Expr b = Optimize(op->b);                                       \
+                if (a.same_as(op->a) && b.same_as(op->b))                       \
+                {                                                               \
+                        return expr;                                            \
+                }                                                               \
+                else                                                            \
+                {                                                               \
+                        return Op::make(a, b);                                  \
+                }                                                               \
+        }
+        DEFINE_BINARY_OP_OPTIMIZE(Add)
+        DEFINE_BINARY_OP_OPTIMIZE(Sub)
+        DEFINE_BINARY_OP_OPTIMIZE(Mul)
+        DEFINE_BINARY_OP_OPTIMIZE(Div)
 
         Expr _Optimize(const Reduce * const op,
                        const Expr & expr)
@@ -953,7 +1001,38 @@ public:
         {                                                                       \
                 return expr;                                                    \
         }
+
+        Expr Optimize(const NodeRef & expr)
+        {
+                static const FOptimize & foptimize = optable();
+                return foptimize(expr, expr, this);
+        }
+
+        void Optimize(Tensor * const tensor)
+        {
+
+        }
 };
+
+
+#define DISPATCH_TO_OPT(Op)                                                    \
+        set_dispatch < Op > ([](const ObjectRef & node,                         \
+                                const Expr & expr,                              \
+                                CSEMutator * const _this)                       \
+                {                                                               \
+                        _this->_Optimize(static_cast < const Op * > (node.get()),  \
+                                         expr);                                    \
+                })
+TVM_STATIC_IR_FUNCTOR(CSEMutator, optable)
+        .DISPATCH_TO_OPT(Call)
+        .DISPATCH_TO_OPT(Add)
+        .DISPATCH_TO_OPT(Sub)
+        .DISPATCH_TO_OPT(Mul)
+        .DISPATCH_TO_OPT(Div)
+        .DISPATCH_TO_OPT(Reduce)
+        .DISPATCH_TO_OPT(IntImm)
+        .DISPATCH_TO_OPT(UIntImm)
+        .DISPATCH_TO_OPT(FloatImm);
 
 
 // =============================================================================
