@@ -472,6 +472,9 @@ std::string Axis2Str(const Array < IterVar > & axis)
 
 namespace {
 
+
+#define CHECKPOINT_RETURN 1
+
 #if CHECKPOINT_RETURN
 #define RETURN(v)                                                               \
         do {                                                                    \
@@ -715,6 +718,10 @@ typedef std::shared_ptr < TensorExpr >  TensorExprPtr;
                         {                                                       \
                                 return false;                                   \
                         }                                                       \
+                        else  \
+                        {  \
+                                return true;  \
+                        }  \
                         return _this->_Compare(static_cast < const Op * > (node.get()),  \
                                                other);                                   \
                 })
