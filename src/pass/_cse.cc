@@ -1008,12 +1008,59 @@ public:
         Expr Optimize(const Expr & expr)
         {
                 static const FOptimize & foptimize = optable();
+                static size_t s_feature_map_counter = 0;
+
+                TensorExprPtr & tgt_tensor_expr
+                        = _tgt_tensor_expr_constr.
+                          _node_tensor_expr_map.at(expr.get());
+                std::pair < const Node *, TensorExprPtr > 
+                        src_node_tensor_expr_pair
+                        = _src_tensor_expr_constr.Find(*tgt_tensor_expr);
+                if (src_node_tensor_expr_pair.first != nullptr)
+                {
+                        Array < Expr > feature_map_shape, args;
+                        for (const IterVar & iv : 
+                             tgt_tensor_expr->ordered_axis)
+                        {
+                                if (!iv.defined())
+                                {
+                                        return expr;
+                                }
+                                feature_map_shape.push_back(iv->dom->extent);
+                                args.push_back(iv->var);
+                        }
+                        Operation feature_map_placeholder
+                                = PlaceholderOpNode::make(
+                                        "feature_map_"
+                                        + std::to_string(s_feature_map_counter++),
+                                        feature_map_shape,
+                                        Float(32));
+                        return Call::make(Float(32), 
+                                          "",
+                                          args,
+                                          Call::CallType::Halide,
+                                          feature_map_placeholder,
+                                          0);
+                }
                 return foptimize(expr, expr, this);
         }
 
-        void Optimize(Tensor * const tensor)
+        void Optimize(Tensor * const ptensor)
         {
-
+                const ComputeOpNode * compute_op
+                        = (*ptensor)->op.as < ComputeOpNode > ();
+                if (compute_op != nullptr)
+                {
+                        Expr new_body_stmt = Optimize(
+                                compute_op->body[(*ptensor)->value_index]);
+                        LOG(INFO) << new_body_stmt;
+                        *ptensor = ComputeOpNode::make(
+                                compute_op->name,
+                                compute_op->tag, 
+                                compute_op->attrs,
+                                compute_op->axis,
+                                {new_body_stmt}).output(0);
+                }
         }
 };
 
@@ -1181,7 +1228,7 @@ public:
                                         inliner.args = args,
                                         inliner.op_valueidx_pair = GetOpValueIdxPair(i);
 
-                                        Expr new_body = Simplify(
+                                        Expr new_body_stmt = Simplify(
                                                 inliner.Mutate(Evaluate::make(
                                                        OpValueIdxPair2BodyStmt(GetOpValueIdxPair(o))
                                                 )).as < Evaluate > ()->value);
@@ -1194,7 +1241,7 @@ public:
                                                 ocompute_op->tag, 
                                                 ocompute_op->attrs,
                                                 ocompute_op->axis,
-                                                {new_body});
+                                                {new_body_stmt});
                                         // LOG(INFO) << "Operation " << _tensor_bodystmt_map[o]
                                         //           << " @" << _tensor_bodystmt_map[o].get();
                                 }
@@ -1224,6 +1271,7 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         TensorAutoInliner().Mutate(ptgt);
         // TensorExprConstructor().Visit(src);
         // TensorExprConstructor().Visit(*ptgt);
+        CSEMutator(src, *ptgt).Optimize(ptgt);
 
         // LOG(INFO) << PrintTensorRecursively(*ptgt);
 }
