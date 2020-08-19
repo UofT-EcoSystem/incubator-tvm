@@ -490,7 +490,7 @@ struct TensorExpr
         Array < IterVar > axis, ordered_axis;
         std::vector < std::shared_ptr < TensorExpr > > operands;
         
-        std::string toString(const unsigned indent = 0)
+        std::string toString(const unsigned indent = 0) const
         {
                 std::ostringstream strout;
                 strout << "\n";
@@ -682,6 +682,8 @@ public:
         bool _Compare(const Imm * const imm, const TensorExpr & other)          \
         {                                                                       \
                 const Imm * other_imm = other.op.as < Imm > ();                 \
+                LOG(INFO) << other.toString(); \
+                LOG(INFO) << other.op; \
                 CHECK(other_imm != nullptr);                                    \
                 RETURN(imm->value == other_imm->value);                         \
         }
