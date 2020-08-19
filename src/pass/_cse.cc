@@ -890,10 +890,11 @@ public:
                 const FunctionBaseNode * tensor_op_func
                         = tensor->op.as < FunctionBaseNode > ();
                 CHECK(tensor_op_func != nullptr);
+                auto tensor_expr_iter = _tensor_expr_map.find(tensor_op_func);
 
-                if (_tensor_expr_map.count(tensor_op_func))
+                if (tensor_expr_iter != _tensor_expr_map.end())
                 {
-                        return;
+                        return tensor_expr_iter->second;
                 }
                 TensorExprPtr & tensor_expr
                         = _tensor_expr_map.emplace(
