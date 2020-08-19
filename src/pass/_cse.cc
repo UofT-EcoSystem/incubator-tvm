@@ -1019,9 +1019,10 @@ public:
         set_dispatch < Op > ([](const ObjectRef & node,                         \
                                 const Expr & expr,                              \
                                 CSEMutator * const _this)                       \
+                             -> Expr                                            \
                 {                                                               \
-                        _this->_Optimize(static_cast < const Op * > (node.get()),  \
-                                         expr);                                    \
+                        return _this->_Optimize(static_cast < const Op * > (node.get()),  \
+                                                expr);                                    \
                 })
 TVM_STATIC_IR_FUNCTOR(CSEMutator, optable)
         .DISPATCH_TO_OPT(Call)
