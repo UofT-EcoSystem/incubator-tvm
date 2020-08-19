@@ -1002,7 +1002,7 @@ public:
                 return expr;                                                    \
         }
 
-        Expr Optimize(const NodeRef & expr)
+        Expr Optimize(const Expr & expr)
         {
                 static const FOptimize & foptimize = optable();
                 return foptimize(expr, expr, this);
@@ -1015,7 +1015,7 @@ public:
 };
 
 
-#define DISPATCH_TO_OPT(Op)                                                    \
+#define DISPATCH_TO_OPT(Op)                                                     \
         set_dispatch < Op > ([](const ObjectRef & node,                         \
                                 const Expr & expr,                              \
                                 CSEMutator * const _this)                       \
