@@ -968,11 +968,9 @@ private:
         TensorExprConstructor _src_tensor_expr_constr, 
                               _tgt_tensor_expr_constr;
 public:
-        CSEMutator(const Tensor & src,
-                   const Tensor & tgt)
+        CSEMutator(const Tensor & src)
         {
                 LOG(INFO) << _src_tensor_expr_constr.Visit(src)->toString();
-                LOG(INFO) << _tgt_tensor_expr_constr.Visit(tgt)->toString();
         }
 
         using FOptimize = NodeFunctor < Expr(const ObjectRef &, const Expr &,
@@ -1090,6 +1088,7 @@ public:
 
         void Optimize(Tensor * const ptensor)
         {
+                LOG(INFO) << _tgt_tensor_expr_constr.Visit(*ptensor)->toString();
                 const ComputeOpNode * compute_op
                         = (*ptensor)->op.as < ComputeOpNode > ();
                 if (compute_op != nullptr)
@@ -1311,10 +1310,13 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         }
         // LOG(INFO) << PrintTensorRecursively(*ptgt);
 
+        Tensor src_inlined = src;
+
+        TensorAutoInliner().Mutate(&src_inlined);
         TensorAutoInliner().Mutate(ptgt);
         // TensorExprConstructor().Visit(src);
         // TensorExprConstructor().Visit(*ptgt);
-        CSEMutator(src, *ptgt).Optimize(ptgt);
+        CSEMutator(src_inlined).Optimize(ptgt);
 
         // LOG(INFO) << PrintTensorRecursively(*ptgt);
 }
