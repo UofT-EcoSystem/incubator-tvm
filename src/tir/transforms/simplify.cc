@@ -53,7 +53,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
     With<ConstraintContext> ctx2(analyzer_, op->loop_var < op->min + op->extent);
 
-    if (op->loop_var->name_hint == "block_offset") {
+    if (op->loop_var->name_hint == "row_offset") {
       // Temporary hack for sparse_dense_bsr
       tir::PostOrderVisit(GetRef<Stmt>(op), [this](const ObjectRef& node) {
         if (const ForNode *for_node = node.as<ForNode>()) {

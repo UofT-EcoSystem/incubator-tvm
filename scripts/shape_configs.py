@@ -173,6 +173,11 @@ transpose_batch_matmul_shapes = [
     (1,   128, 12, 128),
 ]
 
+sparse_conv2d_csr_shapes = [
+    (1, 56, 56, 64, 64, 3, 3, 1, 1, 1, 0.15, False),
+    (1, 56, 56, 64, 64, 1, 1, 1, 0, 1, 0.15, False),
+]
+
 shape_dict = {
     'C1D': conv1d_shapes,
     'C2D': conv2d_shapes,
@@ -191,6 +196,7 @@ shape_dict = {
 
     'C2DWG_NHWC': conv2d_winograd_nhwc_shapes,
     'C2DWG_NCHW': conv2d_winograd_nchw_shapes,
+    'SP_C2D_CSR': sparse_conv2d_csr_shapes,
 }
 
 resnet_shapes = [

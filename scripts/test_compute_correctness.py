@@ -6,9 +6,10 @@ import torch
 import topi
 import tvm
 from tvm import te, ansor
+import topi.testing
 
-from common import sparse_dense_bsr_compute, random_bsr_matrix, \
-        conv2d_nchw_bn_relu, conv2d_nhwc_bn_relu
+from common import random_bsr_matrix, random_csr_matrix, sparse_dense_bsr_compute,\
+    sparse_conv2d_csr_compute, conv2d_nchw_bn_relu, conv2d_nhwc_bn_relu
 
 def test_conv2d():
     #args = (1, 224, 224, 3, 64, 7, 2, 3)
@@ -121,7 +122,6 @@ def test_conv2d_transpose():
         torch_res = torch_res.numpy()
         np.testing.assert_allclose(np_args[3], torch_res, rtol=1e-4, atol=1e-4)
 
-
 def test_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
     X_np = np.random.randn(M, K).astype("float32")
     W_sp_np = random_bsr_matrix(N, K, BS_R, BS_C, density=density, dtype="float32")
@@ -152,9 +152,46 @@ def test_sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
     tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
 
 
+def test_sparse_conv2d_csr(N, H, W, CI, CO, KH, KW, strides, padding, dilation, density, use_relu):
+    dtype = 'float32'
+    X_np = np.random.randn(N, CI, H, W).astype(dtype)
+    W_sp_np = random_csr_matrix(CO, CI * KH * KW, density=density, dtype=dtype)
+    W_np = np.array(W_sp_np.todense()).reshape((CO, CI, KH, KW))
+    Y_np = topi.testing.conv2d_nchw_python(X_np, W_np, strides, padding).astype(dtype)
+
+    if use_relu:
+        Y_np = np.maximum(Y_np, 0.0)
+
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+
+    target = 'llvm'
+    ctx = tvm.context(target)
+
+    Y = sparse_conv2d_csr_compute(X, W_data, W_indices, W_indptr, (KH, KW), strides, padding, dilation)
+    if use_relu:
+        Y = topi.nn.relu(Y)
+
+    s = te.create_schedule([Y.op])
+    func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y], target)
+    Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype), ctx=ctx)
+    func(tvm.nd.array(X_np, ctx=ctx),
+         tvm.nd.array(W_sp_np.data, ctx=ctx),
+         tvm.nd.array(W_sp_np.indices, ctx=ctx),
+         tvm.nd.array(W_sp_np.indptr, ctx=ctx),
+         Y_tvm)
+
+    tvm.testing.assert_allclose(Y_tvm.asnumpy(), Y_np, atol=1e-4, rtol=1e-4)
+
 if __name__ == "__main__":
-    #test_sparse_dense_bsr(128, 3072, 768, 16, 1, 0.15, False)
-    #test_sparse_dense_bsr(128, 3072, 768, 16, 1, 0.15, True)
-    #test_conv2d()
+    test_sparse_dense_bsr(128, 64, 32, 16, 1, 0.15, False)
+    test_sparse_dense_bsr(128, 64, 32, 16, 1, 0.15, True)
+
+    test_sparse_conv2d_csr(1, 7, 7, 128, 128, 1, 1, 1, 0, 1, 0.15, False)
+    test_sparse_conv2d_csr(1, 7, 7, 128, 128, 3, 3, 1, 1, 1, 0.15, True)
+
+    test_conv2d()
     test_conv2d_transpose()
 

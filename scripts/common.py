@@ -36,6 +36,7 @@ from tvm.ansor import (LogReader, make_workload_key_func,
                        write_measure_records_to_file, measure)
 from tvm.contrib import ndk, util
 from topi.util import get_const_tuple
+from topi.nn.util import get_pad_tuple
 
 ############################################################
 ######################  Test Workloads  ####################
@@ -139,6 +140,7 @@ def add_min_relu(M, N):
     out = topi.nn.relu(D)
     return [A, B, out]
 
+########## Sparse workloads ##########
 def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     import itertools
     import scipy.sparse as sp
@@ -160,7 +162,6 @@ def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
     assert s.indptr.shape == (M // BS_R + 1, )
     return s
 
-
 def sparse_dense_bsr_compute(data, weight_data, weight_indices, weight_indptr):
     (m, k) = get_const_tuple(data.shape)
     (_, bs_r, bs_c) = get_const_tuple(weight_data.shape)
@@ -173,15 +174,15 @@ def sparse_dense_bsr_compute(data, weight_data, weight_indices, weight_indptr):
 
         row_start = weight_indptr[block_j]
         row_end = weight_indptr[block_j + 1]
-        block_offset = te.reduce_axis((0, row_end - row_start), name='block_offset')
+        row_offset = te.reduce_axis((0, row_end - row_start), name='row_offset')
         kk = te.reduce_axis((0, bs_c), name='kk')
-        block_idx = row_start + block_offset
+        block_idx = row_start + row_offset
 
         return te.sum(data[i, weight_indices[block_idx] * bs_c + kk] * \
-                      weight_data[block_idx, jj, kk], axis=[block_offset, kk],)
+                      weight_data[block_idx, jj, kk], axis=[row_offset, kk],)
 
     out = te.compute((m, num_block_row * bs_r), lambda i, j : body_func(i, j),
-                     attrs={"ansor_no_split_at_inner": ["block_offset", "kk"],
+                     attrs={"ansor_no_split_at_inner": ["row_offset", "kk"],
                             "FLOP": 2 * m * num_block_row * bs_r * k},
                      name='sparse_dense')
 
@@ -205,7 +206,6 @@ def sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
     W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype),
                               name=prefix + "W_indptr")
     X = te.placeholder(shape=(M, K), dtype=dtype, name='X')
-    bufs = X, W_data, W_indices, W_indptr
 
     Y = sparse_dense_bsr_compute(X, W_data, W_indices, W_indptr)
 
@@ -214,6 +214,109 @@ def sparse_dense_bsr(M, N, K, BS_R, BS_C, density, use_relu):
 
     return [X, W_data, W_indices, W_indptr, Y]
 
+def random_csr_matrix(M, N, density, dtype):
+    import scipy.sparse as sp
+    np.random.seed(42)
+    Y = np.zeros((M, N), dtype=dtype)
+    nnz = int(density * M * N)
+    chosen_indices = np.random.choice(M * N, size=nnz, replace=False)
+    for idx in chosen_indices:
+        i, j = idx // N, idx % N
+        Y[i, j] = np.random.randn()
+    s = sp.csr_matrix(Y)
+    assert s.data.shape == (nnz,)
+    assert s.indices.shape == (nnz,)
+    assert s.indptr.shape == (M+1,)
+    return s
+
+def sparse_conv2d_csr_compute(data, weight_data, weight_indices, weight_indptr, kernel_sizes, strides, padding, dilation):
+    assert isinstance(strides, int) or len(strides) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
+    if isinstance(strides, int):
+        stride_h = stride_w = strides
+    else:
+        stride_h, stride_w = strides
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+    KH, KW = kernel_sizes
+
+    assert dilation_h == dilation_w == 1
+
+    batch, in_channel, in_height, in_width = get_const_tuple(data.shape)
+    out_channel_plus_1, = get_const_tuple(weight_indptr.shape)
+    out_channel = out_channel_plus_1 - 1
+
+    # compute the output shape
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    out_height = (in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1
+    out_width = (in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1
+    # compute graph
+    pad_before = [0, 0, pad_top, pad_left]
+    pad_after = [0, 0, pad_down, pad_right]
+    padded = topi.nn.pad(data, pad_before, pad_after, name="pad_temp")
+
+    def body(n, co, oh, ow):
+        row_start = weight_indptr[co]
+        row_end = weight_indptr[co + 1]
+
+        row_offset = te.reduce_axis((0, row_end - row_start), name='row_offset')
+        idx = row_start + row_offset
+
+        col = weight_indices[idx]
+        kw = col % KW
+        kh = col // KW % KH
+        ci = col // KH // KW
+
+        return te.sum(
+            padded[n, ci, oh * stride_h + kh * dilation_h,
+                 ow * stride_w + kw * dilation_w] *
+            weight_data[idx],
+            axis=[row_offset])
+
+    return te.compute(
+        (batch, out_channel, out_height, out_width),
+        lambda n, co, oh, ow: body(n, co, oh, ow),
+        attrs={"ansor_no_split_at_inner": ["row_offset"],
+               "FLOP": 2 * batch * out_channel * out_height * out_width * in_channel * KH * KW},
+        name='sparse_conv2d_csr',
+    )
+
+@register_workload_func
+def sparse_conv2d_csr(N, H, W, CI, CO, KH, KW, strides, padding, dilation, density, use_relu):
+    dtype = "float32"
+    W_sp_np = random_csr_matrix(CO, CI * KH * KW, density=density, dtype=dtype)
+
+    # register these special buffers for measurement
+    prefix = "sparse_conv2d_csr_" + \
+             "_".join(["%s" % x for x in (N, H, W, CI, CO, KH, KW, strides, padding, dilation)]) + \
+             "%.2f" % density
+
+    measure.register_special_buffer(prefix + "W_data", W_sp_np.data)
+    measure.register_special_buffer(prefix + "W_indices", W_sp_np.indices)
+    measure.register_special_buffer(prefix + "W_indptr", W_sp_np.indptr)
+
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype),
+                            name=prefix + "W_data")
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype),
+                               name=prefix + "W_indices")
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype),
+                              name=prefix + "W_indptr")
+    X = te.placeholder(shape=(N, CI, H, W), dtype=dtype, name='X')
+
+    Y = sparse_conv2d_csr_compute(X, W_data, W_indices, W_indptr, (KH, KW), strides, padding, dilation)
+
+    if use_relu:
+        Y = topi.nn.relu(Y)
+
+    return [X, W_data, W_indices, W_indptr, Y]
+
+########## Conv2d NCHW ##########
 @register_workload_func
 def conv2d_relu_softmax_min(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, CI, H, W), name='data')
@@ -235,6 +338,32 @@ def conv2d_nchw_bias(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     out = topi.add(conv, bias)
     return [data, kernel, bias, out]
 
+@register_workload_func
+def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
+    data = te.placeholder((N, CI, H, W), name='data')
+    kernel = te.placeholder((CO, CI, kernel_size, kernel_size), name='kernel')
+    bias = te.placeholder((CO, 1, 1), name='bias')
+    bn_scale = te.placeholder((CO, 1, 1), name='bn_scale')
+    bn_offset = te.placeholder((CO, 1, 1), name='bn_offset')
+
+    OH = (H + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
+    OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
+
+    conv = topi.nn.conv2d_nchw(data, kernel, strides, padding, dilation)
+    conv = te.compute((N, CO, OH, OW),
+                      lambda i, j, k, l: conv[i, j, k, l] + bias[j, 0, 0],
+                      name='bias_add')
+    conv = te.compute((N, CO, OH, OW),
+                      lambda i, j, k, l: conv[i, j, k, l] * bn_scale[j, 0, 0],
+                      name='bn_mul')
+    conv = te.compute((N, CO, OH, OW),
+                      lambda i, j, k, l: conv[i, j, k, l] + bn_offset[j, 0, 0],
+                      name='bn_add')
+    out = topi.nn.relu(conv)
+
+    return [data, kernel, bias, bn_offset, bn_scale, out]
+
+########## Conv2d NHWC ##########
 def conv2d_nhwc_without_layout_rewrite(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     """A copy of `topi.nn.conv2d_nhwc` but without the 'layout_free` attribute.
     We use this in single op and subgraph evaluation because we don't want to introduce graph level optimization.
@@ -253,19 +382,7 @@ def conv2d_nhwc_without_layout_rewrite(Input, Filter, stride, padding, dilation,
         dilation_h, dilation_w = dilation
 
     batch, in_height, in_width, in_channel = Input.shape
-    if len(Filter.shape) == 10:
-        kernel_h = Filter.shape[2] * Filter.shape[6]
-        kernel_w = Filter.shape[3] * Filter.shape[7]
-        channel = Filter.shape[4] * Filter.shape[8]
-        num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[5] * Filter.shape[9]
-        #Filter = te.placeholder([kernel_h, kernel_w, channel, num_filter], Filter.dtype, Filter.name)
-    elif len(Filter.shape) == 11:
-        kernel_h = Filter.shape[3] * Filter.shape[7]
-        kernel_w = Filter.shape[4] * Filter.shape[8]
-        channel = Filter.shape[5] * Filter.shape[9]
-        num_filter = Filter.shape[0] * Filter.shape[1] * Filter.shape[2] * Filter.shape[6] * Filter.shape[10]
-    else:
-        kernel_h, kernel_w, channel, num_filter = Filter.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
@@ -291,24 +408,12 @@ def conv2d_nhwc_without_layout_rewrite(Input, Filter, stride, padding, dilation,
         name="Conv2dOutput", tag="conv2d_nhwc")
     return Output
 
-
 @register_workload_func
-def conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
+def dense_conv2d_nhwc(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     data = te.placeholder((N, H, W, CI), name='data')
     kernel = te.placeholder((KH, KW, CI, CO), name='kernel')
-    bias = te.placeholder((CO, ), name='bias')
-    conv = topi.nn.conv2d_nhwc(data, kernel, strides, padding, dilation)
-    out = topi.add(conv, bias)
-    return [data, kernel, bias, out]
-
-@register_workload_func
-def depthwise_conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
-    data = te.placeholder((N, H, W, CI), name='data')
-    kernel = te.placeholder((KH, KW, CI, 1), name='kernel')
-    bias = te.placeholder((CO, ), name='bias')
-    conv = topi.nn.depthwise_conv2d_nhwc(data, kernel, strides, padding, dilation)
-    out = topi.add(conv, bias)
-    return [data, kernel, bias, out]
+    conv = conv2d_nhwc_without_layout_rewrite(data, kernel, strides, padding, dilation)
+    return [data, kernel, conv]
 
 @register_workload_func
 def conv2d_nhwc_bias(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
@@ -318,32 +423,6 @@ def conv2d_nhwc_bias(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
     conv = conv2d_nhwc_without_layout_rewrite(data, kernel, strides, padding, dilation)
     out = topi.add(conv, bias)
     return [data, kernel, bias, out]
-
-
-@register_workload_func
-def conv2d_nchw_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
-    data = te.placeholder((N, CI, H, W), name='data')
-    kernel = te.placeholder((CO, CI, kernel_size, kernel_size), name='kernel')
-    bias = te.placeholder((CO, 1, 1), name='bias')
-    bn_scale = te.placeholder((CO, 1, 1), name='bn_scale')
-    bn_offset = te.placeholder((CO, 1, 1), name='bn_offset')
-
-    OH = (H + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
-    OW = (W + 2 * padding - (kernel_size - 1) * dilation - 1) // strides + 1
-
-    conv = topi.nn.conv2d_nchw(data, kernel, strides, padding, dilation)
-    conv = te.compute((N, CO, OH, OW),
-                       lambda i, j, k, l: conv[i, j, k, l] + bias[j, 0, 0],
-                       name='bias_add')
-    conv = te.compute((N, CO, OH, OW),
-                       lambda i, j, k, l: conv[i, j, k, l] * bn_scale[j, 0, 0],
-                       name='bn_mul')
-    conv = te.compute((N, CO, OH, OW),
-                       lambda i, j, k, l: conv[i, j, k, l] + bn_offset[j, 0, 0],
-                       name='bn_add')
-    out = topi.nn.relu(conv)
-
-    return [data, kernel, bias, bn_offset, bn_scale, out]
 
 @register_workload_func
 def conv2d_nhwc_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation=1):
@@ -369,6 +448,24 @@ def conv2d_nhwc_bn_relu(N, H, W, CI, CO, kernel_size, strides, padding, dilation
     out = topi.nn.relu(conv)
 
     return [data, kernel, bias, bn_offset, bn_scale, out]
+
+@register_workload_func
+def conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
+    data = te.placeholder((N, H, W, CI), name='data')
+    kernel = te.placeholder((KH, KW, CI, CO), name='kernel')
+    bias = te.placeholder((CO, ), name='bias')
+    conv = topi.nn.conv2d_nhwc(data, kernel, strides, padding, dilation)
+    out = topi.add(conv, bias)
+    return [data, kernel, bias, out]
+
+@register_workload_func
+def depthwise_conv2d_nhwc_bias_with_rewrite(N, H, W, CI, CO, KH, KW, strides, padding, dilation):
+    data = te.placeholder((N, H, W, CI), name='data')
+    kernel = te.placeholder((KH, KW, CI, 1), name='kernel')
+    bias = te.placeholder((CO, ), name='bias')
+    conv = topi.nn.depthwise_conv2d_nhwc(data, kernel, strides, padding, dilation)
+    out = topi.add(conv, bias)
+    return [data, kernel, bias, out]
 
 resnet_conv2d_configs = {
     # format : N, H, W, CI, CO, KH, KW, strides, padding, dilation
@@ -416,7 +513,7 @@ resnet_conv2d_weights = {
     '50': [1, 1, 1, 2, 4, 3, 1, 1, 1, 3, 4, 4, 1, 1, 5, 6, 6, 2, 3, 3],
 }
 
-
+########## Workload name parser ##########
 def parse_workload_name(name: str) -> List[str]:
     """Parse workload name with wildcard character and abbreviation to standard names"""
     if name.startswith('matmul-'):  # e.g. matmul-512, matmul-1024, matmul-+
@@ -426,13 +523,13 @@ def parse_workload_name(name: str) -> List[str]:
         else:
             cfg_list = [N]
         return ["matmul-%s" % x for x in cfg_list]
-    elif name.startswith('dense-'):  # e.g. dense-1-512-1024, dense-16-512-512
-        N = name.split('-', maxsplit=1)[1]
-        if N == '+':
-            cfg_list = ["1-512-512", "16-512-512"]
-        else:
-            cfg_list = [N]
-        return ["dense-%s" % x for x in cfg_list]
+    #elif name.startswith('dense-'):  # e.g. dense-1-512-1024, dense-16-512-512
+    #    N = name.split('-', maxsplit=1)[1]
+    #    if N == '+':
+    #        cfg_list = ["1-512-512", "16-512-512"]
+    #    else:
+    #        cfg_list = [N]
+    #    return ["dense-%s" % x for x in cfg_list]
     elif name.startswith('min-'):  # e.g. min-4096
         N = name.split('-', maxsplit=1)[1]
         if N == '+':
@@ -496,7 +593,7 @@ def parse_workload_name(name: str) -> List[str]:
         batch_size = 1 if res.group(4) is None else int(res.group(4))
         return ['resnet-%s.C%d.B%d' % (n_layers, i, batch_size) for i in idx_list]
     elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite', 'depthwise-conv2d-rewrite',
-                  'bert-softmax', 'sparse-dense']:
+                  'bert-softmax', 'sparse-dense-bsr', 'sparse-conv2d-csr', 'dense-conv2d']:
         return [name]
     else:
         raise ValueError("Invalid workload " + name)
@@ -535,13 +632,13 @@ def get_workload_keys(name: str) -> List[str]:
                 raise ValueError("Invalid matmul workload")
             ret.append(make_workload_key_func(matmul_nkkm,
                                               (N, M, K, in_type, out_type, tensor_core_support)))
-        elif name.startswith('dense-'):  # e.g. dense-1-512-1024, dense-16-512-512
-            name_split = name.split('-')
-            assert len(name_split) == 4
-            batch = int(name_split[1])
-            in_dim = int(name_split[2])
-            out_dim = int(name_split[3])
-            ret.append(make_workload_key_func(dense_layer, (batch, in_dim, out_dim)))
+        #elif name.startswith('dense-'):  # e.g. dense-1-512-1024, dense-16-512-512
+        #    name_split = name.split('-')
+        #    assert len(name_split) == 4
+        #    batch = int(name_split[1])
+        #    in_dim = int(name_split[2])
+        #    out_dim = int(name_split[3])
+        #    ret.append(make_workload_key_func(dense_layer, (batch, in_dim, out_dim)))
         elif name.startswith('min-'):  # e.g. min-4096
             name_split = name.split('-')
             if len(name_split) == 2:
@@ -639,8 +736,12 @@ def get_workload_keys(name: str) -> List[str]:
                                            (1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1), (1, 1)))]
         elif name == 'bert-softmax':
             return [make_workload_key_func(softmax_abcd, (16, 12, 128, 128))]
-        elif name == 'sparse-dense':
+        elif name == 'sparse-dense-bsr':
             return [make_workload_key_func(sparse_dense_bsr, (128, 3072, 768, 16, 1, 0.15, False))]
+        elif name == 'sparse-conv2d-csr':
+            return [make_workload_key_func(sparse_conv2d_csr, (1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 0.15, False))]
+        elif name == 'dense-conv2d':
+            return [make_workload_key_func(dense_conv2d_nhwc, (1, 7, 7, 512, 512, 3, 3, 1, 1, 1))]
         else:
             raise ValueError("Invalid workload " + name)
 
@@ -656,6 +757,7 @@ def get_workload_weights(name: str) -> List[float]:
     else:
         return np.ones(len(get_workload_keys(name)))
 
+########## Load workloads from a network ##########
 def load_network(network_name, network_path, batch_size, layout):
     from tune_network import get_network
     # Extract tasks from relay program
@@ -741,7 +843,7 @@ def check_correctness(s, bufs, s_ref, buf_ref, target, target_host=None, remote=
     func_ref(*args_ref)
 
     for arr, arr_ref in zip(args, args_ref):
-        np.testing.assert_allclose(arr.asnumpy(), arr_ref.asnumpy(), rtol=1e-4, atol=1e-4)
+        np.testing.assert_allclose(arr.asnumpy(), arr_ref.asnumpy(), rtol=1e-3, atol=1e-3)
 
 
 ############################################################

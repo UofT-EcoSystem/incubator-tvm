@@ -12,7 +12,8 @@ import topi
 from topi.nn.winograd_util import winograd_transform_matrices
 from topi.util import get_const_tuple
 
-from common import measure_schedule, str2bool, norm_bmn, conv2d_nhwc_bn_relu, conv2d_nchw_bn_relu, log_line, BenchmarkRecord
+from common import measure_schedule, str2bool, norm_bmn, conv2d_nhwc_bn_relu, conv2d_nchw_bn_relu,\
+    log_line, BenchmarkRecord, sparse_conv2d_csr
 from shape_configs import shape_dict
 from tune_test import tune_workloads_jointly, replay_workload, create_tune_option
 
@@ -535,10 +536,11 @@ task_func_dict = {
     'transpose_batch_matmul': transpose_batch_matmul,
     'transpose_batch_matmul_softmax': transpose_batch_matmul_softmax,
 
-    #'C2DWG_NHWC': conv2d_winograd_nhwc_new,
     'C2DWG_NHWC': conv2d_winograd_nhwc,
-    #'C2D_NCHW': conv2d_nchw,
+    #'C2DWG_NHWC': conv2d_winograd_nhwc_new,
     #'C2DWG_NCHW': conv2d_winograd_nchw,
+
+    'SP_C2D_CSR': sparse_conv2d_csr,
 }
 
 single_op_eval_wkls = ['GMM', 'C1D', 'C2D', 'C3D', 'GRP', 'DIL', 'DEP', 'T2D', 'CAP', 'NRM']
@@ -675,4 +677,3 @@ if __name__ == "__main__":
 
             if measure_ctx:
                 del measure_ctx
-
