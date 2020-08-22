@@ -1311,17 +1311,11 @@ void _CSE(const Tensor & src, Tensor * const ptgt)
         {
                 return;
         }
-        // LOG(INFO) << PrintTensorRecursively(*ptgt);
-
         Tensor src_inlined = src;
 
         TensorAutoInliner().Mutate(&src_inlined);
         TensorAutoInliner().Mutate(ptgt);
-        // TensorExprConstructor().Visit(src);
-        // TensorExprConstructor().Visit(*ptgt);
         CSEMutator(src_inlined).Optimize(ptgt);
-
-        // LOG(INFO) << PrintTensorRecursively(*ptgt);
 }
 
 
