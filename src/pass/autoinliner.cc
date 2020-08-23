@@ -98,7 +98,7 @@ TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
                         }
                         auto GetBodyStmt = [this](const Tensor & tensor) -> Expr
                                 {
-                                        CHECK(tensor->value_index != 0);
+                                        CHECK(tensor->value_index == 0);
                                         auto iter = this->_tensor_compute_op_map.find(tensor);
                                         const Operation & op =
                                                 iter != this->_tensor_compute_op_map.end() ? 
@@ -107,10 +107,14 @@ TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
                                         CHECK(compute_op != nullptr);
                                         return compute_op->body[0];
                                 };
-                        BodyStmtAutoInliner inliner {
-                                .src_op = itensor->op,
-                                .src_axis_vars = iaxis_vars,
-                                .src_body_stmt = GetBodyStmt(itensor)};
+                        // BodyStmtAutoInliner inliner = {
+                        //         .src_op = itensor->op,
+                        //         .src_axis_vars = iaxis_vars,
+                        //         .src_body_stmt = GetBodyStmt(itensor)};
+                        BodyStmtAutoInliner inliner;
+                        inliner.src_op = itensor->op;
+                        inliner.src_axis_vars = iaxis_vars;
+                        inliner.src_body_stmt = GetBodyStmt(itensor);
                         
                 }  // for (otensor ∈ _tensor_reverse_map[itensor])
         }  // for (itensor ∈ _tensor_post_order)
