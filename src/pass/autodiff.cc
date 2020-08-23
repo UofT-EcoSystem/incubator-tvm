@@ -23,7 +23,7 @@
 
 
 // <bojian/TVM-AutoDiff> Added the header for CSE.
-#include "./_cse.h"
+#include "./cse.h"
 
 
 namespace tvm {
