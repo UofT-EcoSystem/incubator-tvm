@@ -9,7 +9,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/operation.h>
 
-#include "./_cse.h"
+#include "./cse.h"
 #include "./zero_elimination.h"
 
 

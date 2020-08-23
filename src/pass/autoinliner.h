@@ -17,7 +17,7 @@ namespace ir {
 struct BodyStmtAutoInliner : public IRMutator
 {
         Operation src_op;
-        Array < Var > src_axis; 
+        Array < Var > src_axis_vars;
         Expr src_body_stmt;
 
         Expr Mutate_(const Call * op, const Expr & e) override final;
@@ -25,8 +25,8 @@ struct BodyStmtAutoInliner : public IRMutator
 };  // class BodyStmtAutoInliner
 
 
-/// @brief  @c TensorAutoInliner automatically inlines injective tensor
-///         expressions into their respective consumers.     
+/// @brief  @c TensorAutoInliner automatically inlines injective tensor expressions
+///         into their respective consumers.     
 class TensorAutoInliner
 {
 private:
@@ -35,13 +35,17 @@ private:
                              std::unordered_set < Tensor > >
                 _tensor_reverse_map;
         std::unordered_map < Tensor, Operation >
-                _tensor_body_stmt_map;
+                _tensor_compute_op_map;
 
-        /// @brief Make a post-order walk through of the tensors to initialize 
-        ///        @c tensor_post_order and @c tensor_reverse_map .
-        void InitPostOrder();
+        /// @brief  Make a post-order walk through of the tensors to initialize 
+        ///         @c tensor_post_order and @c tensor_reverse_map .
+        void VisitPostOrder(const Tensor & tensor);
 public:
-        void Mutate(Tensor * const ptensors);
+        /// @brief  Inline all of @c tensor 's body statements.
+        /// 
+        /// @return a tensor which does the same compute, but with injective
+        ///         compute operations inlined
+        Array < Tensor > Mutate(const Array < Tensor > & tensors);
 };  // class TensorAutoInliner
 
 
