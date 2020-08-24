@@ -115,9 +115,9 @@ TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
                         inliner.src_body_stmt = GetBodyStmt(itensor);
                         
                         Expr new_body_stmt
-                                = Simplify(inliner.Mutate(Evaluate::make(GetBodyStmt(otensors))
+                                = Simplify(inliner.Mutate(Evaluate::make(GetBodyStmt(otensor))
                                                           ).as < Evaluate > ()->value);
-                        _tensor_bodystmt_map[o] = ComputeOpNode::make(
+                        _tensor_compute_op_map[o] = ComputeOpNode::make(
                                 ocompute_op->name,
                                 ocompute_op->tag, 
                                 ocompute_op->attrs,
