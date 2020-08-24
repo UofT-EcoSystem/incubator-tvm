@@ -702,7 +702,7 @@ CSE(const Tensor & output, const Array < Tensor > & in_args)
 {
         if (!dmlc::GetEnv("USE_CSE", 0))
         {
-                return;
+                return std::make_pair(output, in_args);
         }
 
         Tensor output_inlined 

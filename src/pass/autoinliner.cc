@@ -18,7 +18,7 @@ Expr BodyStmtAutoInliner::Mutate_(
                 CHECK_EQ(op->value_index, 0);
                 CHECK_EQ(op->call_type, Call::CallType::Halide);
 
-                const ComputeOpNode * compute_op
+                const ComputeOpNode * const compute_op
                         = src_op.as < ComputeOpNode > ();
                 CHECK(compute_op != nullptr);
 
@@ -63,7 +63,7 @@ void TensorAutoInliner::VisitPostOrder(const Tensor & tensor)
         {
                 return;
         }
-        if (const ComputeOpNode * compute_op =
+        if (const ComputeOpNode * const compute_op =
             tensor->op.as < ComputeOpNode > ()) 
         {
                 for (const Tensor & input_tensor :
@@ -80,7 +80,23 @@ void TensorAutoInliner::VisitPostOrder(const Tensor & tensor)
 Array < Tensor >
 TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
 {
-        for (const Tensor & tensor : tensors) { VisitPostOrder(tensor); }
+        for (const Tensor & tensor : tensors)
+        {
+                VisitPostOrder(tensor);
+        }
+
+        auto GetBodyStmt = 
+                [this](const Tensor & tensor) -> Expr
+                {
+                        CHECK(tensor->value_index == 0);
+                        auto iter = this->_tensor_compute_op_map.find(tensor);
+                        Operation op = iter != this->_tensor_compute_op_map.end() ? 
+                                       iter->second : tensor->op;
+                        const ComputeOpNode * const compute_op
+                                = op.as < ComputeOpNode > ();
+                        CHECK(compute_op != nullptr);
+                        return compute_op->body[0];
+                };
 
         for (const Tensor & itensor : _tensor_post_order)
         {
@@ -98,17 +114,6 @@ TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
                         {
                                 iaxis_vars.push_back(iv->var);
                         }
-                        auto GetBodyStmt = [this](const Tensor & tensor) -> Expr
-                                {
-                                        CHECK(tensor->value_index == 0);
-                                        auto iter = this->_tensor_compute_op_map.find(tensor);
-                                        const Operation & op =
-                                                iter != this->_tensor_compute_op_map.end() ? 
-                                                _tensor_compute_op_map[tensor] : tensor->op;
-                                        const ComputeOpNode * const compute_op = op.as < ComputeOpNode > ();
-                                        CHECK(compute_op != nullptr);
-                                        return compute_op->body[0];
-                                };
                         BodyStmtAutoInliner inliner;
                         inliner.src_op = itensor->op;
                         inliner.src_axis_vars = iaxis_vars;
@@ -125,6 +130,14 @@ TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
                                 {new_body_stmt});
                 }  // for (otensor ∈ _tensor_reverse_map[itensor])
         }  // for (itensor ∈ _tensor_post_order)
+
+        Array < Tensor > tensors_inlined;
+
+        for (const Tensor & tensor : tensors)
+        {
+                tensors_inlined.push_back(_tensor_compute_op_map[tensor].output(0));
+        }
+        return tensors_inlined;
 }  // TensorAutoInliner::Mutate
 
 
