@@ -1,5 +1,5 @@
-#include <functional>
-#include <queue>
+#include "cse.h"
+
 #include <unordered_set>
 
 #include <dmlc/parameter.h>
@@ -9,7 +9,6 @@
 #include <tvm/ir_pass.h>
 #include <tvm/operation.h>
 
-#include "cse.h"
 #include "autoinliner.h"
 #include "zero_elimination.h"
 
