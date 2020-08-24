@@ -1,5 +1,7 @@
 #include "autoinliner.h"
 
+#include <tvm/ir_pass.h>
+
 
 namespace tvm {
 namespace ir {
@@ -107,15 +109,20 @@ TensorAutoInliner::Mutate(const Array < Tensor > & tensors)
                                         CHECK(compute_op != nullptr);
                                         return compute_op->body[0];
                                 };
-                        // BodyStmtAutoInliner inliner = {
-                        //         .src_op = itensor->op,
-                        //         .src_axis_vars = iaxis_vars,
-                        //         .src_body_stmt = GetBodyStmt(itensor)};
                         BodyStmtAutoInliner inliner;
                         inliner.src_op = itensor->op;
                         inliner.src_axis_vars = iaxis_vars;
                         inliner.src_body_stmt = GetBodyStmt(itensor);
                         
+                        Expr new_body_stmt
+                                = Simplify(inliner.Mutate(Evaluate::make(GetBodyStmt(otensors))
+                                                          ).as < Evaluate > ()->value);
+                        _tensor_bodystmt_map[o] = ComputeOpNode::make(
+                                ocompute_op->name,
+                                ocompute_op->tag, 
+                                ocompute_op->attrs,
+                                ocompute_op->axis,
+                                {new_body_stmt});
                 }  // for (otensor ∈ _tensor_reverse_map[itensor])
         }  // for (itensor ∈ _tensor_post_order)
 }  // TensorAutoInliner::Mutate

@@ -4,7 +4,6 @@
 #include <vector>
 
 #include <tvm/ir_mutator.h>
-#include <tvm/ir_pass.h>
 #include <tvm/operation.h>
 
 
