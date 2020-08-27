@@ -242,17 +242,18 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
   }
 
   // Generate sketches
-  std::vector<State> sketches;
-  sketches = GenerateSketches();
+  if (sketch_cache_.empty()) {
+    sketch_cache_ = GenerateSketches();
+  }
 
   if (GetBoolEnv("ANSOR_DEBUG_SKETCH_GENERATION")) {
-    PrintAllStates(sketches);
+    PrintAllStates(sketch_cache_);
     exit(0);
   }
 
   // Sample the init population
   std::vector<State> init_population;
-  SampleInitPopulation(sketches, population - num_use_measured, &init_population);
+  SampleInitPopulation(sketch_cache_, population - num_use_measured, &init_population);
 
   // PrintAllStates(init_population);
   // exit(0);

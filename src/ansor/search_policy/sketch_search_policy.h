@@ -126,6 +126,8 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   SplitFactorizationMemo split_memo_;  // Memorize split space for Split
   int num_measure_per_iter_;   // The number of states to measure per iteration
   std::vector<int> auto_unroll_configs_;  // All possible candidates for auto_unroll
+
+  std::vector<State> sketch_cache_;  // cached sketches
 };
 
 /*!
