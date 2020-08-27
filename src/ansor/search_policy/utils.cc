@@ -330,7 +330,7 @@ State RandomMutateTileSize(const State& old_state, SplitFactorizationMemo* split
     size_t src_idx = random_perm[i];
     int length = lengths[src_idx];
 
-    if (length == 1) {
+    if (length <= 1) {
       continue;
     }
 
