@@ -42,6 +42,7 @@ from topi.nn.util import get_pad_tuple
 ######################  Test Workloads  ####################
 ############################################################
 
+########## Reduction workloads ##########
 @register_workload_func
 def min_mn(M, N):
     A = te.placeholder((M, N), name='A')
@@ -81,6 +82,32 @@ def norm_bmn(B, M, N):
 
     return [A, D]
 
+@register_workload_func
+def max_pool_2d_nchw(N, C, H, W):
+    data = te.placeholder((N, C, H, W), name='data')
+    out = topi.nn.pool(data, (2, 2), (1, 1), (0, 0, 0, 0), pool_type='max', ceil_mode=True,
+                       layout="NCHW", count_include_pad=True)
+
+    return [data, out]
+
+@register_workload_func
+def add_min_relu(M, N):
+    A = te.placeholder((M, N), name='A')
+    B = te.placeholder((M, N), name='B')
+    C = topi.add(A, B)
+    D = topi.min(C, axis=1)
+    out = topi.nn.relu(D)
+    return [A, B, out]
+
+@register_workload_func
+def mean_nhwc(N, H, W, C):
+    A = te.placeholder((N, H, W, C), name='A')
+    B = topi.sum(A, axis=[1, 2])
+    C = B / (H * W)
+
+    return [A, C]
+
+########## Matmul workload ##########
 @register_workload_func
 def add_mn(M, N):
     A = te.placeholder((M, N), name='A')
@@ -122,23 +149,6 @@ def dense_layer(batch, in_dim, out_dim):
     C = te.compute((batch, out_dim), lambda i, j: te.sum(A[i][k] * B[j][k], axis=[k]), name='C')
 
     return [A, B, C]
-
-@register_workload_func
-def max_pool_2d_nchw(N, C, H, W):
-    data = te.placeholder((N, C, H, W), name='data')
-    out = topi.nn.pool(data, (2, 2), (1, 1), (0, 0, 0, 0), pool_type='max', ceil_mode=True,
-                       layout="NCHW", count_include_pad=True)
-
-    return [data, out]
-
-@register_workload_func
-def add_min_relu(M, N):
-    A = te.placeholder((M, N), name='A')
-    B = te.placeholder((M, N), name='B')
-    C = topi.add(A, B)
-    D = topi.min(C, axis=1)
-    out = topi.nn.relu(D)
-    return [A, B, out]
 
 ########## Sparse workloads ##########
 def random_bsr_matrix(M, N, BS_R, BS_C, density, dtype):
@@ -593,7 +603,7 @@ def parse_workload_name(name: str) -> List[str]:
         batch_size = 1 if res.group(4) is None else int(res.group(4))
         return ['resnet-%s.C%d.B%d' % (n_layers, i, batch_size) for i in idx_list]
     elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite', 'depthwise-conv2d-rewrite',
-                  'bert-softmax', 'sparse-dense-bsr', 'sparse-conv2d-csr', 'dense-conv2d']:
+                  'bert-softmax', 'sparse-dense-bsr', 'sparse-conv2d-csr', 'dense-conv2d', 'mean-nhwc']:
         return [name]
     else:
         raise ValueError("Invalid workload " + name)
@@ -742,6 +752,8 @@ def get_workload_keys(name: str) -> List[str]:
             return [make_workload_key_func(sparse_conv2d_csr, (1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 0.15, False))]
         elif name == 'dense-conv2d':
             return [make_workload_key_func(dense_conv2d_nhwc, (1, 7, 7, 512, 512, 3, 3, 1, 1, 1))]
+        elif name == 'mean-nhwc':
+            return [make_workload_key_func(mean_nhwc, (1, 7, 7, 128))]
         else:
             raise ValueError("Invalid workload " + name)
 

@@ -99,6 +99,35 @@ def get_network(name, network_path, batch_size, layout):
         mod, params = relay.frontend.from_tflite(tflite_model,
                                                  shape_dict={input_name: input_shape},
                                                  dtype_dict={input_name: input_dtype})
+    elif name == 'tflite-resnet-101':
+        import tflite.Model
+
+        if network_path:
+            tflite_model_file = network_path
+        else:
+            model_url = "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/resnet_v2_101.tgz"
+            model_path = download_testdata(model_url, "resnet_v2_101.tgz", module=['tf', 'official'])
+            model_dir = os.path.dirname(model_path)
+            extract_tar(model_path)
+            tflite_model_file = os.path.join(model_dir, "resnet_v2_101_299.tflite")
+
+        tflite_model_buf = open(tflite_model_file, "rb").read()
+
+        # Get TFLite model from buffer
+        try:
+            import tflite
+            tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+        except AttributeError:
+            import tflite.Model
+            tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+
+        input_name = "input"
+        input_shape = (batch_size, 299, 299, 3)
+        output_shape = (batch_size, 1000)
+        input_dtype = "float32"
+        mod, params = relay.frontend.from_tflite(tflite_model,
+                                                 shape_dict={input_name: input_shape},
+                                                 dtype_dict={input_name: input_dtype})
     elif name == 'pytorch-mobilenet-v2':
         import torch
 
@@ -141,20 +170,43 @@ def get_network(name, network_path, batch_size, layout):
         shape_list = [('input_ids', input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
         mod = optimize_bert(mod, params)
-    elif name == 'debug':
+    elif name == 'pytorch-debug':
         import torch
 
-        def func(data):
-            C = torch.softmax(data, -1)
-            return C
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.conv2d = torch.nn.Conv2d(512, 512, 3, 1, 1)
+            def forward(self, x):
+                x = self.conv2d(x)
+                return x
 
-        input_shape = [batch_size, 1024, 1024]
+        net = Net()
+        net.eval()
+
+        input_shape = [batch_size, 512, 7, 7]
         data = torch.rand(*input_shape)
-        scripted_model = torch.jit.trace(func, [data])
+        scripted_model = torch.jit.trace(net, [data])
         shape_list = [('data', input_shape)]
         mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
-        mod = optimize_bert(mod, params)
-        #print(mod['main'])
+    elif name == 'debug':
+        input_shape = [batch_size, 7, 7, 512]
+        output_shape = input_shape
+
+        data = relay.var("data", shape=input_shape, dtype=input_dtype)
+        net = relay.testing.layers.conv2d(
+            data=data,
+            channels=512,
+            kernel_size=3,
+            strides=1,
+            padding=1,
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+            name='')
+        bias = relay.var("conv1_bias")
+        net = relay.nn.bias_add(net, bias, 3)
+        net = relay.nn.relu(net)
+        mod, params = relay.testing.create_workload(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
