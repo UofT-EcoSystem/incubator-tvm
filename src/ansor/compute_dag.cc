@@ -1130,8 +1130,8 @@ void ComputeDAG::InferBound(std::vector<State>* states) const {
     try {
       out_states[idx] = this->InferBound((*states)[idx]);
     } catch (dmlc::Error &e) {
-      LOG(WARNING) << "InferBound fails on the state:\n" << (*states)[idx]
-                   << "\n" << e.what() << std::endl;
+      //LOG(WARNING) << "InferBound fails on the state:\n" << (*states)[idx]
+      //             << "\n" << e.what() << std::endl;
     }
   };
 

@@ -1422,8 +1422,9 @@ void SketchSearchPolicyNode::EvolutionarySearch(
   int population = GetIntParam(params, "evolutionary_search_population");
   int num_iters =  GetIntParam(params, "evolutionary_search_num_iters");
   double mutation_prob = GetDoubleParam(params, "evolutionary_search_mutation_prob");
-  int num_cross_over = static_cast<int>(population * 0.0);  // Turn off by default.
-  int num_cross_over_trial_upper_bound = num_cross_over * 3;
+  double crossover_ratio = GetDoubleParam(params, "evolutionary_search_crossover_ratio");
+  int num_cross_over = static_cast<int>(population * crossover_ratio);
+  int num_cross_over_trial_upper_bound = num_cross_over;
   CostModel cost_model = program_cost_model;
 
   // Two ping pong buffers to avoid copy
@@ -1449,7 +1450,11 @@ void SketchSearchPolicyNode::EvolutionarySearch(
   scores.reserve(population);
   prefix_sum_probs.reserve(population);
   std::uniform_real_distribution<> dis(0.0, 1.0);
-  int mutation_fail_ct = 0;
+
+  int mutation_success_ct, mutation_fail_ct;
+  int crossover_success_ct, crossover_fail_ct;
+  std::vector<int> crossover_fail_counters = {0, 0, 0, 0, 0};
+  mutation_success_ct = mutation_fail_ct = crossover_success_ct = crossover_fail_ct = 0;
 
   // Genetic Algorithm
   for (int k = 0; k < num_iters + 1; ++k) {
@@ -1486,7 +1491,17 @@ void SketchSearchPolicyNode::EvolutionarySearch(
       StdCout(verbose) << "GA Iter: " << k << std::fixed << std::setprecision(4)
                        << "\tMax score: " << max_score
                        << "\tMin score: " << heap.front().second
-                       << "\tPop size: " << pnow->size() << std::endl;
+                       << "\t#Pop: " << pnow->size()
+                       << "\t#C+: " << crossover_success_ct / (k+1)
+                       << "\t#C-: " << crossover_fail_ct / (k+1)
+                       << "\t#M+: " << mutation_success_ct / (k+1)
+                       << "\t#M-: " << mutation_fail_ct / (k+1)
+                       << std::endl;
+      //std::cerr << "Crossover fail counters : ";
+      //for (int x : crossover_fail_counters) {
+      //    std::cerr << x / (k+1) << " ";
+      //}
+      //std::cerr << "\n";
     }
 
     if (k == num_iters) {
@@ -1506,20 +1521,39 @@ void SketchSearchPolicyNode::EvolutionarySearch(
 
     // Do cross over
     int ct = 0;
-    while (static_cast<int>(pnext->size()) < num_cross_over
-        && ct < num_cross_over_trial_upper_bound) {
+    while (cross_over_enabled_ &&
+           static_cast<int>(pnext->size()) < num_cross_over &&
+           ct < num_cross_over_trial_upper_bound) {
       int p1 = RandomChoose(prefix_sum_probs, &rand_gen_);
       int p2 = RandomChoose(prefix_sum_probs, &rand_gen_);
 
-      if (p1 == p2) {
+      if (p1 == p2 || (*pnow)[p1].ToStr() == (*pnow)[p2].ToStr()) {
         pnext->push_back((*pnow)[p1]);
       } else {
-        State tmp_s = CrossOverState(cur_task, &rand_gen_, (*pnow)[p1], (*pnow)[p2]);
+        State tmp_s = CrossOverState(cur_task, &rand_gen_, (*pnow)[p1], (*pnow)[p2], &crossover_fail_counters);
         if (tmp_s.defined()) {
+          //std::cerr << (*pnow)[p1] << std::endl;
+          //std::cerr << "========================================" << std::endl;
+          //std::cerr << (*pnow)[p2] << std::endl;
+          //std::cerr << "========================================" << std::endl;
+          //tmp_s = cur_task->compute_dag.InferBound(tmp_s);
+          //std::cerr << tmp_s << std::endl;
+          //std::cerr << "========================================" << std::endl;
+          ////std::cerr << cur_task->compute_dag.PrintStepsAsPython(tmp_s->transform_steps);
+          //exit(0);
           pnext->push_back(std::move(tmp_s));
+          crossover_success_ct++;
+        } else {
+          crossover_fail_ct++;
         }
       }
       ct++;
+    }
+
+    // Turn off crossover forever if we cannot perform it successfully
+    if (crossover_success_ct == 0) {
+      cross_over_enabled_ = false;
+      crossover_success_ct = crossover_fail_ct = -1;
     }
 
     // Do mutation
@@ -1565,6 +1599,7 @@ void SketchSearchPolicyNode::EvolutionarySearch(
         }
 
         if (tmp_s.defined()) {
+          mutation_success_ct++;
           pnext->push_back(std::move(tmp_s));
         } else {
           mutation_fail_ct++;

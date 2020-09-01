@@ -64,6 +64,8 @@ class ReorderStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.ReorderStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReorderStepNode, Object);
 };
@@ -96,6 +98,8 @@ class SplitStepNode: public StepNode {
                                StageToAxesMap *stage_to_axes,
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
+
+  Step CloneWithStageID(int stage_id) const final;
 
   static constexpr const char* _type_key = "ansor.SplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(SplitStepNode, Object);
@@ -134,6 +138,8 @@ class FollowSplitStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.FollowSplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FollowSplitStepNode, Object);
 };
@@ -171,6 +177,8 @@ class FollowFusedSplitStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.FollowFusedSplitStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FollowFusedSplitStepNode, Object);
 };
@@ -200,6 +208,8 @@ class FuseStepNode: public StepNode {
                                StageToAxesMap *stage_to_axes,
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
+
+  Step CloneWithStageID(int stage_id) const final;
 
   static constexpr const char* _type_key = "ansor.FuseStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuseStepNode, Object);
@@ -232,6 +242,8 @@ class AnnotationStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.AnnotationStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(AnnotationStepNode, Object);
 };
@@ -261,6 +273,8 @@ class ComputeAtStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.ComputeAtStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeAtStepNode, Object);
 };
@@ -287,6 +301,8 @@ class ComputeRootStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.ComputeRootStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeRootStepNode, Object);
 };
@@ -312,6 +328,8 @@ class ComputeInlineStepNode: public StepNode {
                                StageToAxesMap *stage_to_axes,
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
+
+  Step CloneWithStageID(int stage_id) const final;
 
   static constexpr const char* _type_key = "ansor.ComputeInlineStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeInlineStepNode, Object);
@@ -342,6 +360,8 @@ class CacheReadStepNode: public StepNode {
                                StageToAxesMap *stage_to_axes,
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
+
+  Step CloneWithStageID(int stage_id) const final;
 
   static constexpr const char* _type_key = "ansor.CacheReadStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(CacheReadStepNode, Object);
@@ -374,6 +394,8 @@ class CacheWriteStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.CacheWriteStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(CacheWriteStepNode, Object);
 };
@@ -402,6 +424,8 @@ class PragmaStepNode: public StepNode {
                                StageToAxesMap *stage_to_axes,
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
+
+  Step CloneWithStageID(int stage_id) const final;
 
   static constexpr const char* _type_key = "ansor.PragmaStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(PragmaStepNode, Object);
@@ -433,6 +457,8 @@ class RfactorStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.RfactorStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(RfactorStepNode, Object);
 };
@@ -463,6 +489,8 @@ class StorageAlignStepNode: public StepNode {
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
 
+  Step CloneWithStageID(int stage_id) const final;
+
   static constexpr const char* _type_key = "ansor.StorageAlignStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(StorageAlignStepNode, Object);
 };
@@ -492,6 +520,8 @@ class TensorizeStepNode: public StepNode {
                                StageToAxesMap *stage_to_axes,
                                te::Schedule *schedule,
                                const std::vector<Step>& transform_steps) const final;
+
+  Step CloneWithStageID(int stage_id) const final;
 
   static constexpr const char* _type_key = "ansor.TensorizeStep";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeStepNode, Object);

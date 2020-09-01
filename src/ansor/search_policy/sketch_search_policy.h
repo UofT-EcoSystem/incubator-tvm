@@ -70,9 +70,10 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   std::mt19937 rand_gen_;
   /*! \brief The parameters for search. It stores the following parameters:
    * int evolutionary_search_population    // The population size for evolutionary search
-   * int evolutionary_search_mutation_prob // The probability of mutation for evolutionary search
    * int evolutionary_search_num_iters;    // The number of iterations for evolutionary search
-   * double local_mutation_use_measured_ratio;   // The maximum percentage of measured states in the initial
+   * int evolutionary_search_mutation_prob // The probability of mutation for evolutionary search
+   * double evolutionary_search_crossover_ratio;  // The ratio of states created by crossover in evolutionary search
+   * double evolutionary_search_use_measured_ratio;  // The maximum percentage of measured states in the initial
    *                                             // population for evolutionary search
    * double eps_greedy;          // Always allocate this percentage of measurements to random sampled states
    * str cpu_multi_level_tiling_structure // The structure of multi-level tiling for CPU
@@ -126,8 +127,9 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
   SplitFactorizationMemo split_memo_;  // Memorize split space for Split
   int num_measure_per_iter_;   // The number of states to measure per iteration
   std::vector<int> auto_unroll_configs_;  // All possible candidates for auto_unroll
-
   std::vector<State> sketch_cache_;  // cached sketches
+  bool cross_over_enabled_{true};   // Whether the crossover in evolutionary search is
+                                    // enabled for the current task
 };
 
 /*!

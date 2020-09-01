@@ -76,6 +76,10 @@ std::string ReorderStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
+Step ReorderStepNode::CloneWithStageID(int new_stage_id) const {
+  return ReorderStep(new_stage_id, after_ids);
+}
+
 /********** Split **********/
 std::vector<IterVar> ApplySplitToSchedule(std::vector<te::Stage> *stages,
                                           StageToAxesMap *stage_to_axes,
@@ -183,6 +187,10 @@ std::string SplitStepNode::PrintAsPythonAPI(
                                lengths, inner_to_outer);
 }
 
+Step SplitStepNode::CloneWithStageID(int new_stage_id) const {
+  return SplitStep(new_stage_id, iter_id, extent, lengths, inner_to_outer);
+}
+
 /********** Follow Split **********/
 FollowSplitStep::FollowSplitStep(int stage_id, int iter_id,
                                  int src_step_id, int n_split) {
@@ -204,6 +212,7 @@ void FollowSplitStepNode::ExtractSplitLengths(
   // get lengths from src step
   lengths->reserve(n_split);
   int j = 0;
+  CHECK_LE(n_split - 1, ps->lengths.size());
   for (; j < n_split - 1; ++j) {
     lengths->push_back(ps->lengths[j]);
   }
@@ -235,6 +244,10 @@ std::string FollowSplitStepNode::PrintAsPythonAPI(
   ExtractSplitLengths(transform_steps, &lengths);
   return PrintSplitAsPythonAPI(stages, stage_to_axes, stage_id, iter_id,
                                lengths, true);
+}
+
+Step FollowSplitStepNode::CloneWithStageID(int new_stage_id) const {
+  return FollowSplitStep(new_stage_id, iter_id, src_step_id, n_split);
 }
 
 /********** Follow Fused Split **********/
@@ -283,6 +296,9 @@ std::string FollowFusedSplitStepNode::PrintAsPythonAPI(
                                {length}, factor_or_nparts);
 }
 
+Step FollowFusedSplitStepNode::CloneWithStageID(int new_stage_id) const {
+  return FollowFusedSplitStep(new_stage_id, iter_id, src_step_ids, level, factor_or_nparts);
+}
 
 /********** Fuse **********/
 FuseStep::FuseStep(int stage_id, const std::vector<int>& fused_ids) {
@@ -335,6 +351,10 @@ std::string FuseStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
      << to_fuse.str() << ")\n";
 
   return ss.str();
+}
+
+Step FuseStepNode::CloneWithStageID(int new_stage_id) const {
+  return FuseStep(new_stage_id, fused_ids);
 }
 
 /********** Annotation **********/
@@ -403,6 +423,10 @@ std::string AnnotationStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
+Step AnnotationStepNode::CloneWithStageID(int new_stage_id) const {
+  return AnnotationStep(new_stage_id, iter_id, annotation);
+}
+
 /********** Compute At **********/
 ComputeAtStep::ComputeAtStep(int stage_id, int target_stage_id, int target_iter_id) {
   auto node = make_object<ComputeAtStepNode>();
@@ -437,6 +461,10 @@ std::string ComputeAtStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
+Step ComputeAtStepNode::CloneWithStageID(int new_stage_id) const {
+  return ComputeAtStep(new_stage_id, target_stage_id, target_iter_id);
+}
+
 /********** Compute Root **********/
 ComputeRootStep::ComputeRootStep(int stage_id) {
   auto node = make_object<ComputeRootStepNode>();
@@ -460,6 +488,10 @@ std::string ComputeRootStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages
   ApplyToSchedule(stages, stage_to_axes);
 
   return ss.str();
+}
+
+Step ComputeRootStepNode::CloneWithStageID(int new_stage_id) const {
+  return ComputeRootStep(new_stage_id);
 }
 
 /********** Compute Inline **********/
@@ -486,6 +518,10 @@ std::string ComputeInlineStepNode::PrintAsPythonAPI(
   ApplyToSchedule(stages, stage_to_axes);
 
   return ss.str();
+}
+
+Step ComputeInlineStepNode::CloneWithStageID(int new_stage_id) const {
+  return ComputeInlineStep(new_stage_id);
 }
 
 /********** Cache Read **********/
@@ -549,6 +585,10 @@ std::string CacheReadStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
       << ".op.axis)\n";
 
   return ss.str();
+}
+
+Step CacheReadStepNode::CloneWithStageID(int new_stage_id) const {
+  return CacheReadStep(new_stage_id, scope_name, reader_stage_ids);
 }
 
 /********** Cache Write **********/
@@ -619,6 +659,10 @@ std::string CacheWriteStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
+Step CacheWriteStepNode::CloneWithStageID(int new_stage_id) const {
+  return CacheWriteStep(new_stage_id, scope_name);
+}
+
 /********** Pragma **********/
 PragmaStep::PragmaStep(int stage_id, int iter_id, std::string pragma_type) {
   auto node = make_object<PragmaStepNode>();
@@ -666,6 +710,10 @@ std::string PragmaStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
+}
+
+Step PragmaStepNode::CloneWithStageID(int new_stage_id) const {
+  return PragmaStep(new_stage_id, iter_id, pragma_type);
 }
 
 /********** Rfactor **********/
@@ -748,6 +796,10 @@ std::string RfactorStepNode::PrintAsPythonAPI(std::vector<te::Stage> *stages,
   return ss.str();
 }
 
+Step RfactorStepNode::CloneWithStageID(int new_stage_id) const {
+  return RfactorStep(new_stage_id, iter_id, factor_iter_id);
+}
+
 /********** Storage Align **********/
 StorageAlignStep::StorageAlignStep(int stage_id, int iter_id,
                                    int factor, int offset) {
@@ -777,6 +829,10 @@ std::string StorageAlignStepNode::PrintAsPythonAPI(
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
+}
+
+Step StorageAlignStepNode::CloneWithStageID(int new_stage_id) const {
+  return StorageAlignStep(new_stage_id, iter_id, factor, offset);
 }
 
 /********** Tensorize **********/
@@ -812,6 +868,10 @@ std::string TensorizeStepNode::PrintAsPythonAPI(
 
   ApplyToSchedule(stages, stage_to_axes);
   return ss.str();
+}
+
+Step TensorizeStepNode::CloneWithStageID(int new_stage_id) const {
+  return TensorizeStep(new_stage_id, iter_id, ti_func_name);
 }
 
 }  // namespace ansor

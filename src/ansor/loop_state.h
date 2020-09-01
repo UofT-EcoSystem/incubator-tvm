@@ -214,6 +214,9 @@ class StepNode: public Object {
                                        te::Schedule *schedule,
                                        const std::vector<Step>& transform_steps) const = 0;
 
+  // Clone the step with a new stage id
+  virtual Step CloneWithStageID(int new_stage_id) const = 0;
+
   static constexpr const char* _type_key = "ansor.Step";
   TVM_DECLARE_BASE_OBJECT_INFO(StepNode, Object);
 };

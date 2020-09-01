@@ -636,25 +636,27 @@ if __name__ == "__main__":
         wkl_keys = []
         for shape in shape_dict[wkl_meta_name]:
             for batch_size in batch_sizes:
-              if shape[0] == 1:
-                  shape = list(shape)
-                  shape[0] = batch_size
-
-                  wkl_key = ansor.make_workload_key_func(func, shape)
-                  wkl_keys.append(wkl_key)
-                  if args.fast_check:
-                      break
-
-                  if not args.tune:
-                      cost, gflops = replay_workload(
-                              wkl_key, target, args.target_host, log_file,
-                              local_measure, args.rpc_device_key, args.rpc_host,
-                              args.rpc_port, args.rpc_num_threads, args.ndk_cc, False)
-                      workload_name = "%s%s" % (wkl_meta_name, tuple(shape))
-                      log_line(BenchmarkRecord(target.target_name,
-                                               'gpu' if target.target_name == 'cuda' else 'cpu', wkl_type,
-                                               workload_name, "ours", "default",
-                                               {"costs": [cost]}, time.time()), 'results.tsv')
+                if shape[0] == 1:
+                    shape = list(shape)
+                    shape[0] = batch_size
+  
+                    wkl_key = ansor.make_workload_key_func(func, shape)
+                    wkl_keys.append(wkl_key)
+  
+                    if not args.tune:
+                        cost, gflops = replay_workload(
+                                wkl_key, target, args.target_host, log_file,
+                                local_measure, args.rpc_device_key, args.rpc_host,
+                                args.rpc_port, args.rpc_num_threads, args.ndk_cc, False)
+                        workload_name = "%s%s" % (wkl_meta_name, tuple(shape))
+                        log_line(BenchmarkRecord(target.target_name,
+                                                 'gpu' if target.target_name == 'cuda' else 'cpu', wkl_type,
+                                                 workload_name, "ours", "default",
+                                                 {"costs": [cost]}, time.time()), 'results.tsv')
+                if args.fast_check:
+                    break
+            if args.fast_check:
+                break
 
         if args.tune:
             print("========== Tune for %s (%d shapes) ========== " % (wkl_meta_name, len(wkl_keys)))

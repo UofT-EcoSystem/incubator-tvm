@@ -777,23 +777,41 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
                           const Step& step) {
   State tmp_s = state;
 
-  // Retrieve required information from the current ref_s.
-  std::string curr_stage_name = ref_s->stages[step->stage_id]->op->name;
-  int curr_stage_id = GetStageIdByName(tmp_s, curr_stage_name);
-  CHECK_NE(curr_stage_id, -1) << curr_stage_name << " not found in the current state to be applied";
+  int curr_stage_id = step->stage_id;
+  if (tmp_s->stages[curr_stage_id]->op->name != ref_s->stages[curr_stage_id]->op->name) {
+    // Relocate stage_id by matching the name, so the step can work on the same stage
+    curr_stage_id = GetStageIdByName(tmp_s, ref_s->stages[step->stage_id]->op->name);
+    CHECK_NE(curr_stage_id, -1);
+  }
 
-  if (step.as<FollowSplitStepNode>()) {
+  // The default case: Simply append the step to the history and do it
+  std::function<State(const Step&)> simple_apply = [&task, &tmp_s, &curr_stage_id]
+      (Step new_step) {
+    if (new_step->stage_id != curr_stage_id) {
+      new_step = new_step->CloneWithStageID(curr_stage_id);
+    }
+
+    tmp_s.CopyOnWrite()->transform_steps.push_back(new_step);
+    try {
+      tmp_s.DoStep(new_step, task->compute_dag);
+    } catch (dmlc::Error &ex) {
+      return State();
+    }
+    return tmp_s;
+  };
+
+  // Deal with special steps
+  if (auto follow_step = step.as<FollowSplitStepNode>()) {
     // Follow split step specifies a source split step ID that might be changed when
     // crossover, so we try to identify the corresponding split step and use an offset
     // to adjust the source step id.
-    auto follow_step = step.as<FollowSplitStepNode>();
-    std::string target_stage_name =
+    const std::string& target_stage_name =
         ref_s->stages[ref_s->transform_steps[follow_step->src_step_id]->stage_id]->op->name;
 
     // Looking for the first SplitStep to the target stage.
     size_t tmp_s_ptr = 0;
     while (tmp_s_ptr < tmp_s->transform_steps.size() &&
-           (!tmp_s->transform_steps[tmp_s_ptr].as<SplitStepNode>() ||
+           (!tmp_s->transform_steps[tmp_s_ptr]->IsInstance<SplitStepNode>() ||
             tmp_s->stages[tmp_s->transform_steps[tmp_s_ptr]->stage_id]->op->name !=
                 target_stage_name)) {
       tmp_s_ptr++;
@@ -801,7 +819,7 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
 
     size_t ref_s_ptr = 0;
     while (ref_s_ptr < ref_s->transform_steps.size() &&
-           (!ref_s->transform_steps[ref_s_ptr].as<SplitStepNode>() ||
+           (!ref_s->transform_steps[ref_s_ptr]->IsInstance<SplitStepNode>() ||
             ref_s->stages[ref_s->transform_steps[ref_s_ptr]->stage_id]->op->name !=
                 target_stage_name)) {
       ref_s_ptr++;
@@ -809,14 +827,14 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
 
     int follow_split_src_offset = tmp_s_ptr - ref_s_ptr;
     int new_src_split_step_id = follow_step->src_step_id + follow_split_src_offset;
+
+    // Check the validity of the new_src_split_step_id
     if (tmp_s_ptr == tmp_s->transform_steps.size() || ref_s_ptr == ref_s->transform_steps.size() ||
-        !tmp_s->transform_steps[tmp_s_ptr].as<SplitStepNode>() ||
-        !ref_s->transform_steps[ref_s_ptr].as<SplitStepNode>() || new_src_split_step_id < 0 ||
-        new_src_split_step_id >= static_cast<int>(tmp_s->transform_steps.size()) ||
-        !tmp_s->transform_steps[new_src_split_step_id].as<SplitStepNode>()) {
-      // The corresponding split steps were not applied to the current state. It means the
-      // stage with split steps is not selected. We give up crossover in this case because
-      // we believe this state will not achieve better performance.
+        new_src_split_step_id < 0 || new_src_split_step_id >= static_cast<int>(tmp_s->transform_steps.size())) {
+      return State();
+    }
+    auto ps = tmp_s->transform_steps[new_src_split_step_id].as<SplitStepNode>();
+    if (ps == nullptr || static_cast<int>(ps->lengths.size()) <= follow_step->n_split) {
       return State();
     }
 
@@ -824,10 +842,9 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
     auto iter = tmp_s->stages[curr_stage_id]->iters[follow_step->iter_id];
 
     tmp_s.follow_split(curr_stage_id, iter, new_src_split_step_id, follow_step->n_split);
-  } else if (step.as<FollowFusedSplitStepNode>()) {
+  } else if (auto follow_step = step.as<FollowFusedSplitStepNode>()) {
     // Follow fused split step specifies a source split/fuse step IDs that might be changed when
     // crossover, so we update the source step ID list.
-    auto follow_step = step.as<FollowFusedSplitStepNode>();
 
     // Get target stage ID and spatial split steps.
     std::set<int> consumers = GetConsumers(task, tmp_s, curr_stage_id);
@@ -835,7 +852,6 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
       return State();
     }
     int target_stage_id = *consumers.begin();
-    std::string target_stage_name = tmp_s->stages[target_stage_id]->op->name;
 
     // Get split steps.
     std::vector<int> spatial_split_step_ids;
@@ -846,7 +862,7 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
     }
 
     // Locate the new state iter by name.
-    std::string iter_name = ref_s->stages[follow_step->stage_id]->iters[follow_step->iter_id]->name;
+    const std::string& iter_name = ref_s->stages[follow_step->stage_id]->iters[follow_step->iter_id]->name;
     Iterator iter;
     for (size_t i = 0; i < tmp_s->stages[curr_stage_id]->iters.size(); ++i) {
       if (tmp_s->stages[curr_stage_id]->iters[i]->name == iter_name) {
@@ -861,17 +877,16 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
 
     tmp_s.follow_fused_split(curr_stage_id, iter, spatial_split_step_ids, follow_step->level,
                              follow_step->factor_or_nparts);
-  } else if (step.as<ComputeAtStepNode>()) {
+  } else if (auto compute_at_step = step.as<ComputeAtStepNode>()) {
     // ComputeAt target stage may be missing in the new state so we need to update target stage ID
     // and iter ID before applying ComputeAtStep to a new state.
     // We use stage name and iter name from the reference state to update IDs. If any of names is
     // missing in the new state, we give up this crossover to avoid creating an invalid state.
-    auto compute_at_step = step.as<ComputeAtStepNode>();
-    std::string target_stage_name =
+    const std::string& target_stage_name =
         ref_s->stages[compute_at_step->target_stage_id]->op->name;
-    std::string target_iter_name = ref_s->stages[compute_at_step->target_stage_id]
-                                       ->iters[compute_at_step->target_iter_id]
-                                       ->name;
+    const std::string& target_iter_name = ref_s->stages[compute_at_step->target_stage_id]
+                                               ->iters[compute_at_step->target_iter_id]
+                                               ->name;
 
     // Find the target stage and iter to apply the compute at step.
     for (size_t stage_id = 0; stage_id < tmp_s->stages.size(); ++stage_id) {
@@ -887,37 +902,24 @@ State ApplyStepToNewState(const SearchTask& task, const State& state, const Stat
       }
     }
     return State();
-  } else {
-    auto clone_step = step;
-    clone_step->stage_id = curr_stage_id;
-    tmp_s.CopyOnWrite()->transform_steps.push_back(clone_step);
-    try {
-      tmp_s.DoStep(clone_step, task->compute_dag);
-    } catch (dmlc::Error &ex) {
-      return State();
+  } else if (auto annotation_step = step.as<AnnotationStepNode>()) {
+    if (annotation_step->annotation == kParallel &&
+        tmp_s->stages[curr_stage_id]->compute_at != kRoot) {
+      // Do not produce nested parallel
+      return simple_apply(AnnotationStep(annotation_step->stage_id,
+                                         annotation_step->iter_id,
+                                         kNone));
+    } else {
+      return simple_apply(step);
     }
+  } else {
+    return simple_apply(step);
   }
   return tmp_s;
 }
 
-// Apply one step to the state (if given) as well as the reference state.
-std::pair<State, State> SyncOneStep(const SearchTask& task, const State& state, const State& ref_s,
-                                    const Step& step) {
-  // Apply the step to the new state.
-  State tmp_s;
-  if (state.defined()) {
-    tmp_s = ApplyStepToNewState(task, state, ref_s, step);
-  }
-
-  // Apply the step the reference state.
-  State sync_s = ref_s;
-  sync_s.CopyOnWrite()->transform_steps.push_back(step);
-  sync_s.DoStep(step, task->compute_dag);
-  return {tmp_s, sync_s};
-}
-
 State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const State& p1,
-                     const State& p2) {
+                     const State& p2, std::vector<int>* fail_counters) {
   // An internal class that replays a parent state to make the stage ID consist.
   class SyncingState {
    public:
@@ -927,7 +929,7 @@ State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const Sta
     int stage_change_cnt;
     size_t step_ptr;
 
-    SyncingState(const SearchTask& task, int id, State ref_state)
+    SyncingState(const SearchTask& task, int id, const State& ref_state)
         : steps(ref_state->transform_steps) {
       this->id = id;
       this->sync_state = task->compute_dag.GetInitState();
@@ -954,23 +956,25 @@ State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const Sta
       if (IsSynced()) {
         return;
       }
-      auto ret = SyncOneStep(task, State(), this->sync_state, steps[this->step_ptr]);
-      this->sync_state = ret.second;
-      if (steps[step_ptr].as<CacheWriteStepNode>() || steps[step_ptr].as<CacheReadStepNode>() ||
-          steps[step_ptr].as<RfactorStepNode>()) {
+
+      const Step& step = steps[this->step_ptr];
+      this->sync_state.CopyOnWrite()->transform_steps.push_back(step);
+      this->sync_state.DoStep(step, task->compute_dag);
+
+      if (step->IsInstance<CacheWriteStepNode>() ||
+          step->IsInstance<CacheReadStepNode>() ||
+          step->IsInstance<RfactorStepNode>()) {
         this->stage_change_cnt++;
       }
       this->step_ptr++;
     }
   };
 
-  // Do crossover only when the stage numbers are the same.
+  // Don't do crossover when the stage numbers are different
   if (p1->stages.size() != p2->stages.size()) {
+    (*fail_counters)[0]++;
     return State();
   }
-
-  // Note that we are based on the current state instead of initial state.
-  int n_stage = p1->stages.size();
 
   // Create sync states to match the stages.
   SyncingState sync_p1(task, 1, p1);
@@ -979,31 +983,75 @@ State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const Sta
 
   // Stage index to the selected state. Default to p1.
   std::unordered_map<std::string, int> stage_out_to_states;
-  for (int t = 0; t < n_stage; ++t) {
+  int p1_selected = 0, p2_selected = 0;
+
+  for (int t = static_cast<int>(p1->stages.size()) - 1; t >= 0; --t) {
+    // Don't do crossover only when the stage names are different
+    if (p1->stages[t]->op->name != p2->stages[t]->op->name) {
+      (*fail_counters)[1]++;
+      return State();
+    }
+
+    // This stage is already been assigned
+    if (stage_out_to_states.count(p1->stages[t]->op->name)) {
+      continue;
+    }
+
     if (p1->stages[t]->op_type == kPlaceholder) {
       // Since CacheRead steps target to placeholder stage, we assign all placeholders to p1.
       stage_out_to_states[p1->stages[t]->op->name] = sync_p1.id;
-    } else if (p1->stages[t]->compute_at != kInlined && p2->stages[t]->compute_at == kInlined) {
-      // FIXME: Now we always select the inlined stage.
-      stage_out_to_states[p1->stages[t]->op->name] = sync_p2.id;
+      continue;
     } else if ((*random_gen)() % 100 >= 50) {
-      // FIXME: Should be based on the score breakdown instead of random selection.
+      // TODO(lmzheng, comaniac): Should be based on the score breakdown instead of random selection.
       stage_out_to_states[p1->stages[t]->op->name] = sync_p2.id;
+      if (p2->stages[t]->compute_at != kInlined) {
+        p2_selected++;
+      }
     } else {
       stage_out_to_states[p1->stages[t]->op->name] = sync_p1.id;
+      if (p1->stages[t]->compute_at != kInlined) {
+        p1_selected++;
+      }
+    }
+
+    if (IsGPUTask(task)) {
+      int id = stage_out_to_states[p1->stages[t]->op->name];
+      const State& parent = (id == 1 ? p1 : p2);
+
+      // On GPU, if we choose a root stage, all stages in this GPU kernel should also be chosen.
+      // This can fix some fatal dependency problems.
+      if (parent->stages[t]->compute_at == kRoot) {
+        std::function<void(int)> assign_attached_stages;
+        assign_attached_stages = [&assign_attached_stages, id, &parent, &stage_out_to_states](int stage_id) {
+          const Stage& stage = parent->stages[stage_id];
+          for (size_t i = 0; i < stage->iters.size(); ++i) {
+            AttachMap::IterKey iter_key(stage_id, i);
+            auto res = parent->attach_map->iter_to_attached_stages.find(iter_key);
+            if (res != parent->attach_map->iter_to_attached_stages.end()) {
+              for (const auto& attach_stage_id : res->second) {
+                stage_out_to_states[parent->stages[attach_stage_id]->op->name] = id;
+                assign_attached_stages(attach_stage_id);
+              }
+            }
+          }
+        };
+        assign_attached_stages(t);
+      }
+    } else {
+      // If a rfactor stage is chosen, all stages related to this rfactor should be chosen.
+      // This can fix some fatal dependency problems.
+      if (StrEndsWith(p1->stages[t]->op->name, ".repl")) {
+        int id = stage_out_to_states[p1->stages[t]->op->name];
+        std::string raw_name = p1->stages[t]->op->name.substr(0, p1->stages[t]->op->name.size() - 5);
+        stage_out_to_states[raw_name] = id;
+        stage_out_to_states[raw_name + ".rf"] = id;
+      }
     }
   }
 
-  // Check if all stages are coming from the same state (no need to crossover).
-  bool consist = true;
-  int first_select = stage_out_to_states.begin()->second;
-  for (auto select : stage_out_to_states) {
-    if (first_select != select.second) {
-      consist = false;
-      break;
-    }
-  }
-  if (consist) {
+  // If all stages are coming from the same state, then no need to crossover.
+  if (p1_selected == 0 || p2_selected == 0) {
+    (*fail_counters)[2]++;
     return State();
   }
 
@@ -1025,12 +1073,7 @@ State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const Sta
     } else {
       sync_s = sync_states[(sync_states[0]->step_ptr <= sync_states[1]->step_ptr) ? 0 : 1];
     }
-    std::string curr_stage_name = sync_s->GetCurrStageName();
-    if (stage_out_to_states.count(curr_stage_name) == 0) {
-      // Cannot find the stage in the stage map. It might be due to stage mismatching between
-      // p1 and p2.
-      return State();
-    }
+    const std::string& curr_stage_name = sync_s->GetCurrStageName();
 
     // Check if we want to apply this step.
     std::string target_stage_name = curr_stage_name;
@@ -1039,53 +1082,54 @@ State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const Sta
       target_stage_name = sync_s->sync_state->stages[ps->target_stage_id]->op->name;
     }
 
-    if (stage_out_to_states[target_stage_name] != sync_s->id) {
-      // The target stage of the current state is not selected. Do not apply this step to
-      // the new state but just bypadd.
-      sync_s->ApplyOneStep(task);
-      continue;
+    // If the target stage of the current state is selected, we apply this step to the new state.
+    if (stage_out_to_states[target_stage_name] == sync_s->id) {
+      tmp_s = ApplyStepToNewState(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
+      if (!tmp_s.defined()) {
+        (*fail_counters)[3]++;
+        return tmp_s;
+      }
     }
 
-    // Apply one step.
-    auto ret = SyncOneStep(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
-    tmp_s = ret.first;
-    if (!tmp_s.defined()) {
-      return tmp_s;
-    }
-    sync_s->sync_state = ret.second;
-    sync_s->step_ptr++;
+    sync_s->ApplyOneStep(task);
   }
 
   // Process tails.
   for (size_t i = 0; i < sync_states.size(); ++i) {
     SyncingState* sync_s = sync_states[i];
     while (!sync_s->IsSynced()) {
-      std::string stage_name = sync_s->GetCurrStageName();
-      CHECK_GT(stage_out_to_states.count(stage_name), 0);
+      const std::string& stage_name = sync_s->GetCurrStageName();
 
+      // Check if we want to apply this step.
       std::string target_stage_name = stage_name;
       if (auto ps = sync_s->steps[sync_s->step_ptr].as<ComputeAtStepNode>()) {
         // Whether to apply Compute_at step depends on the target stage instead of self stage.
         target_stage_name = sync_s->sync_state->stages[ps->target_stage_id]->op->name;
       }
 
-      if (stage_out_to_states[target_stage_name] != sync_s->id) {
-        // The target stage of the current state is not selected. Do not apply this step to
-        // the new state but just bypadd.
-        sync_s->ApplyOneStep(task);
-        continue;
+      // If the target stage of the current state is selected, we apply this step to the new state.
+      if (stage_out_to_states[target_stage_name] == sync_s->id) {
+        tmp_s = ApplyStepToNewState(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
+        if (!tmp_s.defined()) {
+          (*fail_counters)[4]++;
+          return tmp_s;
+        }
       }
 
-      // Apply one step.
-      auto ret = SyncOneStep(task, tmp_s, sync_s->sync_state, sync_s->steps[sync_s->step_ptr]);
-      tmp_s = ret.first;
-      if (!tmp_s.defined()) {
-        return tmp_s;
-      }
-      sync_s->sync_state = ret.second;
-      sync_s->step_ptr++;
+      sync_s->ApplyOneStep(task);
     }
   }
+
+  // Check wheter the crossover creates a new state
+  //tmp_s = task->compute_dag.InferBound(tmp_s);
+  //std::string s1 = p1.ToStr();
+  //std::string s2 = p2.ToStr();
+  //std::string s3 = tmp_s.ToStr();
+
+  //if (s1 == s2 || s1 == s3 || s2 == s3) {
+  //  return State();
+  //}
+
   return tmp_s;
 }
 

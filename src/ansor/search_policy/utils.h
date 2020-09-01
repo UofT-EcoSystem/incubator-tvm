@@ -353,7 +353,8 @@ inline bool HasSingleElementwiseMatchedConsumer(const SearchTask& task,
     *target_stage_id = *consumers.begin();
     if (ElementwiseMatch(task, state, stage_id, *target_stage_id) &&
         (!(HasReduceIter(state->stages[stage_id]) &&
-         HasReduceIter(state->stages[*target_stage_id])))) {
+         HasReduceIter(state->stages[*target_stage_id]))) &&
+        (!StrEndsWith(state->stages[*target_stage_id]->op->name, ".shared"))) {
       return true;
     }
   }
@@ -721,7 +722,7 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
 
 // GA: Crossover two states
 State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const State& p1,
-                     const State& p2);
+                     const State& p2, std::vector<int>* fail_counters);
 
 // Prune invalid states and return the results in-place.
 void PruneInvalidState(const SearchTask& task, std::vector<State>* states);

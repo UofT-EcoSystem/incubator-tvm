@@ -138,8 +138,25 @@ def matmul_nkkm(N, M, K, in_type='float32', out_type='float32',
         C = te.compute((N, M),
                        lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]),
                        name='C')
+        #C = topi.nn.relu(C)
 
     return [A, B, C]
+
+@register_workload_func
+def double_matmul(N):
+    A = te.placeholder((N, N), name='A', dtype='float32')
+    B = te.placeholder((N, N), name='B', dtype='float32')
+    C = te.placeholder((N, N), name='C', dtype='float32')
+    k = te.reduce_axis((0, N), name='k')
+    D = te.compute((N, N),
+                   lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]),
+                   name='D')
+    k = te.reduce_axis((0, N), name='k')
+    E = te.compute((N, N),
+                   lambda i, j: te.sum(D[i][k] * C[k][j], axis=[k]),
+                   name='E')
+
+    return [A, B, C, E]
 
 @register_workload_func
 def dense_layer(batch, in_dim, out_dim):
@@ -602,8 +619,9 @@ def parse_workload_name(name: str) -> List[str]:
 
         batch_size = 1 if res.group(4) is None else int(res.group(4))
         return ['resnet-%s.C%d.B%d' % (n_layers, i, batch_size) for i in idx_list]
-    elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite', 'depthwise-conv2d-rewrite',
-                  'bert-softmax', 'sparse-dense-bsr', 'sparse-conv2d-csr', 'dense-conv2d', 'mean-nhwc']:
+    elif name in ['conv2d-bn-relu', 'conv2d-relu-softmax-min', 'max-pool-2d', 'conv2d-rewrite',
+                  'depthwise-conv2d-rewrite', 'bert-softmax', 'sparse-dense-bsr', 'sparse-conv2d-csr',
+                  'dense-conv2d', 'mean-nhwc', 'double-matmul']:
         return [name]
     else:
         raise ValueError("Invalid workload " + name)
@@ -754,6 +772,8 @@ def get_workload_keys(name: str) -> List[str]:
             return [make_workload_key_func(dense_conv2d_nhwc, (1, 7, 7, 512, 512, 3, 3, 1, 1, 1))]
         elif name == 'mean-nhwc':
             return [make_workload_key_func(mean_nhwc, (1, 7, 7, 128))]
+        elif name == 'double-matmul':
+            return [make_workload_key_func(double_matmul, (512,))]
         else:
             raise ValueError("Invalid workload " + name)
 
