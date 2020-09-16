@@ -84,11 +84,13 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
  * \param head The adjoint of the output, in other words, some tensor, by which the Jacobians
  *             will be multiplied (using tensordot axes=`output.shape`).
  *             Its shape must be of the form `prefix + output.shape`. If the null pointer is
- * provided, the identity tensor of shape `output.shape + output.shape` will be used. \return An
- * array of adjoints corresponding to \p inputs.
+ *             provided, the identity tensor of shape `output.shape + output.shape` will be used.
+ * \return A pair whose first member is the modified \p output (to compute the adjoints), and
+ *         second member is an array of adjoints corresponding to \p inputs.
  */
-TVM_DLL Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
-                               const Tensor& head = Tensor());
+TVM_DLL std::pair<Tensor, Array<Tensor> >
+        Gradient(const Tensor& output, const Array<Tensor>& inputs,
+                 const Tensor& head = Tensor());
 
 }  // namespace te
 }  // namespace tvm

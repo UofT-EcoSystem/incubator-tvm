@@ -39,6 +39,7 @@
 #include <memory>
 #include <vector>
 
+#include "cse.h"
 #include "ad_utils.h"
 
 namespace tvm {
@@ -72,8 +73,9 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
   return result;
 }
 
-Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
-                       const Tensor& head_or_null) {
+std::pair<Tensor, Array<Tensor> >
+Gradient(const Tensor& output, const Array<Tensor>& inputs,
+         const Tensor& head_or_null) {
   // Diagonal identity tensor
   Tensor head = head_or_null.get() ? head_or_null : Identity(output);
 
@@ -140,8 +142,7 @@ Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
   for (const Tensor& input : inputs) {
     result.push_back(compute_adjoint(input));
   }
-
-  return result;
+  return CSE(output, result);
 }
 
 TVM_REGISTER_GLOBAL("te.Gradient").set_body([](TVMArgs args, TVMRetValue* ret) {
