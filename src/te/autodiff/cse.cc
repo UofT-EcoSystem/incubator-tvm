@@ -21,7 +21,7 @@
  * \file cse.cc
  * \brief Common subexpression elimination
  */
-#include "cse.h"
+#include "ad_util.h"
 
 #include <sstream>
 

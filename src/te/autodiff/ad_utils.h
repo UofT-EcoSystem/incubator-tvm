@@ -25,7 +25,9 @@
 #define TVM_TE_AUTODIFF_AD_UTILS_H_
 
 #include <tvm/arith/int_solver.h>
+#include <tvm/runtime/container.h>
 #include <tvm/te/operation.h>
+#include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
 #include <string>
@@ -129,6 +131,15 @@ TVM_DLL arith::IntConstraintsTransform SimplifyDomain(const arith::IntConstraint
  */
 TVM_DLL Tensor RemoveJacobianAndLiftNonzeroCond(const Tensor& tensor,
                                                 const Map<Var, Range>& vranges = Map<Var, Range>());
+
+/*!
+ * \brief Eliminate common subexpressions among \p in_args and between them and \p output .
+ *
+ * \param output The output tensor.
+ * \param input_grads The gradients of input tensors.
+ */
+std::pair<Tensor, std::vector<Tensor> >
+CSE(const Tensor& output, const std::vector<Tensor>& input_grads);
 
 }  // namespace te
 }  // namespace tvm
