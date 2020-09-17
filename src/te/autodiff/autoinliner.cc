@@ -18,30 +18,23 @@
  */
 
 /*!
- * \file cse.h
- * \brief Common subexpression elimination
+ * \file autoinliner.cc
+ * \brief Tensor Auto-Inliner
  */
-#ifndef TVM_TE_AUTODIFF_CSE_H_
-#define TVM_TE_AUTODIFF_CSE_H_
 
-#include <utility>
-#include <tvm/te/tensor.h>
-#include <tvm/runtime/container.h>
+#include "autoinliner.h"
 
 
 namespace tvm {
 namespace te {
+namespace {
 
-/*!
- * \brief Eliminate common subexpressions among \p in_args and between them and \p output .
- *
- * \param output The output tensor.
- * \param input_grads The gradients of input tensors.
- */
-std::pair<Tensor, std::vector<Tensor> >
-CSE(const Tensor& output, const std::vector<Tensor>& input_grads);
 
+struct BodyStmtInliner {
+
+};  // class BodyStmtInliner
+
+
+}  // namespace anonymous
 }  // namespace te
 }  // namespace tvm
-
-#endif  // TVM_TE_AUTODIFF_CSE_H_

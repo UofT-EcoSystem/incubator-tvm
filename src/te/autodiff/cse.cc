@@ -30,8 +30,6 @@
 #include <tvm/tir/expr.h>
 
 
-using namespace ::tvm::tir;
-
 namespace tvm {
 namespace te {
 namespace {
@@ -41,12 +39,12 @@ namespace {
  */
 class IndicesRemapNode : public Object {
  public:
-  static constexpr const char* _type_key
-      = "te.IndicesRemap";
+  static constexpr char _type_key[] = "te.IndicesRemap";
   TVM_DECLARE_FINAL_OBJECT_INFO(IndicesRemapNode, Object);
 };  // class IndicesRemapNode
 
 class IndicesRemap : public ObjectRef {
+ private:
  public:
   IndicesRemap(const ProducerLoadNode& op);
   TVM_DEFINE_OBJECT_REF_METHODS(IndicesRemap, ObjectRef,
@@ -58,7 +56,7 @@ struct TensorExprNode;
 typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
 
 struct TensorExprNode {
-  NodeRef op;
+  ObjectRef op;
   std::vector<TensorExprPtr> operands;
 
   /*! @brief Convert a \c TensorExprNode to string.
@@ -83,10 +81,10 @@ struct TensorExprNode {
   }
   bool Compare_(const PlaceholderOpNode* const op,
                 const TensorExprNode& other);
-  bool Compare_(const Add* const op, const TensorExprNode);
-  bool Compare_(const Sub* const op, const TensorExprNode);
-  bool Compare_(const Mul* const op, const TensorExprNode);
-  bool Compare_(const Div* const op, const TensorExprNode);
+  bool Compare_(const AddNode* const op, const TensorExprNode);
+  bool Compare_(const SubNode* const op, const TensorExprNode);
+  bool Compare_(const MulNode* const op, const TensorExprNode);
+  bool Compare_(const DivNode* const op, const TensorExprNode);
   bool Compare_(const Reduce* const op, const TensorExprNode& other);
   bool Compare_(const IntImm* const op, const TensorExprNode& other);
   bool Compare_(const FloatImm* const op, const TensorExprNode& other);
@@ -136,9 +134,12 @@ class CSEOptimizer {
 }  // namespace anonymous
 
 
-std::pair<Tensor, Array<Tensor> >
-CSE(const Tensor& output, const Array<Tensor>& input_grads) {
-  // First, we remove the common subexpresssions between the input gradients.
+std::pair<Tensor, std::vector<Tensor> >
+CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
+  // 1. Apply auto-inliner to inline the injective operations. The point is to simply the
+  //    tensor expressions, and particularly tensor indices.
+  
+  // 2. Remove the common subexpresssions between the input gradients.
   for (const Tensor& input_grad : input_grads) {
 
   }
@@ -148,6 +149,10 @@ CSE(const Tensor& output, const Array<Tensor>& input_grads) {
 
 namespace {
 
+
+IndicesRemap::IndicesRemap(const ProducerLoadNode& op) {
+  
+}
 
 
 }  // namespace anonymous

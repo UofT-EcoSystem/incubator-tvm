@@ -88,9 +88,8 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
  * \return A pair whose first member is the modified \p output (to compute the adjoints), and
  *         second member is an array of adjoints corresponding to \p inputs.
  */
-TVM_DLL std::pair<Tensor, Array<Tensor> >
-        Gradient(const Tensor& output, const Array<Tensor>& inputs,
-                 const Tensor& head = Tensor());
+Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
+                       const Tensor& head = Tensor());
 
 }  // namespace te
 }  // namespace tvm

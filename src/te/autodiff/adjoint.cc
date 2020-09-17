@@ -73,9 +73,8 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
   return result;
 }
 
-std::pair<Tensor, Array<Tensor> >
-Gradient(const Tensor& output, const Array<Tensor>& inputs,
-         const Tensor& head_or_null) {
+Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
+                       const Tensor& head_or_null) {
   // Diagonal identity tensor
   Tensor head = head_or_null.get() ? head_or_null : Identity(output);
 
@@ -139,10 +138,16 @@ Gradient(const Tensor& output, const Array<Tensor>& inputs,
   // Adjoints corresponding to inputs
   Array<Tensor> result;
   // Compute an adjoint for each input
+  std::vector<Tensor> input_grads;
   for (const Tensor& input : inputs) {
-    result.push_back(compute_adjoint(input));
+    input_grads.push_back(compute_adjoint(input));
   }
-  return CSE(output, result);
+  std::pair<Tensor, std::vector<Tensor> > out_in_grads_opted = CSE(output, input_grads);
+  result.push_back(out_in_grads_opted.first);
+  for (const Tensor& input_grad : out_in_grads_opted.second){
+    result.push_back(input_grad);
+  }
+  return result;
 }
 
 TVM_REGISTER_GLOBAL("te.Gradient").set_body([](TVMArgs args, TVMRetValue* ret) {
