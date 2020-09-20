@@ -1,3 +1,6 @@
+"""
+<bojian/TVM-SymbolicTuning> Cluster search tasks for selective tuning.
+"""
 import logging
 
 from .cost_model    import XGBModel
