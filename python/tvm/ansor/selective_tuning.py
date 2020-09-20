@@ -41,3 +41,4 @@ def MarkDepend(search_tasks):
     logging.info("Marking dependent tasks")
     sketches = [SearchTask2Sketch(task) for task in search_tasks]
     centroids, labels = PSMClustering(sketches)
+
