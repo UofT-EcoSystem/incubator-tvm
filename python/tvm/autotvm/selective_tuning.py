@@ -16,6 +16,5 @@ def PSMClustering(search_tasks):
 def MarkDepend(search_tasks):
     logger.info("Marking dependent tasks")
     for task in search_tasks:
-        logger.info("Config Space={}".format(task.config_space))
-        logger.info("Config Space.Space Map={}".format(task.config_space.space_map))
+        logger.info(task.config_space)
     centroids, labels = PSMClustering(search_tasks)
