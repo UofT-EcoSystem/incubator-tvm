@@ -32,11 +32,12 @@ def SearchTask2Sketch(search_task):
     Transform a search task to sketch.
     """
     sketch = search_policy.generate_sketches(task=search_task)
-    logging.info("Search Task={}, Sketch={}"
-                 .format(search_task, sketch))
     assert len(list(sketch)) == 1, \
-           "Not implemented for cases where there are more than 1 sketch"
-    return sketch[0]
+           "Not implemented for cases where there are more than 1 state"
+    state = sketch[0]
+    logging.info("Search Task={}, State={}"
+                 .format(search_task, state))
+    return state
 
 
 def MarkDepend(search_tasks):
