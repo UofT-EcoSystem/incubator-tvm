@@ -21,6 +21,7 @@ def ComputePSM(search_tasks):
     for i, _ in enumerate(search_tasks):
         for j in range(i + 1, len(search_tasks)):
             psm[i, j] = ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
+    logger.info("psm={}".format(psm))
 
 
 def ClusterPSM(search_tasks):
@@ -30,4 +31,4 @@ def ClusterPSM(search_tasks):
 
 def MarkDepend(search_tasks):
     logger.info("Marking dependent tasks")
-    centroids, labels = PSMCluster(search_tasks)
+    centroids, labels = ClusterPSM(search_tasks)
