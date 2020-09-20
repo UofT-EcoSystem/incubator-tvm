@@ -1,8 +1,12 @@
 """
-<bojian/TVM-SymbolicTuning> Cluster search tasks for selective tuning.
+<bojian/TVM-SymbolicTuning> Cluster search tasks for selective tuning (Ansor implementation).
 """
 from .cost_model    import XGBModel
 from .auto_schedule import SketchSearchPolicy
+
+import logging
+logger = logging.getLogger(__name__)
+
 
 search_policy = SketchSearchPolicy(program_cost_model=XGBModel(seed=0),
                                    seed=0)
@@ -33,11 +37,11 @@ def SearchTask2Sketch(search_task):
     assert len(list(sketch)) == 1, \
            "Not implemented for cases where there are more than 1 state"
     state = sketch[0]
-    print("Search Task={}, State={}".format(search_task, state))
+    logger.info("Search Task={}, State={}".format(search_task, state))
     return state
 
 
 def MarkDepend(search_tasks):
-    print("Marking dependent tasks")
+    logger.info("Marking dependent tasks")
     sketches = [SearchTask2Sketch(task) for task in search_tasks]
     centroids, labels = PSMClustering(sketches)
