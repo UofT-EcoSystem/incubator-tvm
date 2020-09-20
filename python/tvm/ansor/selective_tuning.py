@@ -13,8 +13,9 @@ def ComputeSimilarity(taskA, taskB):
 
     In the original implementation, we are allowed to compute the similarity
     between two tasks if they share the same schedule space map. However, since
-    the notion of schedule space map no longer exists in Ansor, we have to
-    switch to 
+    the notion of schedule space map no longer exists in Ansor, we have to turn
+    to sketches (?) (i.e., two search tasks are allowed to be compared for
+    similarity if they share the same sketch).
     """
     pass
 
