@@ -34,11 +34,12 @@ def SearchTask2Sketch(search_task):
     sketch = search_policy.generate_sketches(task=search_task)
     logging.info("Search Task={}, Sketch={}"
                  .format(search_task, sketch))
-    return sketch
+    assert len(list(sketch)) == 1, \
+           "Not implemented for cases where there are more than 1 sketch"
+    return sketch[0]
 
 
 def MarkDepend(search_tasks):
     logging.info("Marking dependent tasks")
     sketches = [SearchTask2Sketch(task) for task in search_tasks]
     centroids, labels = PSMClustering(sketches)
-
