@@ -35,6 +35,7 @@ from .dispatcher import DispatchContext, ApplyConfig
 from .space import ConfigSpace
 
 def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
+    print(TASK_TABLE)
     raise RuntimeError("The function of this task is not found. Possibly the function "
                        "of this task is registered in another python file "
                        "which is not imported in this run")
