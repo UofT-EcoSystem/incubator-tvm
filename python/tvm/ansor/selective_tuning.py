@@ -3,6 +3,7 @@
 """
 import logging
 
+from ..autotvm 
 from .cost_model    import XGBModel
 from .auto_schedule import SketchSearchPolicy
 
