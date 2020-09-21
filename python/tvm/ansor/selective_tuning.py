@@ -34,7 +34,7 @@ class SelectiveTuning(SelectiveTuningABC):
 
     @classmethod
     def ClusterPSM(cls, sketch_states):
-        pass
+        return None, None
 
     @classmethod
     def MarkDepend(cls, search_tasks):
