@@ -5,29 +5,34 @@ import logging
 import numpy as np
 logger = logging.getLogger(__name__)
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
 
 class SelectiveTuningABC(ABC):
     @abstractmethod
-    def ComputePairwiseSimilarity(self, taskA, taskB):
+    @classmethod
+    def ComputePairwiseSimilarity(cls, taskA, taskB):
         pass
 
     @abstractmethod
-    def ComputePSM(self, search_tasks):
+    @classmethod
+    def ComputePSM(cls, search_tasks):
         pass
     
     @abstractmethod
-    def ClusterPSM(self, search_tasks):
+    @classmethod
+    def ClusterPSM(cls, search_tasks):
         pass
 
     @abstractmethod
-    def MarkDepend(self, search_tasks):
+    @classmethod
+    def MarkDepend(cls, search_tasks):
         pass
 
 
 class SelectiveTuning(SelectiveTuningABC):
-    def ComputePairwiseSimilarity(self, taskA, taskB):
+    @classmethod
+    def ComputePairwiseSimilarity(cls, taskA, taskB):
         """
         Compare the pairwise similarity metric between two tasks.
         """
@@ -51,18 +56,21 @@ class SelectiveTuning(SelectiveTuningABC):
 
         return 1.
 
-    def ComputePSM(self, search_tasks):
+    @classmethod
+    def ComputePSM(cls, search_tasks):
         psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
                        dtype=np.float32)
         for i, _ in enumerate(search_tasks):
             for j in range(i + 1, len(search_tasks)):
-                psm[i, j] = self.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
+                psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
         logger.info("psm={}".format(psm))
 
-    def ClusterPSM(self, search_tasks):
-        self.ComputePSM(search_tasks)
+    @classmethod
+    def ClusterPSM(cls, search_tasks):
+        cls.ComputePSM(search_tasks)
         return None, None
 
+    @classmethod
     def MarkDepend(search_tasks):
         logger.info("Marking dependent tasks")
-        centroids, labels = self.ClusterPSM(search_tasks)
+        centroids, labels = cls.ClusterPSM(search_tasks)

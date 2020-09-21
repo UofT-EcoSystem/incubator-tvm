@@ -15,7 +15,8 @@ search_policy = SketchSearchPolicy(program_cost_model=XGBModel(seed=0),
 
 
 class SelectiveTuning(SelectiveTuningABC):
-    def ComputePairwiseSimilarity(self, sketch_stateA, sketch_stateB):
+    @classmethod
+    def ComputePairwiseSimilarity(cls, sketch_stateA, sketch_stateB):
         """
         Compute the similarity between two tasks.
 
@@ -27,13 +28,16 @@ class SelectiveTuning(SelectiveTuningABC):
         """
         pass
 
-    def ComputePSM(self, sketch_states):
+    @classmethod
+    def ComputePSM(cls, sketch_states):
         pass
 
-    def ClusterPSM(self, sketch_states):
+    @classmethod
+    def ClusterPSM(cls, sketch_states):
         pass
 
-    def MarkDepend(self, search_tasks):
+    @classmethod
+    def MarkDepend(cls, search_tasks):
         logger.info("Marking dependent tasks")
         def _SearchTask2SketchState(search_task):
             """
@@ -46,4 +50,4 @@ class SelectiveTuning(SelectiveTuningABC):
             logger.info("Search Task={}, State={}".format(search_task, state))
             return state
         sketch_states = [_SearchTask2SketchState(task) for task in search_tasks]
-        centroids, labels = self.ClusterPSM(sketch_states)
+        centroids, labels = cls.ClusterPSM(sketch_states)
