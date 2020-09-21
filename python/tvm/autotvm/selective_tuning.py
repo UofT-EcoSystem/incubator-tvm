@@ -12,6 +12,22 @@ def ComputePairwiseSimilarity(taskA, taskB):
     """
     if taskA.name != taskB.name:
         return 0.
+    config_space_mapA = taskA.config_space.space_map
+    config_space_mapB = taskB.config_space.space_map
+
+    logger.info("Merging {} with {}"
+                .format(config_space_mapA, config_space_mapB))
+
+    config_space_union = set(config_space_mapA)
+    config_space_union.update(config_space_mapB)
+    if len(config_space_mapA) != len(config_space_mapB) or \
+       len(config_space_mapA) != len(config_space_union):
+        logger.info("len(ConfigSpaceMapA)={config_space_mapA_len} != len(ConfigSpaceMapB)={} or "
+                    "len(ConfigSpaceMapA)={config_space_mapA_len} != len(ConfigSpaceMapU)={}"
+                    .format(len(config_space_mapB), len(config_space_union),
+                            config_space_mapA_len=len(config_space_mapA)))
+        return 0.
+
     return 1.
     
 
