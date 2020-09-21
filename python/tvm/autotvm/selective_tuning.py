@@ -71,6 +71,6 @@ class SelectiveTuning(SelectiveTuningABC):
         return None, None
 
     @classmethod
-    def MarkDepend(search_tasks):
+    def MarkDepend(cls, search_tasks):
         logger.info("Marking dependent tasks")
         centroids, labels = cls.ClusterPSM(search_tasks)
