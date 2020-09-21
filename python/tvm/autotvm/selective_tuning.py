@@ -9,23 +9,23 @@ from abc import ABC, abstractmethod
 
 
 class SelectiveTuningABC(ABC):
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def ComputePairwiseSimilarity(cls, taskA, taskB):
         pass
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def ComputePSM(cls, search_tasks):
         pass
     
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def ClusterPSM(cls, search_tasks):
         pass
 
-    @abstractmethod
     @classmethod
+    @abstractmethod
     def MarkDepend(cls, search_tasks):
         pass
 
