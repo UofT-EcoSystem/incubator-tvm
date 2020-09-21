@@ -3,15 +3,8 @@
 """
 from ..autotvm import SelectiveTuningABC
 
-from .cost_model    import XGBModel
-from .auto_schedule import SketchSearchPolicy
-
 import logging
 logger = logging.getLogger(__name__)
-
-
-search_policy = SketchSearchPolicy(program_cost_model=XGBModel(seed=0),
-                                   seed=0)
 
 
 class SelectiveTuning(SelectiveTuningABC):
