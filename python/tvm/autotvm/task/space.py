@@ -113,15 +113,15 @@ class TransformSpace(object):
         if not isinstance(other, self.__class__):
             return 0.
         if not self.entity_hash_set:
-            self.entity_hash_set = set([self.hash_entity(cfg) for cfg in self.entities])
+            self.entity_hash_set = set([self.hash_entity(entity) for entity in self.entities])
         overlap, diff = 0., 0.
-        for cfg in other.entities:
-            hash_key = self.hash_entity(cfg)
-            if hash_key in self.entity_hash_set:
+        for entity in other.entities:
+            hash_val = self.hash_entity(entity)
+            if hash_val in self.entity_hash_set:
                 overlap += 1.
             else:
                 diff += 1.
-        return overlap / (len(self.entity_hash_set) + diff)
+        return overlap / (len(self.entity_hash_set) + diff)  # overlap / ∪
 
     # <bojian/TVM-SymbolicTuning>
     def hash_entity(self, entity):
