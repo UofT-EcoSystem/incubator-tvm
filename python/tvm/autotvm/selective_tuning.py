@@ -57,5 +57,7 @@ class SelectiveTuning(SelectiveTuningABC):
                         .format(len(config_space_mapB), len(config_space_mapU),
                                 config_space_mapA_len=len(config_space_mapA)))
             return 0.
-        return np.prod([config_space_mapA[name].similar(config_space_mapB[name])
-                        for name in config_space_mapU])
+        similarity_vec = [config_space_mapA[name].similar(config_space_mapB[name])
+                          for name in config_space_mapU]
+        logger.info("similarity_vec={}".format(similarity_vec))
+        return np.prod(similarity_vec)
