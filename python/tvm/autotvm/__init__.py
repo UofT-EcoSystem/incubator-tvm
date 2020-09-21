@@ -48,4 +48,4 @@ from .task import get_config, create, ConfigSpace, ConfigEntity, \
 from .env import GLOBAL_SCOPE
 
 # <bojian/TVM-SymbolicTuning>
-from .selective_tuning import MarkDepend
+from .selective_tuning import SelectiveTuning
