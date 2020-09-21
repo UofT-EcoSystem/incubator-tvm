@@ -26,6 +26,19 @@ entity in the space. This entity contains deterministic parameters.
 """
 from __future__ import absolute_import as _abs
 
+# <bojian/TVM-SymbolicTuning>
+import logging
+logger = logging.getLogger(__name__)
+
+def hash_entity_decor(hash_entity):
+    def hash_entity_wrapper(self, entity):
+        hash_val = hash_entity(self, entity)
+        logger.info("Hashing entity={} into hash_val={}"
+                    .format(entity, hash_val))
+        return hash_val
+    return hash_entity_wrapper
+
+
 import itertools
 import functools
 import math
@@ -72,6 +85,8 @@ class TransformSpace(object):
         self.ins = []
         self.num_output = 0
         self.entities = []
+        # <bojian/TVM-SymbolicTuning>
+        self.entity_hash_set = set()
 
     def __len__(self):
         return len(self.entities)
@@ -88,6 +103,30 @@ class TransformSpace(object):
         transform entity
         """
         return self.entities[index]
+
+
+    # <bojian/TVM-SymbolicTuning>
+    def similar(self, other):
+        """
+        Compute the similarity between this transform space and other.
+        """
+        if not isinstance(other, self.__class__):
+            return 0.
+        if not self.entity_hash_set:
+            self.entity_hash_set = set([self.hash_entity(cfg) for cfg in self.entities])
+        overlap, diff = 0., 0.
+        for cfg in other.entities:
+            hash_key = self.hash_entity(cfg)
+            if hash_key in self.entity_hash_set:
+                overlap += 1.
+            else:
+                diff += 1.
+        return overlap / (len(self.entity_hash_set) + diff)
+
+    # <bojian/TVM-SymbolicTuning>
+    def hash_entity(self, entity):
+        raise NotImplementedError()
+
 
     @staticmethod
     def get_num_output():
@@ -136,6 +175,13 @@ class VirtualAxis(TransformSpace):
             self.length = var.length
         else:
             raise RuntimeError("Invalid type of axis: " + str(type(var)))
+
+
+    # <bojian/TVM-SymbolicTuning>
+    @hash_entity_decor
+    def hash_entity(self, entity):
+        return entity.name
+
 
     @staticmethod
     def get_num_output(var, name=None):
@@ -223,6 +269,12 @@ class SplitSpace(TransformSpace):
             self._generate_space(0, [None] * (self.num_output - 1), enforce_no_tail=no_tail)
 
         self.entities = list(filter(fil, self.entities))
+
+
+    @hash_entity_decor
+    def hash_entity(self, entity):
+        return tuple(entity.size)
+
 
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""
@@ -339,6 +391,13 @@ class ReorderSpace(TransformSpace):
                     self.entities.append(ReorderEntity(o + r + inner_merged))
         else:
             raise RuntimeError("Invalid policy: " + policy)
+
+
+    # <bojian/TVM-SymbolicTuning>
+    @hash_entity_decor
+    def hash_entity(self, entity):
+        return tuple(entity.perm)
+
 
     @staticmethod
     def get_num_output(axes, policy, **kwargs):
@@ -475,6 +534,13 @@ class AnnotateSpace(TransformSpace):
             self.num_axis = len(axes)
             self.anns = [anns] * self.num_axis
             self._generate_space(0, [""] * self.num_axis)
+
+    
+    # <bojian/TVM-SymbolicTuning>
+    @hash_entity_decor
+    def hash_entity(self, entity):
+        return tuple(entity.anns)
+
 
     def _generate_space(self, now, tmp_stack):
         """Generate space by DFS"""

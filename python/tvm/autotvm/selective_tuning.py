@@ -48,14 +48,14 @@ class SelectiveTuning(SelectiveTuningABC):
         logger.info("Merging {} with {}"
                     .format(config_space_mapA, config_space_mapB))
 
-        config_space_union = set(config_space_mapA)
-        config_space_union.update(config_space_mapB)
+        config_space_mapU = set(config_space_mapA)
+        config_space_mapU.update(config_space_mapB)
         if len(config_space_mapA) != len(config_space_mapB) or \
-           len(config_space_mapA) != len(config_space_union):
+           len(config_space_mapA) != len(config_space_mapU):
             logger.info("len(ConfigSpaceMapA)={config_space_mapA_len} != len(ConfigSpaceMapB)={} or "
                         "len(ConfigSpaceMapA)={config_space_mapA_len} != len(ConfigSpaceMapU)={}"
-                        .format(len(config_space_mapB), len(config_space_union),
+                        .format(len(config_space_mapB), len(config_space_mapU),
                                 config_space_mapA_len=len(config_space_mapA)))
             return 0.
-
-        return 1.
+        return np.prod([config_space_mapA[name].similar(config_space_mapB[name])
+                        for name in config_space_mapU])
