@@ -121,7 +121,11 @@ class TransformSpace(object):
                 overlap += 1.
             else:
                 diff += 1.
-        return overlap / (len(self.entity_hash_set) + diff)  # overlap / ∪
+        similarity = overlap / (len(self.entity_hash_set) + diff)  # overlap / ∪
+        logger.info("len(entity_hash_set)={}, overlap={}, diff={}, similarity={}"
+                    .format(len(self.entity_hash_set),
+                            overlap, diff, similarity))
+        return similarity
 
     # <bojian/TVM-SymbolicTuning>
     def hash_entity(self, entity):
@@ -271,6 +275,7 @@ class SplitSpace(TransformSpace):
         self.entities = list(filter(fil, self.entities))
 
 
+    # <bojian/TVM-SymbolicTuning>
     @hash_entity_decor
     def hash_entity(self, entity):
         return tuple(entity.size)
