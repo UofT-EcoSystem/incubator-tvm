@@ -15,19 +15,23 @@ class SelectiveTuningABC(ABC):
         pass
 
     @classmethod
-    @abstractmethod
     def ComputePSM(cls, search_tasks):
-        pass
-    
-    @classmethod
-    @abstractmethod
-    def ClusterPSM(cls, search_tasks):
-        pass
+        psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
+                       dtype=np.float32)
+        for i, _ in enumerate(search_tasks):
+            for j in range(i + 1, len(search_tasks)):
+                psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
+        logger.info("psm={}".format(psm))
 
     @classmethod
-    @abstractmethod
+    def ClusterPSM(cls, search_tasks):
+        cls.ComputePSM(search_tasks)
+        return None, None
+
+    @classmethod
     def MarkDepend(cls, search_tasks):
-        pass
+        logger.info("Marking dependent tasks")
+        centroids, labels = cls.ClusterPSM(search_tasks)
 
 
 class SelectiveTuning(SelectiveTuningABC):
@@ -55,22 +59,3 @@ class SelectiveTuning(SelectiveTuningABC):
             return 0.
 
         return 1.
-
-    @classmethod
-    def ComputePSM(cls, search_tasks):
-        psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
-                       dtype=np.float32)
-        for i, _ in enumerate(search_tasks):
-            for j in range(i + 1, len(search_tasks)):
-                psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
-        logger.info("psm={}".format(psm))
-
-    @classmethod
-    def ClusterPSM(cls, search_tasks):
-        cls.ComputePSM(search_tasks)
-        return None, None
-
-    @classmethod
-    def MarkDepend(cls, search_tasks):
-        logger.info("Marking dependent tasks")
-        centroids, labels = cls.ClusterPSM(search_tasks)

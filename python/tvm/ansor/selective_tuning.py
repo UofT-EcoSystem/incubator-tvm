@@ -26,28 +26,4 @@ class SelectiveTuning(SelectiveTuningABC):
         have to turn to sketches (?) (i.e., two search tasks are allowed to be
         compared for similarity if they share the same sketch).
         """
-        pass
-
-    @classmethod
-    def ComputePSM(cls, sketch_states):
-        pass
-
-    @classmethod
-    def ClusterPSM(cls, sketch_states):
-        return None, None
-
-    @classmethod
-    def MarkDepend(cls, search_tasks):
-        logger.info("Marking dependent tasks")
-        def _SearchTask2SketchState(search_task):
-            """
-            Transform a search task to sketch.
-            """
-            sketch = search_policy.generate_sketches(task=search_task)
-            assert len(list(sketch)) == 1, \
-                   "Not implemented for cases where there are more than 1 state"
-            state = sketch[0]
-            logger.info("Search Task={}, State={}".format(search_task, state))
-            return state
-        sketch_states = [_SearchTask2SketchState(task) for task in search_tasks]
-        centroids, labels = cls.ClusterPSM(sketch_states)
+        return 0.
