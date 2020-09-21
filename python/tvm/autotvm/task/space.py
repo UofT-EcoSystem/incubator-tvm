@@ -26,15 +26,15 @@ entity in the space. This entity contains deterministic parameters.
 """
 from __future__ import absolute_import as _abs
 
-# <bojian/TVM-SymbolicTuning>
+# <bojian/TVM-SymbolicTuning> Log when hashing the TransformSpace entities.
 import logging
 logger = logging.getLogger(__name__)
 
 def hash_entity_decor(hash_entity):
     def hash_entity_wrapper(self, entity):
         hash_val = hash_entity(self, entity)
-        logger.info("Hashing entity={} into hash_val={}"
-                    .format(entity, hash_val))
+        logger.info("Hashing TransformSpace={} w/ entity={} into hash_val={}"
+                    .format(self, entity, hash_val))
         return hash_val
     return hash_entity_wrapper
 
