@@ -21,7 +21,7 @@ class SelectiveTuningABC(ABC):
         for i, _ in enumerate(search_tasks):
             for j in range(i + 1, len(search_tasks)):
                 psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
-        logger.info("\npsm={}".format(psm))
+        logger.info("psm=\n{}".format(psm))
 
     @classmethod
     def ClusterPSM(cls, search_tasks):
