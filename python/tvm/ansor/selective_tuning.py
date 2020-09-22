@@ -23,4 +23,7 @@ class SelectiveTuning(SelectiveTuningABC):
         stages_cacheA = _ffi_api.StateGetStages(taskA)
         stages_cacheB = _ffi_api.StateGetStages(taskB)
         logger.info("StateA={}, StateB={}".format(stages_cacheA, stages_cacheB))
+        logger.info("StateA.ops={}, StateB.ops={}"
+                    .format([stage.op for stage in stages_cacheA], 
+                            [stage.op for stage in stages_cacheB]))
         return 0.
