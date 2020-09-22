@@ -1058,6 +1058,12 @@ TVM_REGISTER_GLOBAL("ansor.StateGetTransformSteps")
   return Array<Step>(state->transform_steps);
 });
 
+TVM_REGISTER_GLOBAL("ansor.ComputeTransformStepSimilarity")
+    .set_body_typed([](const Step& lhs, const Step& rhs){
+  // calculate the similarity metrics between two transformation steps
+  LOG(INFO) << lhs->GetTypeKey() << " vs. " << rhs->GetTypeKey();
+});
+
 
 TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize").set_body_typed([](const State& state) {
   return static_cast<int64_t>(state->transform_steps.size());
