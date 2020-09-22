@@ -22,7 +22,7 @@ class SelectiveTuning(SelectiveTuningABC):
         """
         stages_cacheA = _ffi_api.StateGetStages(taskA)
         transform_stepsA = \
-                _ffi_api.StateGetTransformStepsSize(self.state_object)
+                _ffi_api.StateGetTransformStepsSize(taskA)
         logger.info("StagesCacheA={}, TransformStepsA={}"
                     .format(stages_cacheA, transform_stepsA))
         return 0.
