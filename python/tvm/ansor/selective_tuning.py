@@ -20,9 +20,9 @@ class SelectiveTuning(SelectiveTuningABC):
         have to turn to sketches (?) (i.e., two search tasks are allowed to be
         compared for similarity if they share the same sketch).
         """
-        stages_cacheA = _ffi_api.StateGetStages(taskA)
-        transform_stepsA = \
-                _ffi_api.StateGetTransformStepsSize(taskA)
+        stages_cacheA, transform_stepsA = \
+                _ffi_api.StateGetStages(taskA), \
+                _ffi_api.StateGetTransformSteps(taskA)
         logger.info("StagesCacheA={}, TransformStepsA={}"
                     .format(stages_cacheA, transform_stepsA))
         return 0.
