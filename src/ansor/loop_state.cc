@@ -1055,7 +1055,7 @@ TVM_REGISTER_GLOBAL("ansor.StateGetStages").set_body_typed([](const State& state
 // <bojian/TVM-SymbolicTuning>
 TVM_REGISTER_GLOBAL("ansor.StateGetTransformStepsSize")
     .set_body_typed([](const State& state) {
-  return Arrays<Step>(state->transform_steps);
+  return Array<Step>(state->transform_steps);
 });
 
 
