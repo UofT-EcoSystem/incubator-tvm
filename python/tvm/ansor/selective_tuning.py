@@ -21,9 +21,8 @@ class SelectiveTuning(SelectiveTuningABC):
         compared for similarity if they share the same sketch).
         """
         stages_cacheA = _ffi_api.StateGetStages(taskA)
-        stages_cacheB = _ffi_api.StateGetStages(taskB)
-        logger.info("StateA={}, StateB={}".format(stages_cacheA, stages_cacheB))
-        logger.info("StateA.ops={}, StateB.ops={}"
-                    .format([stage.op for stage in stages_cacheA], 
-                            [stage.op for stage in stages_cacheB]))
+        transform_stepsA = \
+                _ffi_api.StateGetTransformStepsSize(self.state_object)
+        logger.info("StagesCacheA={}, TransformStepsA={}"
+                    .format(stages_cacheA, transform_stepsA))
         return 0.
