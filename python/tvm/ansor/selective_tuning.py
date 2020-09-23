@@ -22,6 +22,14 @@ class SelectiveTuning(SelectiveTuningABC):
         """
         stages_cacheA, transform_stepsA = _ffi_api.StateGetStages(taskA), \
                                           _ffi_api.StateGetTransformSteps(taskA)
+        stages_cacheB, transform_stepsB = _ffi_api.StateGetStages(taskB), \
+                                          _ffi_api.StateGetTransformSteps(taskB)
         logger.info("StagesCacheA={}, TransformStepsA={}"
                     .format(stages_cacheA, transform_stepsA))
+        if len(transform_stepsA) != len(transform_stepsB):
+            return 0.
+        similarity_vec = [_ffi_api.ComputeTransformStepSimilarity(
+                transform_stepsA[i],
+                transform_stepsB[i]) for i in range]
+        logger.info("similarity_vec={}".format(similarity_vec))
         return 0.

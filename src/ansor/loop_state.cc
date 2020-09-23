@@ -1062,6 +1062,7 @@ TVM_REGISTER_GLOBAL("ansor.ComputeTransformStepSimilarity")
     .set_body_typed([](const Step& lhs, const Step& rhs){
   // calculate the similarity metrics between two transformation steps
   LOG(INFO) << lhs->GetTypeKey() << " vs. " << rhs->GetTypeKey();
+  return 0.;
 });
 
 
