@@ -27,9 +27,11 @@ class SelectiveTuning(SelectiveTuningABC):
         logger.info("StagesCacheA={}, TransformStepsA={}"
                     .format(stages_cacheA, transform_stepsA))
         if len(transform_stepsA) != len(transform_stepsB):
+            logger.info("len(transform_stepsA)={} != len(transform_stepsB)={}"
+                        .format(len(transform_stepsA), len(transform_stepsB)))
             return 0.
         similarity_vec = [_ffi_api.ComputeTransformStepSimilarity(
                 transform_stepsA[i],
-                transform_stepsB[i]) for i in range]
+                transform_stepsB[i]) for i in range(len(transform_stepsA))]
         logger.info("similarity_vec={}".format(similarity_vec))
         return 0.
