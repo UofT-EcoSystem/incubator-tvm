@@ -72,7 +72,8 @@ class SelectiveTuningABC(ABC):
         centroids = []
         for cluster in clusters:
             if cluster:
-                centroids.append(max(cluster, key=lambda ))
+                centroids.append(max(cluster,
+                                     key=lambda p: _weight_sum(psm, p, cluster)))
             else:  # empty cluster
                 centroids.append(-1)
 
