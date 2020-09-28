@@ -25,7 +25,7 @@ class SelectiveTuningABC(ABC):
 
     @classmethod
     def ClusterPSM(cls, search_tasks):
-        cls.psm = cls.ComputePSM(search_tasks)
+        cls.ComputePSM(search_tasks)
         import networkx as nx
         # create a graph with task index as nodes and PSM as edge weights
         graph = nx.Graph()
