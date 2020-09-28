@@ -64,7 +64,7 @@ class SelectiveTuningABC(ABC):
                     clusters[assigned_cidx].add(tidx)
                     if assigned_cluster[tidx][1] is not None:
                         clusters[assigned_cluster[tidx][1]].remove(tidx)
-                    assigned_cluster[tidx][1] = assigned_cidx
+                    assigned_cluster[tidx] = (assigned_cluster[tidx][0], assigned_cidx)
         labels = [label for _, label in assigned_cluster]
 
         # ∀cluster, select the task that has the maximum weight sum to other
