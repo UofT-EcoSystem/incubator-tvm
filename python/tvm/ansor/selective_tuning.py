@@ -18,20 +18,10 @@ class SelectiveTuning(SelectiveTuningABC):
         between two tasks if they share the same schedule space map. However,
         since the notion of schedule space map no longer exists in Ansor, we
         have to turn to sketches (?) (i.e., two search tasks are allowed to be
-        compared for similarity if they share the same sketch).
+        compared for similarity if they share the same initial sketch). This
+        heuristic is subject to change in hte future.
         """
-        stages_cacheA, transform_stepsA = _ffi_api.StateGetStages(taskA), \
-                                          _ffi_api.StateGetTransformSteps(taskA)
-        stages_cacheB, transform_stepsB = _ffi_api.StateGetStages(taskB), \
-                                          _ffi_api.StateGetTransformSteps(taskB)
-        logger.info("StagesCacheA={}, TransformStepsA={}"
-                    .format(stages_cacheA, transform_stepsA))
-        if len(transform_stepsA) != len(transform_stepsB):
-            logger.info("len(transform_stepsA)={} != len(transform_stepsB)={}"
-                        .format(len(transform_stepsA), len(transform_stepsB)))
+        if _ffi_api.StateEqual(taskA, taskB):
+            return 1.
+        else:
             return 0.
-        similarity_vec = [_ffi_api.ComputeTransformStepSimilarity(
-                transform_stepsA[i],
-                transform_stepsB[i]) for i in range(len(transform_stepsA))]
-        logger.info("similarity_vec={}".format(similarity_vec))
-        return 0.
