@@ -31,8 +31,8 @@ class SelectiveTuningABC(ABC):
         graph = nx.Graph()
         graph.add_nodes_from(range(len(search_tasks)))
         graph.add_edges_from([(i, j) for i in range(len(search_tasks))
-                                     for j in range(i + 1, len(search_tasks))]
-                                     if cls.psm[i, j] > 0.)
+                                     for j in range(i + 1, len(search_tasks))
+                                     if cls.psm[i, j] > 0.])
         # cluster assignment for each task
         assigned_cluster = [([], None) for _ in range(len(search_tasks))]
         # find cliques and initailize clusters
