@@ -91,7 +91,7 @@ class SelectiveTuningABC(ABC):
             else:
                 logger.warning('Task={} does not have dependent'.format(task))
         logger.info('Select {} tasks over {} tasks '
-                    .format(sum([1 if task.dependent == t else 0
+                    .format(sum([1 if task.dependent == task else 0
                                  for task in search_tasks]),
                             len(search_tasks)))
 
