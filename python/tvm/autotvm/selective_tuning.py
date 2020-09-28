@@ -20,8 +20,8 @@ class SelectiveTuningABC(ABC):
                            dtype=np.float32)
         for i, _ in enumerate(search_tasks):
             for j in range(i + 1, len(search_tasks)):
-                psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
-        logger.info("psm=\n{}".format(psm))
+                cls.psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
+        logger.info("psm=\n{}".format(cls.psm))
 
     @classmethod
     def ClusterPSM(cls, search_tasks):
@@ -58,7 +58,7 @@ class SelectiveTuningABC(ABC):
                 if len(assigned_cluster[tidx]) == 1:
                     continue
                 assigned_cidx = max(assigned_cluster[idx][0],
-                                    key=lambda c: _weight_sum(tidx, clusters[c]))
+                                    key=lambda cidx: _weight_sum(tidx, clusters[cidx]))
                 if assigned_cidx != assigned_cluster[tidx][1]:
                     changed = True
                     clusters[assigned_cidx].add(idx)
@@ -72,8 +72,7 @@ class SelectiveTuningABC(ABC):
         centroids = []
         for cluster in clusters:
             if cluster:
-                centroids.append(max(cluster,
-                                     key=lambda p: _weight_sum(psm, p, cluster)))
+                centroids.append(max(cluster, key=lambda tidx: _weight_sum(tidx, cluster)))
             else:  # empty cluster
                 centroids.append(-1)
 
