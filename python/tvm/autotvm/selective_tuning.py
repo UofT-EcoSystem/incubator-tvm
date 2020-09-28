@@ -16,8 +16,8 @@ class SelectiveTuningABC(ABC):
 
     @classmethod
     def ComputePSM(cls, search_tasks):
-        psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
-                       dtype=np.float32)
+        cls.psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
+                           dtype=np.float32)
         for i, _ in enumerate(search_tasks):
             for j in range(i + 1, len(search_tasks)):
                 psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
@@ -25,8 +25,58 @@ class SelectiveTuningABC(ABC):
 
     @classmethod
     def ClusterPSM(cls, search_tasks):
-        cls.ComputePSM(search_tasks)
-        return None, None
+        cls.psm = cls.ComputePSM(search_tasks)
+        import networkx as nx
+        # create a graph with task index as nodes and PSM as edge weights
+        graph = nx.Graph()
+        graph.add_nodes_from(range(len(search_tasks)))
+        graph.add_edges_from([(i, j) for i in range(len(search_tasks))
+                                     for j in range(i + 1, len(search_tasks))]
+                                     if cls.psm[i, j] > 0.)
+        # cluster assignment for each task
+        assigned_cluster = [([], None) for _ in range(len(search_tasks))]
+        # find cliques and initailize clusters
+        clusters = []
+        for cidx, clique in enumerate(nx.find_cliques(graph)):
+            clusters.append(set())
+            for tidx in clique:
+                assigned_cluster[tidx][0].append(cidx)
+        # assign the tasks that only belong to one clique to the cluster
+        for tidx in range(len(search_tasks)):
+            if len(assigned_cluster[tidx]) == 1:
+                cidx = assigned_cluster[tidx][0][0]
+                clusters[cidx].add(tidx)
+                assgined_cluster[tidx][1] = cidx
+
+        def _weight_sum(primary_tidx, target_tidxs):
+            return sum([cls.psm[primary_tidx][target_tidx] for target_tidx in target_tidxs])
+
+        changed = True
+        while changed:
+            changed = False
+            for tidx in range(len(search_tasks)):
+                if len(assigned_cluster[tidx]) == 1:
+                    continue
+                assigned_cidx = max(assigned_cluster[idx][0],
+                                    key=lambda c: _weight_sum(tidx, clusters[c]))
+                if assigned_cidx != assigned_cluster[tidx][1]:
+                    changed = True
+                    clusters[assigned_cidx].add(idx)
+                    if assigned_cluster[tidx][1] is not None:
+                        clusters[assigned_cluster[tidx][1]].remove(tidx)
+                    assigned_cluster[tidx][1] = assigned_cidx
+        labels = [label for _, label in assigned_cluster]
+
+        # ∀cluster, select the task that has the maximum weight sum to other
+        # tasks in cluster
+        centroids = []
+        for cluster in clusters:
+            if cluster:
+                centroids.append(max(cluster, key=lambda ))
+            else:  # empty cluster
+                centroids.append(-1)
+
+        return centroids, labels
 
     @classmethod
     def MarkDepend(cls, search_tasks):
