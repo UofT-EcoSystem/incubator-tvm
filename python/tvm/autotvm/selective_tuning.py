@@ -61,7 +61,7 @@ class SelectiveTuningABC(ABC):
                                     key=lambda cidx: _weight_sum(tidx, clusters[cidx]))
                 if assigned_cidx != assigned_cluster[tidx][1]:
                     changed = True
-                    clusters[assigned_cidx].add(idx)
+                    clusters[assigned_cidx].add(tidx)
                     if assigned_cluster[tidx][1] is not None:
                         clusters[assigned_cluster[tidx][1]].remove(tidx)
                     assigned_cluster[tidx][1] = assigned_cidx
