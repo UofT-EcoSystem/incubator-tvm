@@ -57,7 +57,7 @@ class SelectiveTuningABC(ABC):
             for tidx in range(len(search_tasks)):
                 if len(assigned_cluster[tidx]) == 1:
                     continue
-                assigned_cidx = max(assigned_cluster[idx][0],
+                assigned_cidx = max(assigned_cluster[tidx][0],
                                     key=lambda cidx: _weight_sum(tidx, clusters[cidx]))
                 if assigned_cidx != assigned_cluster[tidx][1]:
                     changed = True
