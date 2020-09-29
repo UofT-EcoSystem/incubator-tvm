@@ -78,7 +78,7 @@ class SelectiveTuningABC(ABC):
                 centroids.append(max(cluster, key=lambda tidx: _weight_sum(tidx, cluster)))
             else:  # empty cluster
                 centroids.append(-1)
-
+        logger.info("centroids={}, labels={}".format(centroids, labels))
         return centroids, labels
 
     @classmethod
@@ -88,7 +88,7 @@ class SelectiveTuningABC(ABC):
         for tidx, task in enumerate(search_tasks):
             if labels[tidx] != -1:
                 representative = search_tasks[centroids[labels[tidx]]]
-                logger.info("Centroid={} <= Task={}"
+                logger.info("centroid={} <= Task={}"
                             .format(representative, task))
                 setattr(task, 'dependent', representative)
             else:
@@ -124,5 +124,5 @@ class SelectiveTuning(SelectiveTuningABC):
             return 0.
         similarity_vec = [config_space_mapA[name].similar(config_space_mapB[name])
                           for name in config_space_mapU]
-        logger.info("SimilarityVec={}".format(similarity_vec))
+        logger.info("similarity vec={}".format(similarity_vec))
         return np.prod(similarity_vec)
