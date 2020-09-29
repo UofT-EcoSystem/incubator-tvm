@@ -19,8 +19,10 @@ class SelectiveTuningABC(ABC):
         cls.psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
                            dtype=np.float32)
         for i, _ in enumerate(search_tasks):
+            cls.psm[i, i] = 1.
             for j in range(i + 1, len(search_tasks)):
-                cls.psm[i, j] = cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
+                cls.psm[i, j] = cls.psm[j, i] = \
+                        cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
         logger.info("psm=\n{}".format(cls.psm))
 
     @classmethod
