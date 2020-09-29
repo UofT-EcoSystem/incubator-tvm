@@ -1218,7 +1218,9 @@ TVM_REGISTER_GLOBAL("ansor.StateTensorize")
 
 TVM_REGISTER_GLOBAL("ansor.StateEqual")
 .set_body_typed([](State state1, State state2) {
-  return std::equal_to<State>()(state1, state2);
+  // <bojian/TVM-SymbolicTuning>
+  // return std::equal_to<State>()(state1, state2);
+  return state1.ToStr() == state2.ToStr();
 });
 
 }  // namespace ansor
