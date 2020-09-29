@@ -364,6 +364,7 @@ struct equal_to<::tvm::ansor::State> {
                    const ::tvm::ansor::State& rhs) const {
     // <bojian/TVM-SymbolicTuning>
     // return lhs.ToStr() == rhs.ToStr();
+    LOG(INFO) << lhs.get() << " VS. " << rhs.get();
     return lhs.get() == rhs.get();
   }
 };
