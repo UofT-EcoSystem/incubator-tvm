@@ -362,6 +362,7 @@ template <>
 struct equal_to<::tvm::ansor::State> {
   bool operator() (const ::tvm::ansor::State& lhs,
                    const ::tvm::ansor::State& rhs) const {
+    LOG(INFO) << "std::equal_to<State> is invoked";
     return lhs.ToStr() == rhs.ToStr();
   }
 };
