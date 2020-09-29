@@ -38,6 +38,7 @@ class SelectiveTuningABC(ABC):
         # cluster assignment for each task
         assigned_cluster = [([], None) for _ in range(len(search_tasks))]
         # find cliques and initailize clusters
+        logger.info("Cliques={}".format(list(nx.find_cliques(graph))))
         clusters = []
         for cidx, clique in enumerate(nx.find_cliques(graph)):
             clusters.append(set())
