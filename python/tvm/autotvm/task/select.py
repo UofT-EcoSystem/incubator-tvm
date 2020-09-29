@@ -74,12 +74,11 @@ def compute_psm(tasks):
         for idx2 in range(idx1 + 1, len(tasks)):
             psm[idx1][idx2] = psm[idx2][idx1] = compute_similarity(task1, tasks[idx2])
 
-    if logger.isEnabledFor(logging.DEBUG):
-        print('Pairwise Similarity Matrix:')
-        for row in psm:
-            print('%s -> %.2f' % (', '.join(
-                ['{:.2f}'.format(r) if r >= 0.01 else '----'
-                 for r in row]), sum(row)))
+    print('Pairwise Similarity Matrix:')
+    for row in psm:
+        print('%s -> %.2f' % (', '.join(
+              ['{:.2f}'.format(r) if r >= 0.01 else '----'
+               for r in row]), sum(row)))
     return psm
 
 
