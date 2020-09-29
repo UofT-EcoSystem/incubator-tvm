@@ -61,12 +61,6 @@
 #include <llvm/IR/IntrinsicsNVPTX.h>
 #include <llvm/IR/IntrinsicsX86.h>
 #include <llvm/Support/Alignment.h>
-namespace llvm {
-namespace TargetMachine {
-using CGFT_ObjectFile = ::llvm::CGFT_ObjectFile;
-using CGFT_AssemblyFile = ::llvm::CGFT_AssemblyFile;
-}
-}
 #endif
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/MemoryBuffer.h>
