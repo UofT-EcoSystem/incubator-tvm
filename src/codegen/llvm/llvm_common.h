@@ -56,6 +56,10 @@
 #include <llvm/Transforms/IPO.h>
 
 #if TVM_LLVM_VERSION >= 100
+#include <llvm/IR/IntrinsicsAMDGPU.h>
+#include <llvm/IR/IntrinsicsARM.h>
+#include <llvm/IR/IntrinsicsNVPTX.h>
+#include <llvm/IR/IntrinsicsX86.h>
 #include <llvm/Support/Alignment.h>
 #endif
 #include <llvm/Support/FileSystem.h>
