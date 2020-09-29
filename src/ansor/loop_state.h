@@ -358,16 +358,15 @@ struct hash<::tvm::ansor::State> {
   }
 };
 
+/* <bojian/TVM-SymbolicTuning>
 template <>
 struct equal_to<::tvm::ansor::State> {
   bool operator() (const ::tvm::ansor::State& lhs,
                    const ::tvm::ansor::State& rhs) const {
-    // <bojian/TVM-SymbolicTuning>
-    // return lhs.ToStr() == rhs.ToStr();
-    LOG(INFO) << lhs.get() << " VS. " << rhs.get();
-    return lhs.get() == rhs.get();
+    return lhs.ToStr() == rhs.ToStr();
   }
 };
+ */
 
 }  // namespace std
 

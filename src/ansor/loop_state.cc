@@ -1216,12 +1216,25 @@ TVM_REGISTER_GLOBAL("ansor.StateTensorize")
   return Array<ObjectRef>{state, res};
 });
 
+// <bojian/TVM-SymbolicTuning> StateEqual -> StateCmp
+//                             The former only compares the pointer value,
+//                             whereas the later checks whether the states are
+//                             actually the same.
+/*
 TVM_REGISTER_GLOBAL("ansor.StateEqual")
 .set_body_typed([](State state1, State state2) {
-  // <bojian/TVM-SymbolicTuning>
-  // return std::equal_to<State>()(state1, state2);
   return state1.ToStr() == state2.ToStr();
 });
+ */
+TVM_REGISTER_GLOBAL("ansor.StateEqual")
+    .set_body_typed([](State lhs, State rhs) {
+      return lhs.get() == rhs.get();
+    });
+TVM_REGISTER_GLOBAL("ansor.StateCmp")
+    .set_body_typed([](State lhs, State rhs) {
+      return lhs.ToStr() ==
+             rhs.ToStr();  // check for the actual conversion
+    });
 
 }  // namespace ansor
 }  // namespace tvm

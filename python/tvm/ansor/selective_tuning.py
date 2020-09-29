@@ -21,7 +21,7 @@ class SelectiveTuning(SelectiveTuningABC):
         compared for similarity if they share the same initial sketch). This
         heuristic is subject to change in hte future.
         """
-        if _ffi_api.StateEqual(taskA, taskB):
+        if _ffi_api.StateCmp(taskA, taskB):
             return 1.
         else:
             return 0.
