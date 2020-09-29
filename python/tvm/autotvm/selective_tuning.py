@@ -88,9 +88,10 @@ class SelectiveTuningABC(ABC):
         centroids, labels = cls.ClusterPSM(search_tasks)
         for tidx, task in enumerate(search_tasks):
             if labels[tidx] != -1:
-                representative = search_tasks[centroids[labels[tidx]]]
-                logger.info("centroid={} <= Task={}"
-                            .format(representative, task))
+                repr_idx = centroids[labels[tidx]]
+                representative = search_tasks[repr_idx]
+                logger.info("centroid={} (ReprTaskIdx={}) <= Task={} (TaskIdx={})"
+                            .format(representative, repr_idx, task, tidx))
                 setattr(task, 'dependent', representative)
             else:
                 logger.warning("Task={} does not have dependent".format(task))
