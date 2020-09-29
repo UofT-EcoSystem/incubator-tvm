@@ -38,8 +38,10 @@ class SelectiveTuningABC(ABC):
         # cluster assignment for each task
         assigned_cluster = [([], None) for _ in range(len(search_tasks))]
         # find cliques and initailize clusters
+        cliques = nx.find_cliques(graph)
+        logger.info("Cliques={}".format(cliques))
         clusters = []
-        for cidx, clique in enumerate(nx.find_cliques(graph)):
+        for cidx, clique in enumerate(cliques):
             clusters.append(set())
             for tidx in clique:
                 assigned_cluster[tidx][0].append(cidx)
@@ -87,12 +89,12 @@ class SelectiveTuningABC(ABC):
         for tidx, task in enumerate(search_tasks):
             if labels[tidx] != -1:
                 representative = search_tasks[centroids[labels[tidx]]]
-                logger.info('Centroid={} <= Task={}'
+                logger.info("Centroid={} <= Task={}"
                             .format(representative, task))
                 setattr(task, 'dependent', representative)
             else:
-                logger.warning('Task={} does not have dependent'.format(task))
-        logger.info('Select {} tasks over {} tasks '
+                logger.warning("Task={} does not have dependent".format(task))
+        logger.info("Select {} tasks over {} tasks"
                     .format(sum([1 if task.dependent == task else 0
                                  for task in search_tasks]),
                             len(search_tasks)))
@@ -123,5 +125,5 @@ class SelectiveTuning(SelectiveTuningABC):
             return 0.
         similarity_vec = [config_space_mapA[name].similar(config_space_mapB[name])
                           for name in config_space_mapU]
-        logger.info("similarity_vec={}".format(similarity_vec))
+        logger.info("SimilarityVec={}".format(similarity_vec))
         return np.prod(similarity_vec)
