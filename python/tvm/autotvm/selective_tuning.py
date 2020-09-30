@@ -86,19 +86,21 @@ class SelectiveTuningABC(ABC):
     def MarkDepend(cls, search_tasks):
         logger.info("Marking dependent tasks")
         centroids, labels = cls.ClusterPSM(search_tasks)
+        search_task_dependent_map = {}
         for tidx, task in enumerate(search_tasks):
             if labels[tidx] != -1:
                 repr_idx = centroids[labels[tidx]]
                 representative = search_tasks[repr_idx]
                 logger.info("centroid={} (ReprTaskIdx={}) <= Task={} (TaskIdx={})"
                             .format(representative, repr_idx, task, tidx))
-                setattr(task, 'dependent', representative)
+                search_task_dependent_map[task] = representative
             else:
                 logger.warning("Task={} does not have dependent".format(task))
         logger.info("Select {} tasks over {} tasks"
-                    .format(sum([1 if task.dependent == task else 0
+                    .format(sum([1 if search_task_dependent_map[task] == task else 0
                                  for task in search_tasks]),
                             len(search_tasks)))
+        return search_task_dependent_map
 
 
 class SelectiveTuning(SelectiveTuningABC):
