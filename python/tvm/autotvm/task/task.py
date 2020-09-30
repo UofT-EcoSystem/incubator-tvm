@@ -130,6 +130,10 @@ class Task(object):
         self.target = None
         self.target_host = None
 
+        # <bojian/TVM-SymbolicTuning>
+        self.dependent = self
+        self.tuned_configs = []  # tuned configs of this task, available after tuning
+
     @property
     def workload(self):
         return (self.name,) + serialize_args(self.args)
