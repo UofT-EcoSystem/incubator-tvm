@@ -121,7 +121,7 @@ class TensorExprTree {
 
 /*!
  * \brief The \c CSEOptimizer eliminates the common subexpressions between the source and target
- *        tensor. It is constructed from a 
+ *        tensor. It is constructed from a source tensor expresssion
  */
 class CSEOptimizer {
  private:
@@ -136,7 +136,7 @@ class CSEOptimizer {
 
 std::pair<Tensor, std::vector<Tensor> >
 CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
-  // 1. Apply auto-inliner to inline the injective operations. The point is to simply the
+  // 1. Apply auto-inliner to inline the injective operations. The point is to simplify the
   //    tensor expressions, and particularly tensor indices.
   
   // 2. Remove the common subexpresssions between the input gradients.
@@ -152,6 +152,15 @@ namespace {
 
 IndicesRemap::IndicesRemap(const ProducerLoadNode& op) {
   
+}
+
+#define DISPATCH_TO_CMP(Op)                                               \
+set_dispatch<Op>([](const ObjectRef& node, const TensorExprNode& other,   \
+                    TensorExprNode* const pthis)) ->bool {                \
+  if (node->type_index() != other.op->type_index()) {                     \
+    return false;                                                         \
+  }                                                                       \
+
 }
 
 
