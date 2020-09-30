@@ -105,7 +105,7 @@ struct TensorExprNode {
 class CSEOptimizer;
 
 /*!
- * \brief The \c TensorExprConstr constructs a 
+ * \brief The \c TensorExprTree constructs a tensor expression tree out of 
  * 
  * 
  */
