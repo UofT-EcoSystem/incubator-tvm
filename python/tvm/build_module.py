@@ -384,6 +384,10 @@ def lower(sch,
     if isinstance(sch, schedule.Schedule):
         stmt = form_body(sch)
 
+    # <bojian/TVM-AutoDiff> CSE
+    if src is not None:
+        stmt = ir_pass.CSE(stmt, src)
+
     for f in lower_phase0:
         stmt = f(stmt)
 

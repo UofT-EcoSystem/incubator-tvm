@@ -23,7 +23,7 @@
 
 
 // <bojian/TVM-AutoDiff> Added the header for CSE.
-#include "./cse.h"
+#include "./_cse.h"
 
 
 namespace tvm {
@@ -495,12 +495,14 @@ DifferentiationResult Differentiate(const Tensor& output,
   for (const Tensor& input : inputs) {
     // <bojian/TVM-AutoDiff> Eliminate common subexpressions between the forward
     //                       and backward schedule.
-    result.push_back(compute_adjoint(input));
-    // Tensor in_arg = compute_adjoint(input);
-    // _CSE(output, &in_arg);
-    // result.push_back(in_arg);
+    // result.push_back(compute_adjoint(input));
+
+
+    Tensor in_arg = compute_adjoint(input);
+    _CSE(output, &in_arg);
+
+    result.push_back(in_arg);
   }
-  CSE({output}, result);
 
   return DifferentiationResultNode::make(result, adjoints, summands);
 }
