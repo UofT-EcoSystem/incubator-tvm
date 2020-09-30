@@ -93,14 +93,13 @@ class SelectiveTuningABC(ABC):
                 representative = search_tasks[repr_idx]
                 logger.info("centroid={} (ReprTaskIdx={}) <= Task={} (TaskIdx={})"
                             .format(representative, repr_idx, task, tidx))
-                dependents.append(representative)
+                task.dependent = representative
             else:
                 logger.warning("Task={} does not have dependent".format(task))
         logger.info("Select {} tasks over {} tasks"
-                    .format(sum([1 if search_tasks[tidx] == dependents[tidx] else 0
-                                 for tidx in range(len(search_tasks))]),
-                            len(search_tasks)))
-        return dependents
+                    .format(sum([1 if task.dependent == task else 0
+                                 for task in searck_tasks]), len(search_tasks)))
+        return task
 
 
 class SelectiveTuning(SelectiveTuningABC):

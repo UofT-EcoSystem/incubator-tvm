@@ -59,11 +59,16 @@ class SearchTask(Object):
     target_host : tvm.target.Target
     hardware_params : HardwareParams
     """
+    # <bojian/TVM-SymbolicTuning>
+    __slots__ = 'dependent', 'initial_sketch_state'
     def __init__(self, dag, workload_key, target, target_host=None,
                  hardware_params=None):
         self.__init_handle_by_constructor__(_ffi_api.SearchTask, dag,
                                             workload_key, target, target_host,
                                             hardware_params)
+        # <bojian/TVM-SymbolicTuning>
+        self.dependent = self
+        self.initial_sketch_state = None
 
 
 @tvm._ffi.register_object("ansor.SearchPolicy")
