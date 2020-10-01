@@ -136,7 +136,7 @@ class Tuner(object):
                     return int(depend_mode[3:])
                 elif depend_mode[-1] == '%':
                     return int(total_num_tuned_configs *
-                               float(depend_mode[:-1]) / 100))
+                               float(depend_mode[:-1]) / 100)
                 else:
                     raise ValueError
             except ValueError:
