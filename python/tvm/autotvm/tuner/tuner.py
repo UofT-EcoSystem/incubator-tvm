@@ -126,6 +126,7 @@ class Tuner(object):
 
         GLOBAL_SCOPE.in_tuning = True
 
+        # <bojian/TVM-SymbolicTuning>
         def _parse_depend_mode(depend_mode, total_num_tuned_configs):
             """
             Parse the depend mode to return the number of the best dependent configs.
@@ -144,7 +145,6 @@ class Tuner(object):
         n_best_dependent_configs = _parse_depend_mode(
                 depend_mode, len(self.task.dependent.tuned_configs))
         dependent_configs = iter(self.task.dependent.tuned_configs)
-
 
         i = error_ct = 0
         while i < n_trial:
