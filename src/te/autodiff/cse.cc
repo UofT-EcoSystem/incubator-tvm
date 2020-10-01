@@ -80,14 +80,14 @@ struct TensorExprNode {
     return inst; 
   }
   bool Compare_(const PlaceholderOpNode* const op,
-                const TensorExprNode& other);
-  bool Compare_(const AddNode* const op, const TensorExprNode);
-  bool Compare_(const SubNode* const op, const TensorExprNode);
-  bool Compare_(const MulNode* const op, const TensorExprNode);
-  bool Compare_(const DivNode* const op, const TensorExprNode);
-  bool Compare_(const Reduce* const op, const TensorExprNode& other);
-  bool Compare_(const IntImm* const op, const TensorExprNode& other);
-  bool Compare_(const FloatImm* const op, const TensorExprNode& other);
+                const TensorExprNode& other) const;
+  bool Compare_(const AddNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const SubNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const MulNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const DivNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const ReduceNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const IntImmNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const FloatImmNode* const op, const TensorExprNode& other) const;
 
   /*! \brief Compare two tensor expression subtree.
    */
@@ -154,14 +154,29 @@ IndicesRemap::IndicesRemap(const ProducerLoadNode& op) {
   
 }
 
+#define DEFINE_IMM_COMPARE(Imm)               \
+bool TensorExprNode::Compare_(                \
+    const Imm* const imm,                     \
+    const TensorExprNode& other) const {      \
+  const Imm* other_imm = other.op.as<Imm>();  \
+  CHECK(other_imm != nullptr);                \
+  return imm->value == other_imm->value;      \
+}
+DEFINE_IMM_COMPARE(IntImmNode)
+DEFINE_IMM_COMPARE(FloatImmNode)
+
 #define DISPATCH_TO_CMP(Op)                                               \
 set_dispatch<Op>([](const ObjectRef& node, const TensorExprNode& other,   \
-                    TensorExprNode* const pthis)) ->bool {                \
+                    const TensorExprNode* const pthis) ->bool {           \
   if (node->type_index() != other.op->type_index()) {                     \
     return false;                                                         \
   }                                                                       \
+  return pthis->Compare_(static_cast<const Op*>(node.get()), other);      \
+})
 
-}
+TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
+    .DISPATCH_TO_CMP(IntImmNode)
+    .DISPATCH_TO_CMP(FloatImmNode);
 
 
 }  // namespace anonymous
