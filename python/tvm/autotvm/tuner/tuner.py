@@ -42,8 +42,10 @@ class Tuner(object):
 
         self.task = task
 
-        # keep the current best
-        self.best_config = None
+        # <bojian/TVM-SymbolicTuning>
+        # self.best_config = None
+        self.record_cache = []  # best_config -> record_cache
+
         self.best_flops = 0
         self.best_measure_pair = None
         self.best_iter = 0
@@ -88,7 +90,10 @@ class Tuner(object):
         """
 
 
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix='G'):
+    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix='G'
+             # <bojian/TVM-SymbolicTuning>
+           , depend_mode='top1'
+             ):
         """Begin tuning
 
         Parameters
@@ -120,12 +125,51 @@ class Tuner(object):
         old_level = logger.level
 
         GLOBAL_SCOPE.in_tuning = True
+
+        def _parse_depend_mode(depend_mode, total_num_tuned_configs):
+            """
+            Parse the depend mode to return the number of the best dependent configs.
+            """
+            try:
+                if depend_mode.startswith('top'):
+                    return int(depend_mode[3:])
+                elif depend_mode[-1] == '%':
+                    return int(total_num_tuned_configs *
+                               float(depend_mode[:-1]) / 100))
+                else:
+                    raise ValueError
+            except ValueError:
+                logger.warning('Unknown mode of using the dependent best configs: %s', mode)
+            return 1
+        n_best_dependent_configs = _parse_depend_mode(
+                depend_mode, len(self.task.dependent.tuned_configs))
+        dependent_configs = iter(self.task.dependent.tuned_configs)
+
+
         i = error_ct = 0
         while i < n_trial:
             if not self.has_next():
                 break
 
-            configs = self.next_batch(min(n_parallel, n_trial - i))
+            # <bojian/TVM-SymbolicTuning>
+            # Comment: `next_batch` gets the next batch of configs to be measured on real hardware
+            # configs = self.next_batch(min(n_parallel, n_trial - i))
+            configs = []
+            tune_dependent_configs_only = (self.task.dependent != self.task) and \
+                                          (self.task.dependent.tuned_configs)
+                                          
+            if tune_dependent_configs_only:
+                for _ in range(min(n_parallel, n_trail - i,
+                                   n_best_dependent_configs - i)):
+                    try:
+                        configs.append(next(dependent_configs))
+                    except StopIteration:
+                        break
+            if not configs:
+                if tune_dependent_configs_only:
+                    logger.warning('Fallback because all dependent configs are not working')
+                    return
+                configs = self.next_batch(min(n_parallel, n_trial - i))
 
             inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
             results = measure_batch(inputs)
@@ -140,9 +184,16 @@ class Tuner(object):
                     flops = 0
                     error_ct += 1
 
+                # <bojian/TVM-SymbolicTuning>
+                if res.error_no == 0:
+                    self.record_cache.append((inp, res))
+
                 if flops > self.best_flops:
                     self.best_flops = flops
-                    self.best_config = config
+
+                    # <bojian/TVM-SymbolicTuning>
+                    # self.best_config = config
+
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
@@ -168,12 +219,25 @@ class Tuner(object):
             else:
                 logger.setLevel(old_level)
 
+            # <bojian/TVM-SymbolicTuning>
+            if tune_dependent_configs_only and self.best_flops > 0 and \
+               i >= n_best_dependent_configs:
+                break
+        # <bojian/TVM-SymbolicTunning>
+        for record in sorted(self.record_cache, 
+                             key=lambda r: np.mean(r[1].costs)):
+            self.task.tuned_configs.append(record[0].config)
+
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
     def reset(self):
         """reset the status of tuner"""
-        self.best_config = None
+
+        # <bojian/TVM-SymbolicTuning>
+        # self.best_config = None
+        self.record_cache = []  # best_config -> record_cache
+
         self.best_flops = 0
         self.best_measure_pair = None
 
