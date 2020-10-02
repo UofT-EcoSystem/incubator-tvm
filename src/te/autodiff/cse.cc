@@ -219,6 +219,7 @@ TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
     .DISPATCH_TO_CMP(SubNode)
     .DISPATCH_TO_CMP(MulNode)
     .DISPATCH_TO_CMP(DivNode)
+    .DISPATCH_TO_CMP(ReduceNode)
     .DISPATCH_TO_CMP(IntImmNode)
     .DISPATCH_TO_CMP(FloatImmNode);
 }  // namespace te
