@@ -56,7 +56,7 @@ struct TensorExprNode;
 typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
 
 struct TensorExprNode {
-  ObjectRef op;
+  ObjectRef opref;
   std::vector<TensorExprPtr> operands;
 
   /*! @brief Convert a \c TensorExprNode to string.
@@ -94,11 +94,11 @@ struct TensorExprNode {
    */
   bool operator==(const TensorExprNode & other) const {
     static const FCompare & fcompare = cmptable();
-    if (this->op.defined() &&
-        other.op.defined()) {
-      return fcompare(this->op, other, this);
+    if (this->opref.defined() &&
+        other.opref.defined()) {
+      return fcompare(this->opref, other, this);
     }
-    return !this->op.defined() && !other.op.defined();
+    return !this->opref.defined() && !other.opref.defined();
   }
 };
 
@@ -157,22 +157,25 @@ IndicesRemap::IndicesRemap(const ProducerLoadNode& op) {
  * TensorExprTree/Node
  **************************************************************************************************/
 bool TensorExprNode::Compare_(
-    const CallNode* const op,
+    const CallNode* const opnode,
     const TensorExprNode& other) const {
-
+  const CallNode* const other_opnode = other.opref.as<CallNode>();
+  CHECK(other_opnode != nullptr);
+  return opnode->op.same_as(other_opnode->op) &&
+         (*this->operands[0]) == (*other.operands[0]);
 }
 
 bool TensorExprNode::Compare_(
-    const PlaceholderOpNode* const op,
+    const PlaceholderOpNode* const opnode,
     const TensorExprNode& other) const {
-  const PlaceholderOpNode* const other_op = other.op.as<PlaceholderOpNode>();
-  CHECK(other_op != nullptr);
-  return op == other_op;
+  const PlaceholderOpNode* const other_opnode = other.opref.as<PlaceholderOpNode>();
+  CHECK(other_opnode != nullptr);
+  return opnode == other_opnode;
 }
 
-#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(Op)            \
+#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNode)        \
 bool TensorExprNode::Compare_(                              \
-    const Op* const op,                                     \
+    const OpNode* const opnode,                             \
     const TensorExprNode& other) const {                    \
   CHECK(this->operands.size() == 2);                        \
   CHECK(other.operands.size() == 2);                        \
@@ -181,9 +184,9 @@ bool TensorExprNode::Compare_(                              \
          ((*this->operands[0]) == (*other.operands[1]) &&   \
           (*this->operands[1]) == (*other.operands[0]));    \
 }
-#define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(Op)         \
+#define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNode)     \
 bool TensorExprNode::Compare_(                              \
-    const Op* const op,                                     \
+    const OpNode* const opnode,                             \
     const TensorExprNode & other) const {                   \
   CHECK(this->operands.size() == 2);                        \
   CHECK(other.operands.size() == 2);                        \
@@ -195,27 +198,29 @@ DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(SubNode)
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode)
 DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 
-#define DEFINE_IMM_COMPARE(Imm)                     \
-bool TensorExprNode::Compare_(                      \
-    const Imm* const imm,                           \
-    const TensorExprNode& other) const {            \
-  const Imm* const other_imm = other.op.as<Imm>();  \
-  CHECK(other_imm != nullptr);                      \
-  return imm->value == other_imm->value;            \
+#define DEFINE_IMM_COMPARE(ImmNode)                                \
+bool TensorExprNode::Compare_(                                     \
+    const ImmNode* const immnode,                                  \
+    const TensorExprNode& other) const {                           \
+  const ImmNode* const other_immnode = other.opref.as<ImmNode>();  \
+  CHECK(other_immnode != nullptr);                                 \
+  return immnode->value == other_immnode->value;                   \
 }
 DEFINE_IMM_COMPARE(IntImmNode)
 DEFINE_IMM_COMPARE(FloatImmNode)
 
-#define DISPATCH_TO_CMP(Op)                                               \
-set_dispatch<Op>([](const ObjectRef& node, const TensorExprNode& other,   \
-                    const TensorExprNode* const pthis) ->bool {           \
-  if (node->type_index() != other.op->type_index()) {                     \
-    return false;                                                         \
-  }                                                                       \
-  return pthis->Compare_(static_cast<const Op*>(node.get()), other);      \
+#define DISPATCH_TO_CMP(OpNode)                                               \
+set_dispatch<OpNode>([](const ObjectRef& opref, const TensorExprNode& other,  \
+                        const TensorExprNode* const pthis) ->bool {           \
+  if (opref->type_index() != other.opref->type_index()) {                     \
+    return false;                                                             \
+  }                                                                           \
+  return pthis->Compare_(static_cast<const OpNode*>(opref.get()), other);     \
 })
 
 TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
+    .DISPATCH_TO_CMP(CallNode)
+    .DISPATCH_TO_CMP(PlaceholderOpNode)
     .DISPATCH_TO_CMP(AddNode)
     .DISPATCH_TO_CMP(SubNode)
     .DISPATCH_TO_CMP(MulNode)
