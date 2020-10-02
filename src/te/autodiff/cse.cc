@@ -35,28 +35,12 @@ namespace te {
 namespace {
 
 
-/*! \brief The \c IndicesRemapNode remaps the current indices into another.
- */
-class IndicesRemapNode : public Object {
- public:
-  static constexpr char _type_key[] = "te.IndicesRemap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IndicesRemapNode, Object);
-};  // class IndicesRemapNode
-
-class IndicesRemap : public ObjectRef {
- private:
- public:
-  IndicesRemap(const ProducerLoadNode& op);
-  TVM_DEFINE_OBJECT_REF_METHODS(IndicesRemap, ObjectRef,
-                                IndicesRemapNode);
-};  // class IndicesRemap
-
-
 struct TensorExprNode;
 typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
 
 struct TensorExprNode {
   ObjectRef opref;
+  Array<IterVar> axis;
   std::vector<TensorExprPtr> operands;
 
   /*! @brief Convert a \c TensorExprNode to string.
@@ -148,11 +132,6 @@ CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
 }
 
 
-IndicesRemap::IndicesRemap(const ProducerLoadNode& op) {
-  
-}
-
-
 /**************************************************************************************************
  * TensorExprTree/Node
  **************************************************************************************************/
@@ -168,7 +147,8 @@ bool TensorExprNode::Compare_(
 bool TensorExprNode::Compare_(
     const PlaceholderOpNode* const opnode,
     const TensorExprNode& other) const {
-  const PlaceholderOpNode* const other_opnode = other.opref.as<PlaceholderOpNode>();
+  const PlaceholderOpNode* const other_opnode
+      = other.opref.as<PlaceholderOpNode>();
   CHECK(other_opnode != nullptr);
   return opnode == other_opnode;
 }
@@ -197,6 +177,20 @@ DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(AddNode)
 DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(SubNode)
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode)
 DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
+
+bool TensorExprNode::Compare_(
+    const ReduceNode* const opnode,
+    const TensorExprNode& other) const {
+  const ReduceNode* const other_opnode = other.opref.as<ReduceNode>();
+  CHECK(other_opnode != nullptr);
+  if (opnode == other_opnode) {
+    return true;
+  }
+  CHECK(this->operands.size() == 1);
+  CHECK(other.operands.size() == 1);
+  return false;
+}
+
 
 #define DEFINE_IMM_COMPARE(ImmNode)                                \
 bool TensorExprNode::Compare_(                                     \
