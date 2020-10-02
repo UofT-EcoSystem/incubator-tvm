@@ -159,7 +159,7 @@ class Tuner(object):
                                           (self.task.dependent.tuned_configs)
                                           
             if tune_dependent_configs_only:
-                for _ in range(min(n_parallel, n_trail - i,
+                for _ in range(min(n_parallel, n_trial - i,
                                    n_best_dependent_configs - i)):
                     try:
                         configs.append(next(dependent_configs))
