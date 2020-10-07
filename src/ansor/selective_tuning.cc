@@ -1,10 +1,19 @@
-#include "cluster_search_policy.h"
+#include "selective_tuning.h"
 
 #include <vector>
 
 
 namespace tvm {
         namespace ansor {
+
+
+SearchCluster::SearchCluster(Array < SearchTask > tasks,
+                             SearchTask representative)
+{
+        SearchClusterNode node = make_object < SearchClusterNode > ();
+        
+}
+
 
 Array < State >
 ClusterSearchPolicyNode::Search(
