@@ -12,12 +12,12 @@ ClusterSearchPolicyNode::Search(
         ProgramMeasurer measurer,
         const int n_trials,
         const int early_stopping,
-        const int n_msrs_per_iter,
+        const int n_measures_per_iter,
         Array < SearchCallback > pre_search_callbacks)
 {
         std::vector < State > best_states, random_states;
         this->cluster = cluster;
-        this->_n_msrs_per_iter = n_msrs_per_iter;
+        this->_n_measures_per_iter = n_measures_per_iter;
 
         if (n_trails <= 1) 
         {
