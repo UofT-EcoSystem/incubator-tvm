@@ -36,7 +36,9 @@ public:
 class ClusterSearchPolicyNode : public Object
 {
 private:
-        int _n_measures_per_iter;
+        void SearchOneRound(std::vector < State > * const best_states,
+                            const int num_random_states,
+                            std::vector < State > * const random_states);
 public:
         SearchCluster cur_cluster;
 
@@ -46,9 +48,9 @@ public:
         }
         Array < State >
         Search(SearchCluster cluster, ProgramMeasurer measurer,
-               const int n_trials,
+               const int num_trials,
                const int early_stopping,
-               const int n_measures_per_iter,
+               const int num_measures_per_iter,
                Array < SearchCallback > pre_search_callbacks);
         static constexpr const char * const _type_key = "ansor.ClusterSearchPolicy";
         TVM_DECLARE_BASE_OBJECT_INFO(ClusterSearchPolicyNode, Object);
