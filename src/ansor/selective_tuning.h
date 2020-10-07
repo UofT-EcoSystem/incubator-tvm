@@ -36,14 +36,14 @@ public:
 class ClusterSearchPolicyNode : public Object
 {
 private:
-        static constexpr double C_eps_greedy = 0.05;
-        static constexpr size_t C_evolutionary_search_population = 2048;
-        static constexpr size_t C_evolutionary_search_num_iters = 10;
-        static constexpr double C_evolutionary_search_mutation_prob = 0.85;
-        static constexpr double C_evolutionary_search_crossover_ratio = 0.05;
-        static constexpr double C_evolutionary_search_use_measured_ratio = 0.2;
-        static constexpr const char * C_gpu_multi_level_tiling_structure = "SSSRRSRS";
-        static constexpr bool C_disable_change_compute_location = false;
+        static constexpr double C_EPS_GREEDY = 0.05;
+        static constexpr size_t C_EVOLUTIONARY_SEARCH_POPULATION = 2048;
+        static constexpr size_t C_EVOLUTIONARY_SEARCH_NUM_ITERS = 10;
+        static constexpr double C_EVOLUTIONARY_SEARCH_MUTATION_PROB = 0.85;
+        static constexpr double C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO = 0.05;
+        static constexpr double C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO = 0.2;
+        static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
+        static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
         void SearchOneRound(
                 std::vector < std::vector < State > > * const best_states,
