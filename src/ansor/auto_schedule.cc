@@ -26,6 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <string>
 #include <utility>
+#include "selective_tuning.h"
 #include "search_policy/sketch_search_policy.h"
 
 namespace tvm {
@@ -99,7 +100,7 @@ TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")
 
 // <bojian/TVM-SymbolicTuning>
 void
-AutoScheduleCluster(SearchCluster search_cluster,
+AutoScheduleCluster(SearchCluster cluster,
                     ClusterSearchPolicy cluster_search_policy,
                     TuneOption tune_option) {
   // search for the best schedule
@@ -108,9 +109,9 @@ AutoScheduleCluster(SearchCluster search_cluster,
                       tune_option->runner,
                       tune_option->measure_callbacks,
                       tune_option->verbose);
-  Array<State> states = search_policy->Search(
-      search_cluster, measurer,
-      tune_option->n_trails,
+  Array<State> states = cluster_search_policy->Search(
+      cluster, measurer,
+      tune_option->n_trials,
       tune_option->early_stopping,
       tune_option->num_measure_per_iter,
       tune_option->pre_search_callbacks);
@@ -119,8 +120,8 @@ AutoScheduleCluster(SearchCluster search_cluster,
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleByCluster")
     .set_body_typed([](SearchCluster cluster,
                        ClusterSearchPolicy cluster_search_policy,
-                       TuneOption tune_option)) {
-      AutoScheduleCluster(search_cluster, cluster_search_policy, tune_option);
+                       TuneOption tune_option) {
+      AutoScheduleCluster(cluster, cluster_search_policy, tune_option);
     });
 
 
