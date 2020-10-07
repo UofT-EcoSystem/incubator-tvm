@@ -31,7 +31,7 @@ ClusterSearchPolicyNode::SearchOneRound(
         const int num_random_states,
         std::vector < std::vector < State > > * const random_states)
 {
-
+        best_states->clear(); random_states->clear();
 }
 
 
