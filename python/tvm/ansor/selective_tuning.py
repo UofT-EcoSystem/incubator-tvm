@@ -1,11 +1,22 @@
 """
 <bojian/TVM-SymbolicTuning> Cluster search tasks for selective tuning (Ansor implementation).
 """
+import tvm._ffi
+
 from ..autotvm import SelectiveTuningABC
+from ..runtime import Object
 from . import _ffi_api
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+@tvm._ffi.register_object("ansor.SearchCluster")
+class SearchCluster(Object):
+    def __init__(tasks, representative):
+        self.__init_handle_by_constructor__(
+                _ffi_api.SearchCluster, 
+                tasks, representative)
 
 
 class SelectiveTuning(SelectiveTuningABC):

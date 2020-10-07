@@ -36,9 +36,10 @@ public:
 class ClusterSearchPolicyNode : public Object
 {
 private:
-        void SearchOneRound(std::vector < State > * const best_states,
-                            const int num_random_states,
-                            std::vector < State > * const random_states);
+        void SearchOneRound(
+                std::vector < std::vector < State > > * const best_states,
+                const int num_random_states,
+                std::vector < std::vector < State > > * const random_states);
 public:
         SearchCluster cur_cluster;
 
