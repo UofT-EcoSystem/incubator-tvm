@@ -32,6 +32,16 @@ ClusterSearchPolicyNode::SearchOneRound(
         std::vector < std::vector < State > > * const random_states)
 {
         best_states->clear(); random_states->clear();
+
+        for (std::vector < State > & sketch : _sketch_caches)
+        {
+                if (sketch.empty())
+                {
+
+                }  // if (sketch.empty())
+        }  // for (sketch ∈ sketch_caches)
+        // sample the initial population
+        std::vector < State > init_population;
 }
 
 

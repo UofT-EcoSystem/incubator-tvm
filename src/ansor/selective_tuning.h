@@ -36,6 +36,7 @@ public:
 class ClusterSearchPolicyNode : public Object
 {
 private:
+        // Tuning Parameters (Constants)
         static constexpr double C_EPS_GREEDY = 0.05;
         static constexpr size_t C_EVOLUTIONARY_SEARCH_POPULATION = 2048;
         static constexpr size_t C_EVOLUTIONARY_SEARCH_NUM_ITERS = 10;
@@ -45,10 +46,14 @@ private:
         static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
         static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
+        /**
+         * @brief Search for one round.
+         */
         void SearchOneRound(
                 std::vector < std::vector < State > > * const best_states,
                 const int num_random_states,
                 std::vector < std::vector < State > > * const random_states);
+        std::vector < std::vector < State > > _sketch_caches;
 public:
         SearchCluster cur_cluster;
 
