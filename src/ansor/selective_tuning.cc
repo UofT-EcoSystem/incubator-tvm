@@ -24,6 +24,17 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                         return SearchCluster(tasks, representative);
                 });
 
+// Sketch Generation Rules, defined in sketch_search_policy.cc
+class RuleSkipStage;
+class RuleAlwaysInline;
+class RuleMultiLevelTiling;
+
+std::vector < State >
+ClusterSearchPolicyNode::GenerateSketch() 
+{
+        // std::vector < State > 
+}
+
 
 void 
 ClusterSearchPolicyNode::SearchOneRound(
@@ -37,7 +48,7 @@ ClusterSearchPolicyNode::SearchOneRound(
         {
                 if (sketch.empty())
                 {
-
+                        sketch = GenerateSketch();
                 }  // if (sketch.empty())
         }  // for (sketch ∈ sketch_caches)
         // sample the initial population

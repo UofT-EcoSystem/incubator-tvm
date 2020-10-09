@@ -47,6 +47,10 @@ private:
         static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
         /**
+         * @brief Generate sketch for the cluster representative.
+         */
+        std::vector < State > GenerateSketch();
+        /**
          * @brief Search for one round.
          */
         void SearchOneRound(
