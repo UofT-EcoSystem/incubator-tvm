@@ -8,32 +8,25 @@ namespace tvm {
 
 
 SearchCluster::SearchCluster(Array < SearchTask > tasks,
-                             SearchTask representative)
+                             SearchTask representative,
+                             Array < State > shared_sketch)
 {
         auto node = make_object < SearchClusterNode > ();
         node->tasks = std::move(tasks);
         node->representative = std::move(representative);
+        node->shared_sketch = std::move(shared_sketch);
+        data_ = std::move(node);
 }
 
 
 TVM_REGISTER_GLOBAL("ansor.SearchCluster")
         .set_body_typed(
                 [](Array < SearchTask > tasks,
-                   SearchTask representative)
+                   SearchTask representative,
+                   Array < State > shared_sketch)
                 {
-                        return SearchCluster(tasks, representative);
+                        return SearchCluster(tasks, representative, shared_sketch);
                 });
-
-// Sketch Generation Rules, defined in sketch_search_policy.cc
-class RuleSkipStage;
-class RuleAlwaysInline;
-class RuleMultiLevelTiling;
-
-std::vector < State >
-ClusterSearchPolicyNode::GenerateSketch() 
-{
-        // std::vector < State > 
-}
 
 
 void 
@@ -44,15 +37,16 @@ ClusterSearchPolicyNode::SearchOneRound(
 {
         best_states->clear(); random_states->clear();
 
-        for (std::vector < State > & sketch : _sketch_caches)
-        {
-                if (sketch.empty())
-                {
-                        sketch = GenerateSketch();
-                }  // if (sketch.empty())
-        }  // for (sketch ∈ sketch_caches)
+
+        size_t num_use_measured
+                = std::min(_measured_states_vec.size(),
+                           static_cast < size_t > (
+                                   C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO *
+                                   C_EVOLUTIONARY_SEARCH_POPULATION));
         // sample the initial population
         std::vector < State > init_population;
+        SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
+                             &init_population);
 }
 
 
