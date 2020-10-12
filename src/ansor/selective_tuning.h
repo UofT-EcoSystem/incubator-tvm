@@ -1,6 +1,7 @@
 #pragma once
 
 
+#include <random>
 #include <vector>
 
 #include "search_policy/search_policy.h"
@@ -51,6 +52,7 @@ private:
         static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
         static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
+        std::mt19937 _rng;
         std::vector < State > _measured_states_vec;
         /**
          * @brief Samples the initial population.

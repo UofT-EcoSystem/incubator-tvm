@@ -11,6 +11,12 @@ SearchCluster::SearchCluster(Array < SearchTask > tasks,
                              SearchTask representative,
                              Array < State > shared_sketch)
 {
+        for (const SearchTask & task : tasks)
+        {
+                CHECK(task->target->target_name == "cuda")
+                        << "Cluster searching is currently limited to "
+                           "CUDA tasks ONLY";
+        }
         auto node = make_object < SearchClusterNode > ();
         node->tasks = std::move(tasks);
         node->representative = std::move(representative);
@@ -27,6 +33,32 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                 {
                         return SearchCluster(tasks, representative, shared_sketch);
                 });
+
+
+void
+ClusterSearchPolicyNode::SampleInitPopulation(
+        const size_t out_size,
+        std::vector < State > * const out_states)
+{
+        std::uniform_real_distribution<> distrib(0.0, 1.0);
+        size_t fail_ct = 0;
+        while (out_states->size() < out_size && 
+               fail_ct < out_size)
+        {
+                State tmp_state = 
+                        cur_cluster->shared_sketch[
+                                _rng() % cur_cluster->shared_sketch.size()
+                        ];
+                InitPopulationFillTileSize();
+
+                if (InitPopulationThreadBind())
+                {
+                        continue;
+                }
+                InitPopulationUnroll();
+                out_states->push_back(std::move(tmp_state));
+        }
+}
 
 
 void 
