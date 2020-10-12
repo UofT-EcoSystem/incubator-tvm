@@ -49,6 +49,7 @@ private:
         static constexpr double C_EVOLUTIONARY_SEARCH_MUTATION_PROB = 0.85;
         static constexpr double C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO = 0.05;
         static constexpr double C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO = 0.2;
+        static constexpr const int C_GPU_AUTO_UNROLL_CONFIGS[] = {0, 16, 64, 512, 1024};
         static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
         static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
@@ -67,6 +68,13 @@ private:
                 std::vector < std::vector < State > > * const best_states,
                 const int num_random_states,
                 std::vector < std::vector < State > > * const random_states);
+        /**
+         * @brief Initialize the population's (tile sizes/thread binding/unroll).
+         */
+        void InitPopulationFillTileSize(State * const state);
+        bool InitPopulationThreadBind  (State * const state);
+        void InitPopulationUnroll      (State * const state);
+
 public:
         SearchCluster cur_cluster;
 
