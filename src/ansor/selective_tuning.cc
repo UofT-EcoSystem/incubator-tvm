@@ -2,14 +2,16 @@
 
 #include <vector>
 
+#include "transform_step.h"
+
 
 namespace tvm {
         namespace ansor {
 
 
 SearchCluster::SearchCluster(Array < SearchTask > tasks,
-                             SearchTask representative,
-                             Array < State > shared_sketch)
+                             Array < Array < State > > sketches,
+                             const int representative_idx)
 {
         for (const SearchTask & task : tasks)
         {
@@ -17,10 +19,10 @@ SearchCluster::SearchCluster(Array < SearchTask > tasks,
                         << "Cluster searching is currently limited to "
                            "CUDA tasks ONLY";
         }
-        auto node = make_object < SearchClusterNode > ();
+        ObjectPtr < SearchClusterNode > node = make_object < SearchClusterNode > ();
         node->tasks = std::move(tasks);
-        node->representative = std::move(representative);
-        node->shared_sketch = std::move(shared_sketch);
+        node->sketches = std::move(sketches);
+        node->representative_idx = std::move(representative_idx);
         data_ = std::move(node);
 }
 
@@ -28,11 +30,50 @@ SearchCluster::SearchCluster(Array < SearchTask > tasks,
 TVM_REGISTER_GLOBAL("ansor.SearchCluster")
         .set_body_typed(
                 [](Array < SearchTask > tasks,
-                   SearchTask representative,
-                   Array < State > shared_sketch)
+                   Array < Array < State > > sketches, int representative_idx)
                 {
-                        return SearchCluster(tasks, representative, shared_sketch);
+                        return SearchCluster(tasks, sketches, representative_idx);
                 });
+
+
+class ClusterSplitFactorMemo
+{
+public:
+        using QueryKey = std::tuple < int, int, int >;
+
+        const std::vector < std::vector < PrimExpr > > &
+        GetFactorizationSchemes(int extent, int n_lengths, int max_innermost_factor);
+        const std::vector < int > & GetFactors(int n);
+};  // class ClusterSplitFactorizationMemo
+
+
+int
+ClusterSearchPolicyNode::InitPopulationFillTileSize(
+        State * const state)
+{
+        for (size_t step_id = 0; step_id < (*state)->transform_steps.size();
+             ++step_id)
+        {
+                if (const SplitStepNode * const split_step =
+                    (*state)->transform_steps[step_id].as < SplitStepNode > ())
+                {
+                        bool defined = true;
+
+                        for (const PrimExpr & len : split_step->lengths)
+                        {
+                                if (!len.defined())
+                                {
+                                        defined = false;
+                                }
+                        }
+                        if (defined)
+                        {
+                                continue;
+                        }
+                        
+                }
+        }  // for (step_id ∈ range((*state)->transform_steps.size()))
+}
 
 
 void
@@ -40,22 +81,22 @@ ClusterSearchPolicyNode::SampleInitPopulation(
         const size_t out_size,
         std::vector < State > * const out_states)
 {
-        std::uniform_real_distribution<> distrib(0.0, 1.0);
-        size_t fail_ct = 0;
+        size_t failed_attempts = 0;
         while (out_states->size() < out_size && 
-               fail_ct < out_size)
+               failed_attempts < out_size)
         {
                 State tmp_state = 
                         cur_cluster->shared_sketch[
-                                _rng() % cur_cluster->shared_sketch.size()
+                                _rng() % (cur_cluster->shared_sketch.size())
                         ];
-                InitPopulationFillTileSize();
+                InitPopulationFillTileSize(&tmp_state);
 
-                if (InitPopulationThreadBind())
+                if (InitPopulationThreadBind(&tmp_state))
                 {
+                        failed_attempts += 1;
                         continue;
                 }
-                InitPopulationUnroll();
+                InitPopulationUnroll(&tmp_state);
                 out_states->push_back(std::move(tmp_state));
         }
 }

@@ -14,14 +14,14 @@ class SearchClusterNode : public Object
 {
 public:
         Array < SearchTask > tasks;
-        SearchTask representative;
-        Array < State > shared_sketch;
+        Array < Array < State > > sketches;
+        int representative_idx;
 
         void VisitAttrs(AttrVisitor * const v)
         {
                 v->Visit("tasks", &tasks);
-                v->Visit("representative", &representative);
-                v->Visit("shared_sketch", &shared_sketch);
+                v->Visit("sketches", &sketches);
+                v->Visit("representative_idx", &representative_idx);
         }
 
         static constexpr const char * _type_key = "ansor.SearchCluster";
@@ -69,11 +69,12 @@ private:
                 const int num_random_states,
                 std::vector < std::vector < State > > * const random_states);
         /**
-         * @brief Initialize the population's (tile sizes/thread binding/unroll).
+         * @brief  Initialize the population's (tile sizes/thread binding/unroll).
+         * @return 0 if the initialization is successful, nonzero otherwise
          */
-        void InitPopulationFillTileSize(State * const state);
-        bool InitPopulationThreadBind  (State * const state);
-        void InitPopulationUnroll      (State * const state);
+        int InitPopulationFillTileSize(State * const state);
+        int InitPopulationThreadBind  (State * const state);
+        int InitPopulationUnroll      (State * const state);
 
 public:
         SearchCluster cur_cluster;
