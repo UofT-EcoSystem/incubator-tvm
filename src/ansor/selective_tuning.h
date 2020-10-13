@@ -39,6 +39,19 @@ public:
                                       SearchClusterNode);
 };  // class SearchCluster
 
+
+class ClusterSplitFactorizationMemo
+{
+public:
+        const std::vector < std::vector < std::vector < PrimExpr > > > &
+        GetFactorizationSchemes(const std::vector < int > & extents,
+                                const int num_lengths,
+                                const int max_innermost_factor);
+        const std::vector < int > & GetFactors(const int n);
+private:
+};
+
+
 class ClusterSearchPolicyNode : public Object
 {
 private:

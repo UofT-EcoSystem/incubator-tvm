@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "util.h"
 #include "transform_step.h"
 
 
@@ -39,15 +40,7 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                 });
 
 
-class ClusterSplitFactorMemo
-{
-public:
-        using QueryKey = std::tuple < int, int, int >;
 
-        const std::vector < std::vector < PrimExpr > > &
-        GetFactorizationSchemes(int extent, int n_lengths, int max_innermost_factor);
-        const std::vector < int > & GetFactors(int n);
-};  // class ClusterSplitFactorizationMemo
 
 
 int
@@ -58,12 +51,12 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
         for (size_t step_id = 0; step_id < (*repr_state)->transform_steps.size();
              ++step_id)
         {
-                if (const SplitStepNode * const split_step =
+                if (const SplitStepNode * const repr_split_step =
                     (*repr_state)->transform_steps[step_id].as < SplitStepNode > ())
                 {
                         bool defined = true;
 
-                        for (const PrimExpr & len : split_step->lengths)
+                        for (const PrimExpr & len : repr_split_step->lengths)
                         {
                                 if (!len.defined())
                                 {
@@ -74,7 +67,21 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         {
                                 continue;
                         }
-                        
+                        std::vector < int > extents;
+                        for (const State & state : (*states))
+                        {
+                                const SplitStepNode * const split_step
+                                        = state->transform_steps[step_id].as < SplitStepNode > ();
+                                CHECK(split_step != nullptr)
+                                        << "Representative is performing a split step "
+                                           "but its dependents are NOT";
+                                extents.push_back(GetIntImm(split_step->extent));
+                        }
+                        const std::vector < std::vector < PrimExpr > > & candidate_lens =
+                                split_memo->GetFactorizationSchemes(
+                                        extents,
+                                        repr_split_step->lengths.size(),
+                                        cur_cluster->tasks[cur_cluster->repr_idx]->hardware_params->max_innermost_split_factor);
                 }
         }  // for (step_id ∈ range((*state)->transform_steps.size()))
         return 0;
