@@ -1,6 +1,7 @@
 #include "selective_tuning.h"
 
 #include <vector>
+#include <utility>
 
 #include "util.h"
 #include "transform_step.h"
@@ -39,7 +40,20 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                         return SearchCluster(tasks, sketches, repr_idx);
                 });
 
-
+const std::vector < std::vector < std::vector < PrimExpr > > > &
+ClusterSplitFactorizationCache::GetFactorizationSchemes(
+        const std::vector < int > & extents,
+        const int num_lengths,
+        const int max_innermost_factor)
+{
+        KT k = std::make_tuple(extents, num_lengths, max_innermost_factor);
+        auto iter = _cache.find(k);
+        if (iter != _cache.end())
+        {
+                return iter->second;
+        }
+        
+}
 
 
 

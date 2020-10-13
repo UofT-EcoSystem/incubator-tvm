@@ -2,6 +2,7 @@
 
 
 #include <random>
+#include <tuple>
 #include <vector>
 
 #include "search_policy/search_policy.h"
@@ -40,15 +41,17 @@ public:
 };  // class SearchCluster
 
 
-class ClusterSplitFactorizationMemo
+class ClusterSplitFactorizationCache
 {
 public:
-        const std::vector < std::vector < std::vector < PrimExpr > > > &
-        GetFactorizationSchemes(const std::vector < int > & extents,
-                                const int num_lengths,
-                                const int max_innermost_factor);
+        using KT = std::tuple  < std::vector < int >, int, int >;
+        using VT = std::vector < std::vector < std::vector < PrimExpr > > >;
+        VT & GetFactorizationSchemes(const std::vector < int > & extents,
+                                     const int num_lengths,
+                                     const int max_innermost_factor);
         const std::vector < int > & GetFactors(const int n);
 private:
+        std::unordered_map < KT, VT > _cache;
 };
 
 
