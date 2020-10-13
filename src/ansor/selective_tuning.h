@@ -15,13 +15,13 @@ class SearchClusterNode : public Object
 public:
         Array < SearchTask > tasks;
         Array < Array < State > > sketches;
-        int representative_idx;
+        int repr_idx;
 
         void VisitAttrs(AttrVisitor * const v)
         {
                 v->Visit("tasks", &tasks);
                 v->Visit("sketches", &sketches);
-                v->Visit("representative_idx", &representative_idx);
+                v->Visit("repr_idx", &repr_idx);
         }
 
         static constexpr const char * _type_key = "ansor.SearchCluster";
@@ -33,8 +33,8 @@ class SearchCluster : public ObjectRef
 {
 public:
         SearchCluster(Array < SearchTask > tasks,
-                      SearchTask representative,
-                      Array < State > shared_sketch);
+                      Array < Array < State > > shared_sketch,
+                      const int repr_idx);
         TVM_DEFINE_OBJECT_REF_METHODS(SearchCluster, ObjectRef,  
                                       SearchClusterNode);
 };  // class SearchCluster
@@ -58,9 +58,8 @@ private:
         /**
          * @brief Samples the initial population.
          */
-        void SampleInitPopulation(
-                const size_t out_size,
-                std::vector < State > * const out_states);
+        void SampleInitPopulation(const size_t out_size,
+                                  std::vector < std::vector < State > > * const out_states);
         /**
          * @brief Search for one round.
          */
@@ -72,9 +71,11 @@ private:
          * @brief  Initialize the population's (tile sizes/thread binding/unroll).
          * @return 0 if the initialization is successful, nonzero otherwise
          */
-        int InitPopulationFillTileSize(State * const state);
-        int InitPopulationThreadBind  (State * const state);
-        int InitPopulationUnroll      (State * const state);
+        int InitPopulationFillTileSize(State * const repr_state,
+                                       std::vector < State > * const states);
+        int InitPopulationThreadBind(State * const repr_state,
+                                     std::vector < State > * const states);
+        int InitPopulationUnroll(State * const state, std::vector < State > * const states);
 
 public:
         SearchCluster cur_cluster;

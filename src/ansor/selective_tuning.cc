@@ -11,7 +11,7 @@ namespace tvm {
 
 SearchCluster::SearchCluster(Array < SearchTask > tasks,
                              Array < Array < State > > sketches,
-                             const int representative_idx)
+                             const int repr_idx)
 {
         for (const SearchTask & task : tasks)
         {
@@ -19,10 +19,13 @@ SearchCluster::SearchCluster(Array < SearchTask > tasks,
                         << "Cluster searching is currently limited to "
                            "CUDA tasks ONLY";
         }
+        CHECK(tasks.size() == sketches.size()) 
+                << "The number of search tasks should be equal to "
+                   "the number of sketches";
         ObjectPtr < SearchClusterNode > node = make_object < SearchClusterNode > ();
         node->tasks = std::move(tasks);
         node->sketches = std::move(sketches);
-        node->representative_idx = std::move(representative_idx);
+        node->repr_idx = std::move(repr_idx);
         data_ = std::move(node);
 }
 
@@ -30,9 +33,9 @@ SearchCluster::SearchCluster(Array < SearchTask > tasks,
 TVM_REGISTER_GLOBAL("ansor.SearchCluster")
         .set_body_typed(
                 [](Array < SearchTask > tasks,
-                   Array < Array < State > > sketches, int representative_idx)
+                   Array < Array < State > > sketches, int repr_idx)
                 {
-                        return SearchCluster(tasks, sketches, representative_idx);
+                        return SearchCluster(tasks, sketches, repr_idx);
                 });
 
 
@@ -49,13 +52,14 @@ public:
 
 int
 ClusterSearchPolicyNode::InitPopulationFillTileSize(
-        State * const state)
+        State * const repr_state,
+        std::vector < State > * const states)
 {
-        for (size_t step_id = 0; step_id < (*state)->transform_steps.size();
+        for (size_t step_id = 0; step_id < (*repr_state)->transform_steps.size();
              ++step_id)
         {
                 if (const SplitStepNode * const split_step =
-                    (*state)->transform_steps[step_id].as < SplitStepNode > ())
+                    (*repr_state)->transform_steps[step_id].as < SplitStepNode > ())
                 {
                         bool defined = true;
 
@@ -73,31 +77,36 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         
                 }
         }  // for (step_id ∈ range((*state)->transform_steps.size()))
+        return 0;
 }
 
 
 void
 ClusterSearchPolicyNode::SampleInitPopulation(
         const size_t out_size,
-        std::vector < State > * const out_states)
+        std::vector < std::vector < State > > * const out_states)
 {
         size_t failed_attempts = 0;
         while (out_states->size() < out_size && 
                failed_attempts < out_size)
         {
-                State tmp_state = 
-                        cur_cluster->shared_sketch[
-                                _rng() % (cur_cluster->shared_sketch.size())
-                        ];
-                InitPopulationFillTileSize(&tmp_state);
-
-                if (InitPopulationThreadBind(&tmp_state))
+                size_t rand_sketch_idx = _rng() % (cur_cluster->sketches[0].size());
+                State tmp_repr_state
+                        = cur_cluster->sketches[cur_cluster->repr_idx][rand_sketch_idx];
+                std::vector < State > tmp_states(cur_cluster->tasks.size());
+                for (const Array < State > & sketch : cur_cluster->sketches)
+                {
+                        tmp_states.push_back(sketch[rand_sketch_idx]);
+                }
+                InitPopulationFillTileSize(&tmp_repr_state,
+                                           &tmp_states);
+                if (InitPopulationThreadBind(&tmp_repr_state, &tmp_states))
                 {
                         failed_attempts += 1;
                         continue;
                 }
-                InitPopulationUnroll(&tmp_state);
-                out_states->push_back(std::move(tmp_state));
+                InitPopulationUnroll(&tmp_repr_state, &tmp_states);
+                out_states->push_back(std::move(tmp_states));
         }
 }
 
@@ -110,14 +119,13 @@ ClusterSearchPolicyNode::SearchOneRound(
 {
         best_states->clear(); random_states->clear();
 
-
         size_t num_use_measured
                 = std::min(_measured_states_vec.size(),
                            static_cast < size_t > (
                                    C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO *
                                    C_EVOLUTIONARY_SEARCH_POPULATION));
         // sample the initial population
-        std::vector < State > init_population;
+        std::vector < std::vector < State > > init_population;
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
 }
