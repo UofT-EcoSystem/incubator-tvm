@@ -55,16 +55,6 @@ public:
         using KT = std::tuple  < ClusterExtentsT, int, int >;
         using StackT = std::vector < std::vector < PrimExpr > >;
         using VT = std::vector < StackT >;
-        /**
-         * @brief Get the factorization schemes based on the (extents,
-         *        num_lengths, max_innermost_factor) tuple.
-         * 
-         */
-        const VT & GetFactorizationSchemes(
-                const ClusterExtentsT & extents,
-                const int num_lengths,
-                const int max_innermost_factor);
-        const ClusterFactorsT & GetFactors(const int n);
 private:
         std::unordered_map < KT, VT > _cache;
         /**
@@ -88,6 +78,17 @@ private:
         int _num_lengths;
         int _max_innermost_factor;
         std::unordered_map < ClusterExtentsT, ClusterFactorsT > _factor_cache;
+public:
+        /**
+         * @brief Get the factorization schemes based on the (extents,
+         *        num_lengths, max_innermost_factor) tuple.
+         * 
+         */
+        const VT & GetFactorizationSchemes(
+                const ClusterExtentsT & extents,
+                const int num_lengths,
+                const int max_innermost_factor);
+        const ClusterFactorsT & GetFactors(const int n);
 };
 
 
@@ -107,6 +108,7 @@ private:
 
         std::mt19937 _rng;
         std::vector < State > _measured_states_vec;
+
         /**
          * @brief Samples the initial population.
          */
@@ -120,9 +122,11 @@ private:
                 const int num_random_states,
                 std::vector < std::vector < State > > * const random_states);
         /**
-         * @brief  Initialize the population's (tile sizes/thread binding/unroll).
+         * @brief  Initialize the population's (tile sizes/thread bindings/
+         *         unrolling factors).
          * @return 0 if the initialization is successful, nonzero otherwise
          */
+        ClusterSplitFactorCache _split_factor_cache;
         int InitPopulationFillTileSize(State * const repr_state,
                                        std::vector < State > * const states);
         int InitPopulationThreadBind(State * const repr_state,

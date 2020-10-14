@@ -41,8 +41,8 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                         return SearchCluster(tasks, sketches, repr_idx);
                 });
 
-const ClusterSplitFactorizationCache::VT &
-ClusterSplitFactorizationCache::GetFactorizationSchemes(
+const ClusterSplitFactorCache::VT &
+ClusterSplitFactorCache::GetFactorizationSchemes(
         const ClusterExtentsT & extents,
         const int num_lengths,
         const int max_innermost_factor)
@@ -65,7 +65,7 @@ ClusterSplitFactorizationCache::GetFactorizationSchemes(
 
 
 void
-ClusterSplitFactorizationCache::DFSEnumerate(
+ClusterSplitFactorCache::DFSEnumerate(
         const ClusterExtentsT & extents,
         const int depth)
 {
@@ -87,15 +87,16 @@ ClusterSplitFactorizationCache::DFSEnumerate(
                 for (const std::vector < int > & cluster_factors :
                      GetFactors(extents))
                 {
+                        CHECK(cluster_factors.size() == extents.size());
                         ClusterExtentsT remainder(extents.size());
                         for (size_t tidx = 0; tidx < cluster_factors.size(); ++tidx)
                         {
                                 _working_stack[depth][tidx]
                                         = PrimExpr(cluster_factors[tidx]);
-                                
+                                remainder[tidx] = extents[tidx] / cluster_factors[tidx];
                         }
-                        DFSEnumerate(depth + 1, );
-                }
+                        DFSEnumerate(remainder, depth + 1);
+                }  // for (cluster_factors ∈ GetFactors(extents))
         }  // if (depth == _num_lengths)
 }
 
@@ -134,11 +135,12 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                            "but its dependents are NOT";
                                 extents.push_back(GetIntImm(split_step->extent));
                         }
-                        const std::vector < std::vector < PrimExpr > > & candidate_lens =
-                                split_memo->GetFactorizationSchemes(
-                                        extents,
-                                        repr_split_step->lengths.size(),
-                                        cur_cluster->tasks[cur_cluster->repr_idx]->hardware_params->max_innermost_split_factor);
+                        const ClusterSplitFactorCache::VT & candidate_lens =
+                                _split_factor_cache.GetFactorizationSchemes(
+                                        extents, repr_split_step->lengths.size(),
+                                        cur_cluster->tasks[cur_cluster->repr_idx]
+                                                   ->hardware_params
+                                                   ->max_innermost_split_factor);
                 }
         }  // for (step_id ∈ range((*state)->transform_steps.size()))
         return 0;
