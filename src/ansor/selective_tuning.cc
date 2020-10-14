@@ -84,20 +84,46 @@ ClusterSplitFactorCache::DFSEnumerate(
         }
         else  // if (depth != _num_lengths)
         {
-                for (const std::vector < int > & cluster_factors :
-                     GetFactors(extents))
+                for (const int cluster_factor : GetFactors(extents))
                 {
-                        CHECK(cluster_factors.size() == extents.size());
                         ClusterExtentsT remainder(extents.size());
-                        for (size_t tidx = 0; tidx < cluster_factors.size(); ++tidx)
+                        for (size_t tidx = 0; tidx < extents.size(); ++tidx)
                         {
                                 _working_stack[depth][tidx]
-                                        = PrimExpr(cluster_factors[tidx]);
-                                remainder[tidx] = extents[tidx] / cluster_factors[tidx];
+                                        = PrimExpr(cluster_factor);
+                                remainder[tidx] = extents[tidx] / cluster_factor;
                         }
                         DFSEnumerate(remainder, depth + 1);
-                }  // for (cluster_factors ∈ GetFactors(extents))
+                }  // for (cluster_factor ∈ GetFactors(extents))
         }  // if (depth == _num_lengths)
+}
+
+
+const ClusterFactorsT &
+ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
+{
+        auto iter = _factor_cache.find(extents);
+        if (iter != _factor_cache.end())
+        {
+                return iter->second;
+        }
+        ClusterFactorsT & cluster_factors = _factor_cache[extents];
+        const int min_extent = *std::min_element(extents.begin(), extents.end());
+
+        for (int f = 1; f < min_extent; ++f)
+        {
+                if (std::all_of(extents.begin(), extents.end(),
+                                [f](const int extent)
+                                {
+                                        return extent % f;
+                                }))
+                {
+                        cluster_factors.push_back(f);
+                }
+        }
+        // There is no need to sort the factors because they are already
+        // inserted in order.
+        return cluster_factors;
 }
 
 

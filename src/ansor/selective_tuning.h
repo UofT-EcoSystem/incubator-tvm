@@ -47,7 +47,7 @@ public:
 // [cluster size]
 using ClusterExtentsT = std::vector < int >;
 // [sizeof(factors) × cluster size]
-using ClusterFactorsT = std::vector < std::vector < int > >;
+using ClusterFactorsT = std::vector < int >;
 
 class ClusterSplitFactorCache
 {
@@ -88,7 +88,6 @@ public:
                 const ClusterExtentsT & extents,
                 const int num_lengths,
                 const int max_innermost_factor);
-        const ClusterFactorsT & GetFactors(const int n);
 };
 
 
@@ -97,12 +96,12 @@ class ClusterSearchPolicyNode : public Object
 private:
         // Tuning Parameters (Constants)
         static constexpr double C_EPS_GREEDY = 0.05;
-        static constexpr size_t C_EVOLUTIONARY_SEARCH_POPULATION = 2048;
-        static constexpr size_t C_EVOLUTIONARY_SEARCH_NUM_ITERS = 10;
+        static constexpr int C_EVOLUTIONARY_SEARCH_POPULATION = 2048;
+        static constexpr int C_EVOLUTIONARY_SEARCH_NUM_ITERS = 10;
         static constexpr double C_EVOLUTIONARY_SEARCH_MUTATION_PROB = 0.85;
         static constexpr double C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO = 0.05;
         static constexpr double C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO = 0.2;
-        static constexpr const int C_GPU_AUTO_UNROLL_CONFIGS[] = {0, 16, 64, 512, 1024};
+        static constexpr int C_GPU_AUTO_UNROLL_CONFIGS[] = {0, 16, 64, 512, 1024};
         static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
         static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
