@@ -167,6 +167,9 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                         cur_cluster->tasks[cur_cluster->repr_idx]
                                                    ->hardware_params
                                                    ->max_innermost_split_factor);
+                        CHECK()
+                        int rand_candidate_lens_idx = rng() % ca
+                        
                 }
         }  // for (step_id ∈ range((*state)->transform_steps.size()))
         return 0;
@@ -175,14 +178,14 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 
 void
 ClusterSearchPolicyNode::SampleInitPopulation(
-        const size_t out_size,
+        const int out_size,
         std::vector < std::vector < State > > * const out_states)
 {
-        size_t failed_attempts = 0;
+        int failed_attempts = 0;
         while (out_states->size() < out_size && 
                failed_attempts < out_size)
         {
-                size_t rand_sketch_idx = _rng() % (cur_cluster->sketches[0].size());
+                int rand_sketch_idx = _rng() % (cur_cluster->sketches[0].size());
                 State tmp_repr_state
                         = cur_cluster->sketches[cur_cluster->repr_idx][rand_sketch_idx];
                 std::vector < State > tmp_states(cur_cluster->tasks.size());
@@ -211,9 +214,9 @@ ClusterSearchPolicyNode::SearchOneRound(
 {
         best_states->clear(); random_states->clear();
 
-        size_t num_use_measured
-                = std::min(_measured_states_vec.size(),
-                           static_cast < size_t > (
+        int num_use_measured
+                = std::min(static_cast < int > (_measured_states_vec.size()),
+                           static_cast < int > (
                                    C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO *
                                    C_EVOLUTIONARY_SEARCH_POPULATION));
         // sample the initial population
@@ -242,7 +245,7 @@ ClusterSearchPolicyNode::Search(
 
                 std::vector < State > best_state_per_task(cluster->tasks.size());
 
-                for (size_t tidx = 0;
+                for (int tidx = 0;
                      tidx < cluster->tasks.size(); ++tidx)
                 {
                         best_state_per_task[tidx] = best_states[tidx][0];

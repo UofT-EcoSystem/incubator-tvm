@@ -44,9 +44,9 @@ public:
 
 
 // Vectorized Extents and Factors
-// [cluster size]
+// [cluster_size]
 using ClusterExtentsT = std::vector < int >;
-// [sizeof(factors) × cluster size]
+// [sizeof(factors)]
 using ClusterFactorsT = std::vector < int >;
 
 class ClusterSplitFactorCache
@@ -74,15 +74,15 @@ private:
         GetFactors(const ClusterExtentsT & extents);
         // internal variables to avoid passing parameters around different methods
         VT * _ret;
-        StackT _working_stack;
+        StackT _working_stack;  // [num_lengths × cluster_size]
         int _num_lengths;
         int _max_innermost_factor;
         std::unordered_map < ClusterExtentsT, ClusterFactorsT > _factor_cache;
 public:
         /**
-         * @brief Get the factorization schemes based on the (extents,
-         *        num_lengths, max_innermost_factor) tuple.
-         * 
+         * @brief  Get the factorization schemes based on the (extents,
+         *         num_lengths, max_innermost_factor) tuple.
+         * @return all possible factorization schemes
          */
         const VT & GetFactorizationSchemes(
                 const ClusterExtentsT & extents,
@@ -111,7 +111,7 @@ private:
         /**
          * @brief Samples the initial population.
          */
-        void SampleInitPopulation(const size_t out_size,
+        void SampleInitPopulation(const int out_size,
                                   std::vector < std::vector < State > > * const out_states);
         /**
          * @brief Search for one round.
