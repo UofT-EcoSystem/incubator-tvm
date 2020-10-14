@@ -46,7 +46,7 @@ public:
 // Vectorized Extents and Factors
 // [cluster size]
 using ClusterExtentsT = std::vector < int >;
-// [cluster size x sizeof(factors)]
+// [sizeof(factors) × cluster size]
 using ClusterFactorsT = std::vector < std::vector < int > >;
 
 class ClusterSplitFactorCache
@@ -73,7 +73,12 @@ private:
         void DFSEnumerate(const ClusterExtentsT & extents,
                           const int depth = 0);
         /**
-         * @brief 
+         * @brief Get the factors based on the extents.
+         * @todo  Because currently the returned factors are of size
+         *        [sizeof(factors) × cluster size], it is possible that a valid
+         *        factor might not be found (imagine the case in which there are
+         *        3 search tasks whose extents are given by [10, 17, 20]). This
+         *        case is currently NOT handled.
          */
         const ClusterFactorsT &
         GetFactors(const ClusterExtentsT & extents);
