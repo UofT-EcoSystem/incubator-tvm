@@ -152,24 +152,56 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 continue;
                         }
                         std::vector < int > extents;
+                        const int num_lengths = repr_split_step->lengths.size();
                         for (const State & state : (*states))
                         {
                                 const SplitStepNode * const split_step
                                         = state->transform_steps[step_id].as < SplitStepNode > ();
                                 CHECK(split_step != nullptr)
-                                        << "Representative is performing a split step "
-                                           "but its dependents are NOT";
+                                        << "Representative is performing a split "
+                                           "step but its dependents are NOT";
+                                CHECK(split_step->lengths.size() == num_lengths)
+                                        << "Representative does not share the "
+                                           "same split lengths with its dependents";
                                 extents.push_back(GetIntImm(split_step->extent));
                         }
-                        const ClusterSplitFactorCache::VT & candidate_lens =
+                        
+                        const ClusterSplitFactorCache::VT & candidates =
                                 _split_factor_cache.GetFactorizationSchemes(
-                                        extents, repr_split_step->lengths.size(),
+                                        extents, num_lengths,
                                         cur_cluster->tasks[cur_cluster->repr_idx]
                                                    ->hardware_params
                                                    ->max_innermost_split_factor);
-                        CHECK()
-                        int rand_candidate_lens_idx = rng() % ca
-                        
+
+                        // make sure that the dimensions are correct
+                        for (const ClusterSplitFactorCache::StackT &
+                             candidate : candidates)
+                        {
+                                CHECK(candidate.size() == num_lengths);
+                                for (const std::vector < PrimExpr > &
+                                     cluster_factor : candidate)
+                                {
+                                        CHECK(cluster_factor.size() == states->size());
+                                }
+                        }  // for (candidate ∈ candidates)
+
+                        int rand_cidx = _rng() % candidates.size();
+                        for (int tidx = 0; tidx < extents.size(); ++tidx)
+                        {
+                                std::vector < PrimExpr > lengths;
+                                for (int lidx = 0; lidx < num_lengths; ++lidx)
+                                {
+                                        lengths.push_back(candidates[rand_cidx][lidx][tidx]);
+                                }
+                                StateNode * pstate = (*states)[tidx].CopyOnWrite();
+                                const SplitStepNode * const split_step
+                                        = (*states)[tidx]->transform_steps[step_id].as < SplitStepNode > ();
+                                pstate->transform_steps[step_id]
+                                        = SplitStep(split_step->stage_id,
+                                                    split_step->iter_id,
+                                                    split_step->extent, lengths,
+                                                    split_step->inner_to_outer);
+                        }
                 }
         }  // for (step_id ∈ range((*state)->transform_steps.size()))
         return 0;
@@ -245,8 +277,7 @@ ClusterSearchPolicyNode::Search(
 
                 std::vector < State > best_state_per_task(cluster->tasks.size());
 
-                for (int tidx = 0;
-                     tidx < cluster->tasks.size(); ++tidx)
+                for (int tidx = 0; tidx < cluster->tasks.size(); ++tidx)
                 {
                         best_state_per_task[tidx] = best_states[tidx][0];
                 }
