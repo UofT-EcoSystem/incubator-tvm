@@ -2,8 +2,10 @@
 
 
 #include <random>
+#include <stack>
 #include <tuple>
 #include <vector>
+#include <unordered_map>
 
 #include "search_policy/search_policy.h"
 
@@ -41,17 +43,46 @@ public:
 };  // class SearchCluster
 
 
-class ClusterSplitFactorizationCache
+// Vectorized Extents and Factors
+// [cluster size]
+using ClusterExtentsT = std::vector < int >;
+// [cluster size x sizeof(factors)]
+using ClusterFactorsT = std::vector < std::vector < int > >;
+
+class ClusterSplitFactorCache
 {
 public:
-        using KT = std::tuple  < std::vector < int >, int, int >;
-        using VT = std::vector < std::vector < std::vector < PrimExpr > > >;
-        VT & GetFactorizationSchemes(const std::vector < int > & extents,
-                                     const int num_lengths,
-                                     const int max_innermost_factor);
-        const std::vector < int > & GetFactors(const int n);
+        using KT = std::tuple  < ClusterExtentsT, int, int >;
+        using StackT = std::vector < std::vector < PrimExpr > >;
+        using VT = std::vector < StackT >;
+        /**
+         * @brief Get the factorization schemes based on the (extents,
+         *        num_lengths, max_innermost_factor) tuple.
+         * 
+         */
+        const VT & GetFactorizationSchemes(
+                const ClusterExtentsT & extents,
+                const int num_lengths,
+                const int max_innermost_factor);
+        const ClusterFactorsT & GetFactors(const int n);
 private:
         std::unordered_map < KT, VT > _cache;
+        /**
+         * @brief 
+         */
+        void DFSEnumerate(const ClusterExtentsT & extents,
+                          const int depth = 0);
+        /**
+         * @brief 
+         */
+        const ClusterFactorsT &
+        GetFactors(const ClusterExtentsT & extents);
+        // internal variables to avoid passing parameters around different methods
+        VT * _ret;
+        StackT _working_stack;
+        int _num_lengths;
+        int _max_innermost_factor;
+        std::unordered_map < ClusterExtentsT, ClusterFactorsT > _factor_cache;
 };
 
 

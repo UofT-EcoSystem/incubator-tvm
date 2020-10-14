@@ -1,9 +1,10 @@
 #include "selective_tuning.h"
 
-#include <vector>
+#include <algorithm>
 #include <utility>
+#include <vector>
 
-#include "util.h"
+#include "utils.h"
 #include "transform_step.h"
 
 
@@ -40,9 +41,9 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                         return SearchCluster(tasks, sketches, repr_idx);
                 });
 
-const std::vector < std::vector < std::vector < PrimExpr > > > &
+const ClusterSplitFactorizationCache::VT &
 ClusterSplitFactorizationCache::GetFactorizationSchemes(
-        const std::vector < int > & extents,
+        const ClusterExtentsT & extents,
         const int num_lengths,
         const int max_innermost_factor)
 {
@@ -52,9 +53,51 @@ ClusterSplitFactorizationCache::GetFactorizationSchemes(
         {
                 return iter->second;
         }
-        
+        _num_lengths = num_lengths;
+        _max_innermost_factor = max_innermost_factor;
+        _working_stack.assign(
+                num_lengths,
+                std::vector < PrimExpr > (extents.size(), PrimExpr()));
+        _ret = &_cache[k];
+        DFSEnumerate(extents);
+        return *_ret;
 }
 
+
+void
+ClusterSplitFactorizationCache::DFSEnumerate(
+        const ClusterExtentsT & extents,
+        const int depth)
+{
+        if (depth == _num_lengths)
+        {
+                if (std::all_of(_working_stack.back().begin(),
+                                _working_stack.back().end(),
+                                [this](const PrimExpr & e)
+                                {
+                                        return e.as < IntImmNode > ()->value <= 
+                                               this->_max_innermost_factor;
+                                }))
+                {
+                        _ret->push_back(_working_stack);
+                }
+        }
+        else  // if (depth != _num_lengths)
+        {
+                for (const std::vector < int > & cluster_factors :
+                     GetFactors(extents))
+                {
+                        ClusterExtentsT remainder(extents.size());
+                        for (size_t tidx = 0; tidx < cluster_factors.size(); ++tidx)
+                        {
+                                _working_stack[depth][tidx]
+                                        = PrimExpr(cluster_factors[tidx]);
+                                
+                        }
+                        DFSEnumerate(depth + 1, );
+                }
+        }  // if (depth == _num_lengths)
+}
 
 
 int
