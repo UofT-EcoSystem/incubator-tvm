@@ -31,9 +31,6 @@ std::string Axis2Str(const Array < IterVar > & axis)
 }
 
 
-namespace {
-
-
 #define CHECKPOINT_RETURN 1
 
 static bool s_enable_ret_checkpoint = false;

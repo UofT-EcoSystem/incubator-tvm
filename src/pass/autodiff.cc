@@ -499,7 +499,8 @@ DifferentiationResult Differentiate(const Tensor& output,
 
 
     Tensor in_arg = compute_adjoint(input);
-    _CSE(output, &in_arg);
+    // <bojian/TVM-AutoDiff> Temporarily commented out the CSE pass.
+    // _CSE(output, &in_arg);
 
     result.push_back(in_arg);
   }
