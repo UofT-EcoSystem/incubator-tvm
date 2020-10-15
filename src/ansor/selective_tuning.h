@@ -126,12 +126,11 @@ private:
          * @return 0 if the initialization is successful, nonzero otherwise
          */
         ClusterSplitFactorCache _split_factor_cache;
-        int InitPopulationFillTileSize(State * const repr_state,
-                                       std::vector < State > * const states);
-        int InitPopulationThreadBind(State * const repr_state,
-                                     std::vector < State > * const states);
-        int InitPopulationUnroll(State * const state, std::vector < State > * const states);
-
+        int InitPopulationFillTileSize(State repr_state,
+                                       std::vector < State > * const pstates);
+        int InitPopulationThreadBind(State repr_state,
+                                     std::vector < State > * const pstates);
+        int InitPopulationUnroll(State repr_state, std::vector < State > * const pstates);
 public:
         SearchCluster cur_cluster;
 

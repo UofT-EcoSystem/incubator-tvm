@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "utils.h"
+#include "search_policy/utils.h"
 #include "transform_step.h"
 
 
@@ -129,14 +130,14 @@ ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
 
 int
 ClusterSearchPolicyNode::InitPopulationFillTileSize(
-        State * const repr_state,
-        std::vector < State > * const states)
+        State repr_state,
+        std::vector < State > * const pstates)
 {
-        for (size_t step_id = 0; step_id < (*repr_state)->transform_steps.size();
+        for (size_t step_id = 0; step_id < repr_state->transform_steps.size();
              ++step_id)
         {
                 if (const SplitStepNode * const repr_split_step =
-                    (*repr_state)->transform_steps[step_id].as < SplitStepNode > ())
+                    repr_state->transform_steps[step_id].as < SplitStepNode > ())
                 {
                         bool defined = true;
 
@@ -153,7 +154,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         }
                         std::vector < int > extents;
                         const int num_lengths = repr_split_step->lengths.size();
-                        for (const State & state : (*states))
+                        for (const State & state : (*pstates))
                         {
                                 const SplitStepNode * const split_step
                                         = state->transform_steps[step_id].as < SplitStepNode > ();
@@ -181,7 +182,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 for (const std::vector < PrimExpr > &
                                      cluster_factor : candidate)
                                 {
-                                        CHECK(cluster_factor.size() == states->size());
+                                        CHECK(cluster_factor.size() == pstates->size());
                                 }
                         }  // for (candidate ∈ candidates)
 
@@ -193,9 +194,9 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 {
                                         lengths.push_back(candidates[rand_cidx][lidx][tidx]);
                                 }
-                                StateNode * pstate = (*states)[tidx].CopyOnWrite();
+                                StateNode * pstate = (*pstates)[tidx].CopyOnWrite();
                                 const SplitStepNode * const split_step
-                                        = (*states)[tidx]->transform_steps[step_id].as < SplitStepNode > ();
+                                        = (*pstates)[tidx]->transform_steps[step_id].as < SplitStepNode > ();
                                 pstate->transform_steps[step_id]
                                         = SplitStep(split_step->stage_id,
                                                     split_step->iter_id,
@@ -206,6 +207,75 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
         }  // for (step_id ∈ range((*state)->transform_steps.size()))
         return 0;
 }
+
+
+int
+ClusterSearchPolicyNode::InitPopulationThreadBind(
+        State repr_state,
+        std::vector < State > * const pstates)
+{
+        std::set < int > multi_level_tiling_root_set;
+        for (int stage_id = 0; stage_id < repr_state->stages.size();
+             ++stage_id)
+        {
+
+        }
+        for (int stage_id = 0; stage_id < repr_state->stages.size();
+             ++stage_id)
+        {
+                const Stage & stage = repr_state->stages[stage_id];
+                if (stage->compute_at == kInlined || 
+                    stage->compute_at == kPlaceholder)
+                {
+                        continue;
+                }
+                // skip if this stage has already been annotated with
+                // threadIdx.x or tensorized
+                if (HasAnnotatedIter(stage, IteratorAnnotation::kThreadX) ||
+                    HasAnnotatedIter(stage, IteratorAnnotation::kTensorized))
+                {
+                        continue;
+                }
+                if (stage->compute_at == kRoot)
+                {
+                        // This stage has not been tiled, but in GPU scheduling,
+                        // we must file the root stage to do thread binding.
+                        // if 
+                }
+                else if (stage->compute_at == kIter &&
+                         StrEndsWith(stage->op->name, ".shared"))
+                {
+                        // 
+                }
+        }  // for (stage_id ∈ range(state->stages.size()))
+}
+
+
+int
+ClusterSearchPolicyNode::InitPopulationUnroll(
+        State repr_state,
+        std::vector < State > * const pstates)
+{
+        for (int stage_id = 0; stage_id < repr_state->stages.size();
+             ++stage_id)
+        {
+                const Stage & stage = repr_state->stages[stage_id];
+                if (stage->compute_at == kInlined || 
+                    stage->op_type == kPlaceholder)
+                {
+                        continue;
+                }
+                /// @note Special unroll policy is ignored.
+                bool annotate_auto_unroll = HasReduceIter(stage);
+                if (!NeedsMultilevelTiling(cur_cluster->tasks[cur_cluster->repr_idx],
+                                           repr_state, stage_id) ||
+                    HasRfactorStage(repr_state, stage_id))
+                {
+                        annotate_auto_unroll = false;
+                }
+        }
+}
+
 
 
 void
@@ -225,14 +295,14 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 {
                         tmp_states.push_back(sketch[rand_sketch_idx]);
                 }
-                InitPopulationFillTileSize(&tmp_repr_state,
+                InitPopulationFillTileSize(tmp_repr_state,
                                            &tmp_states);
-                if (InitPopulationThreadBind(&tmp_repr_state, &tmp_states))
+                if (InitPopulationThreadBind(tmp_repr_state, &tmp_states))
                 {
                         failed_attempts += 1;
                         continue;
                 }
-                InitPopulationUnroll(&tmp_repr_state, &tmp_states);
+                InitPopulationUnroll(tmp_repr_state, &tmp_states);
                 out_states->push_back(std::move(tmp_states));
         }
 }
