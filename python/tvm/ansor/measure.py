@@ -171,7 +171,8 @@ class LocalRunner(Runner):
     """
 
     def __init__(self,
-                 timeout=10,
+                 # timeout=10,
+                 timeout=100,  # <bojian/TVM-AutoDiff> Increased the timeout limit to avoid TimeoutError.
                  number=3,
                  repeat=1,
                  min_repeat_ms=0,
