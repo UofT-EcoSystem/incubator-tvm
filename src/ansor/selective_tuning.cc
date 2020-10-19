@@ -366,24 +366,29 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 int
 ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const pstates)
 {
-        for (int stage_idx = 0; stage_idx < repr_state->stages.size();
-             ++stage_idx)
+        for (int task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
-                const Stage & stage = repr_state->stages[stage_idx];
-                if (stage->compute_at == kInlined || 
-                    stage->op_type == kPlaceholder)
+                const SearchTask & task = cur_cluster->tasks[task_idx];
+                State & state = (*pstates)[task_idx];
+                for (int stage_idx = 0; stage_idx < state->stages.size();
+                     ++stage_idx)
                 {
-                        continue;
-                }
-                /// @note Special unroll policy is ignored.
-                bool annotate_auto_unroll = HasReduceIter(stage);
-                if (!NeedsMultilevelTiling(cur_cluster->tasks[cur_cluster->repr_idx],
-                                           repr_state, stage_idx) ||
-                    HasRfactorStage(repr_state, stage_idx))
-                {
-                        annotate_auto_unroll = false;
-                }
-        }
+                        const Stage & stage = state->stages[stage_idx];
+                        if (stage->compute_at == kInlined || 
+                            stage->op_type == kPlaceholder)
+                        {
+                                continue;
+                        }
+                        /// @note Special unroll policy is ignored.
+                        bool annotate_auto_unroll = HasReduceIter(stage);
+                        if (!NeedsMultilevelTiling(task, state, stage_idx) ||
+                            HasRfactorStage(state, stage_idx))
+                        {
+                                annotate_auto_unroll = false;
+                        }
+                }  // for (stage_idx ∈ range(state->stages.size()))
+        }  // for (task_idx ∈ range(pstates->size()))
+        return 0;
 }
 
 
@@ -405,14 +410,13 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 {
                         tmp_states.push_back(sketch[rand_sketch_idx]);
                 }
-                InitPopulationFillTileSize(tmp_repr_state,
-                                           &tmp_states);
-                if (InitPopulationThreadBind(tmp_repr_state, &tmp_states))
+                InitPopulationFillTileSize(&tmp_states);
+                if (InitPopulationThreadBind(&tmp_states))
                 {
                         failed_attempts += 1;
                         continue;
                 }
-                InitPopulationUnroll(tmp_repr_state, &tmp_states);
+                InitPopulationUnroll(&tmp_states);
                 out_states->push_back(std::move(tmp_states));
         }
 }
