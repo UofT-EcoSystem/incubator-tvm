@@ -130,9 +130,9 @@ ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
 
 int
 ClusterSearchPolicyNode::InitPopulationFillTileSize(
-        State repr_state,
         std::vector < State > * const pstates)
 {
+        State & repr_state = (*pstates)[cur_cluster->repr_idx];
         for (size_t step_idx = 0; step_idx < repr_state->transform_steps.size();
              ++step_idx)
         {
@@ -211,20 +211,24 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 
 int
 ClusterSearchPolicyNode::InitPopulationThreadBind(
-        State repr_state,
         std::vector < State > * const pstates)
 {
+        // The vector of ints is used to make sure that all search tasks undergo
+        // exactly the same binding at the same stage index.
+        std::vector < std::vector < int > > 
+                fused_iter_ext_le_wrap_size(cur_cluster->tasks.size()),
+                fused_iter_ext_gt_wrap_size(cur_cluster->tasks.size());
         /// @note The assumption that we have here is that every state will
         ///       always share the same thread binding.
-        for (int task_idx = 0; task_idx < pstates->size(); ++task_idx)
+        for (int task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
+                const SearchTask & task = cur_cluster->tasks[task_idx];
                 State & state = (*pstates)[task_idx];
                 std::set < int > multi_level_tiling_root_set;
                 for (int stage_idx = 0; stage_idx < state->stages.size();
                      ++stage_idx)
                 {
-                        if (NeedsMultilevelTiling(cur_cluster->tasks[task_idx],
-                                                  state, stage_idx))
+                        if (NeedsMultilevelTiling(task, state, stage_idx))
                         {
                                 const Stage & stage = state->stages[stage_idx];
                                 if (stage->compute_at != kIter)
@@ -257,7 +261,81 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                         }
                         if (stage->compute_at == kRoot)
                         {
-                                
+                                if (!multi_level_tiling_root_set.count(stage_idx))
+                                {
+                                        Iterator fused_iter;
+                                        state = FuseAllOuterSpaceIterators(state, stage_idx, &fused_iter);
+
+                                        if (GetExtent(fused_iter) <= task->hardware_params->warp_size)
+                                        {
+                                                state.bind_thread(stage_idx, fused_iter, kThreadX);
+                                                fused_iter_ext_le_wrap_size[task_idx].push_back(stage_idx);
+                                        }
+                                        else
+                                        {
+                                                const auto & split_iters = state.split(
+                                                        stage_idx, fused_iter,
+                                                        {task->hardware_params->warp_size});
+                                                state.bind_thread(stage_idx, split_iters[0], kBlockX);
+                                                state.bind_thread(stage_idx, split_iters[1], kThreadX);
+                                                fused_iter_ext_gt_wrap_size[task_idx].push_back(stage_idx);
+                                        }
+                                        continue;
+                                }  // if (!multi_level_tiling_root_set.count(stage_idx))
+
+                                const te::ComputeOpNode * const compute_op
+                                        = stage->op.as < te::ComputeOpNode > ();
+                                std::vector < Iterator > to_fuse;
+
+                                // 1. Fuse the outermost space tile as blockIdx.
+                                for (int i = 0; i < compute_op->axis.size(); ++i)
+                                {
+                                        const auto & iter = state->stages[stage_idx]->iters[i];
+                                        if (!StrEndsWith(iter->name, ".0"))
+                                        {
+                                                break;
+                                        }
+                                        to_fuse.push_back(iter);
+                                }
+                                const auto & blockidx_iter = state.fuse(stage_idx, to_fuse);
+                                state.bind_thread(stage_idx, blockidx_iter, kBlockX);
+
+                                // 2. Fuse the second outermost space tile as vthread.
+                                to_fuse.clear();
+                                for (int i = 1; i < compute_op->axis.size() + 1; ++i)
+                                {
+                                        const auto & it = state->stages[stage_idx]->iters[i];
+                                        if (!StrEndsWith(it->name, ".1"))
+                                        {
+                                                break;
+                                        }
+                                        to_fuse.push_back(state->stages[stage_idx]->iters[i]);
+                                }
+                                const auto & vthread_iter = state.fuse(stage_idx, to_fuse);
+                                if (GetExtent(vthread_iter) > 
+                                    task->hardware_params->max_vthread_extent)
+                                {
+                                        return -1;
+                                }
+                                state.bind_thread(stage_idx, vthread_iter, kVThread);
+
+                                // 3. Fuse the third outermost space tile as threadIdx.
+                                for (size_t i = 2; i < compute_op->axis.size() + 2; i++)
+                                {
+                                        const auto & iter = state->stages[stage_idx]->iters[i];
+                                        if (!StrEndsWith(iter->name, ".2"))
+                                        {
+                                                break;
+                                        }
+                                        to_fuse.push_back(state->stages[stage_idx]->iters[i]);
+                                }
+                                const auto & threadidx_iter = state.fuse(stage_idx, to_fuse);
+                                if (GetExtent(threadidx_iter) < 
+                                    task->hardware_params->warp_size)
+                                {
+                                        return -1;
+                                }
+                                state.bind_thread(stage_idx, threadidx_iter, kThreadX);
                         }
                         else if (stage->compute_at == kIter &&
                                  StrEndsWith(stage->op->name, ".shared"))
@@ -286,9 +364,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 
 
 int
-ClusterSearchPolicyNode::InitPopulationUnroll(
-        State repr_state,
-        std::vector < State > * const pstates)
+ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const pstates)
 {
         for (int stage_idx = 0; stage_idx < repr_state->stages.size();
              ++stage_idx)
