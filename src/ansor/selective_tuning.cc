@@ -74,7 +74,7 @@ ClusterSplitFactorCache::DFSEnumerate(
         {
                 if (std::all_of(_working_stack.back().begin(),
                                 _working_stack.back().end(),
-                                [this](const PrimExpr & e)
+                                [this](const PrimExpr & e) -> bool
                                 {
                                         return e.as < IntImmNode > ()->value <= 
                                                this->_max_innermost_factor;
@@ -114,7 +114,7 @@ ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
         for (int f = 1; f < min_extent; ++f)
         {
                 if (std::all_of(extents.begin(), extents.end(),
-                                [f](const int extent)
+                                [f](const int extent) -> int
                                 {
                                         return extent % f;
                                 }))
@@ -360,6 +360,38 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                         }
                 }  // for (stage_idx ∈ range(state->stages.size()))
         }  // for (task_idx ∈ range(pstates->size()))
+        auto are_stage_idxs_all_same = 
+                [](const std::vector < int > & lhs,
+                   const std::vector < int > & rhs)
+                {
+                        if (lhs.size() != rhs.size())
+                        {
+                                return false;
+                        }
+                        for (int i = 0; i < lhs.size(); ++i)
+                        {
+                                if (lhs[i] != rhs[i])
+                                {
+                                        return false;
+                                }
+                        }
+                        return true;
+                };
+        CHECK(std:all_of(fused_iter_ext_le_wrap_size.begin(),
+                         fused_iter_ext_le_wrap_size.end(),
+                         [&fused_iter_ext_le_wrap_size, are_stage_idxs_all_same]
+                         (const std::vector < int > & stage_idxs)
+                         {
+                                return are_stage_idxs_all_same(stage_idxs, fused_iter_ext_le_wrap_size[0]);
+                         }));
+        CHECK(std:all_of(fused_iter_ext_gt_wrap_size.begin(),
+                         fused_iter_ext_gt_wrap_size.end(),
+                         [&fused_iter_ext_gt_wrap_size, are_stage_idxs_all_same]
+                         (const std::vector < int > & stage_idxs)
+                         {
+                                return are_stage_idxs_all_same(stage_idxs, fused_iter_ext_gt_wrap_size[0]);
+                         }));
+        return 0;
 }
 
 
