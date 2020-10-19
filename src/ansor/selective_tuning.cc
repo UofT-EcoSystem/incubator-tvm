@@ -88,11 +88,11 @@ ClusterSplitFactorCache::DFSEnumerate(
                 for (const int cluster_factor : GetFactors(extents))
                 {
                         ClusterExtentsT remainder(extents.size());
-                        for (size_t tidx = 0; tidx < extents.size(); ++tidx)
+                        for (size_t task_idx = 0; task_idx < extents.size(); ++task_idx)
                         {
-                                _working_stack[depth][tidx]
+                                _working_stack[depth][task_idx]
                                         = PrimExpr(cluster_factor);
-                                remainder[tidx] = extents[tidx] / cluster_factor;
+                                remainder[task_idx] = extents[task_idx] / cluster_factor;
                         }
                         DFSEnumerate(remainder, depth + 1);
                 }  // for (cluster_factor ∈ GetFactors(extents))
@@ -133,11 +133,11 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
         State repr_state,
         std::vector < State > * const pstates)
 {
-        for (size_t step_id = 0; step_id < repr_state->transform_steps.size();
-             ++step_id)
+        for (size_t step_idx = 0; step_idx < repr_state->transform_steps.size();
+             ++step_idx)
         {
                 if (const SplitStepNode * const repr_split_step =
-                    repr_state->transform_steps[step_id].as < SplitStepNode > ())
+                    repr_state->transform_steps[step_idx].as < SplitStepNode > ())
                 {
                         bool defined = true;
 
@@ -157,7 +157,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         for (const State & state : (*pstates))
                         {
                                 const SplitStepNode * const split_step
-                                        = state->transform_steps[step_id].as < SplitStepNode > ();
+                                        = state->transform_steps[step_idx].as < SplitStepNode > ();
                                 CHECK(split_step != nullptr)
                                         << "Representative is performing a split "
                                            "step but its dependents are NOT";
@@ -186,25 +186,25 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 }
                         }  // for (candidate ∈ candidates)
 
-                        int rand_cidx = _rng() % candidates.size();
-                        for (int tidx = 0; tidx < extents.size(); ++tidx)
+                        int rand_candidate_idx = _rng() % candidates.size();
+                        for (int task_idx = 0; task_idx < extents.size(); ++task_idx)
                         {
                                 std::vector < PrimExpr > lengths;
-                                for (int lidx = 0; lidx < num_lengths; ++lidx)
+                                for (int len_idx = 0; len_idx < num_lengths; ++len_idx)
                                 {
-                                        lengths.push_back(candidates[rand_cidx][lidx][tidx]);
+                                        lengths.push_back(candidates[rand_candidate_idx][len_idx][task_idx]);
                                 }
-                                StateNode * pstate = (*pstates)[tidx].CopyOnWrite();
+                                StateNode * pstate = (*pstates)[task_idx].CopyOnWrite();
                                 const SplitStepNode * const split_step
-                                        = (*pstates)[tidx]->transform_steps[step_id].as < SplitStepNode > ();
-                                pstate->transform_steps[step_id]
+                                        = (*pstates)[task_idx]->transform_steps[step_idx].as < SplitStepNode > ();
+                                pstate->transform_steps[step_idx]
                                         = SplitStep(split_step->stage_id,
                                                     split_step->iter_id,
                                                     split_step->extent, lengths,
                                                     split_step->inner_to_outer);
                         }
                 }
-        }  // for (step_id ∈ range((*state)->transform_steps.size()))
+        }  // for (step_idx ∈ range((*state)->transform_steps.size()))
         return 0;
 }
 
@@ -214,40 +214,74 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
         State repr_state,
         std::vector < State > * const pstates)
 {
-        std::set < int > multi_level_tiling_root_set;
-        for (int stage_id = 0; stage_id < repr_state->stages.size();
-             ++stage_id)
+        /// @note The assumption that we have here is that every state will
+        ///       always share the same thread binding.
+        for (int task_idx = 0; task_idx < pstates->size(); ++task_idx)
         {
-
-        }
-        for (int stage_id = 0; stage_id < repr_state->stages.size();
-             ++stage_id)
-        {
-                const Stage & stage = repr_state->stages[stage_id];
-                if (stage->compute_at == kInlined || 
-                    stage->compute_at == kPlaceholder)
+                State & state = (*pstates)[task_idx];
+                std::set < int > multi_level_tiling_root_set;
+                for (int stage_idx = 0; stage_idx < state->stages.size();
+                     ++stage_idx)
                 {
-                        continue;
-                }
-                // skip if this stage has already been annotated with
-                // threadIdx.x or tensorized
-                if (HasAnnotatedIter(stage, IteratorAnnotation::kThreadX) ||
-                    HasAnnotatedIter(stage, IteratorAnnotation::kTensorized))
+                        if (NeedsMultilevelTiling(cur_cluster->tasks[task_idx],
+                                                  state, stage_idx))
+                        {
+                                const Stage & stage = state->stages[stage_idx];
+                                if (stage->compute_at != kIter)
+                                {
+                                        CHECK(HasCrossThreadReduction(state, stage_idx));
+                                        continue;
+                                }
+                                CHECK_EQ(stage->compute_at, kIter);
+                                const auto attached_iter
+                                        = state->attach_map->stage_to_attach_iter.find(stage_idx);
+                                CHECK(attached_iter != state->attach_map->stage_to_attach_iter.end());
+                                multi_level_tiling_root_set.insert(attached_iter->second.first);
+                        }
+                }  // for (stage_idx ∈ range(state->stages.size()))
+                for (int stage_idx = 0; stage_idx < state->stages.size();
+                     ++stage_idx)
                 {
-                        continue;
-                }
-                if (stage->compute_at == kRoot)
-                {
-                        // This stage has not been tiled, but in GPU scheduling,
-                        // we must file the root stage to do thread binding.
-                        // if 
-                }
-                else if (stage->compute_at == kIter &&
-                         StrEndsWith(stage->op->name, ".shared"))
-                {
-                        // 
-                }
-        }  // for (stage_id ∈ range(state->stages.size()))
+                        const Stage & stage = state->stages[stage_idx];
+                        if (stage->compute_at == kInlined || 
+                            stage->compute_at == kPlaceholder)
+                        {
+                                continue;
+                        }
+                        // skip if this stage has already been annotated with
+                        // threadIdx.x or tensorized
+                        if (HasAnnotatedIter(stage, IteratorAnnotation::kThreadX) ||
+                            HasAnnotatedIter(stage, IteratorAnnotation::kTensorized))
+                        {
+                                continue;
+                        }
+                        if (stage->compute_at == kRoot)
+                        {
+                                
+                        }
+                        else if (stage->compute_at == kIter &&
+                                 StrEndsWith(stage->op->name, ".shared"))
+                        {
+                                CHECK(stage->compute_at == kIter);
+                                const auto & attached_iter
+                                        = state->attach_map->stage_to_attach_iter.find(stage_idx);
+                                CHECK(attached_iter != state->attach_map->stage_to_attach_iter.end());
+                                std::vector < int > spatial_split_step_idxs;
+                                GetSpaceSplitStepIds(state, attached_iter->second.first,
+                                                     &spatial_split_step_idxs);
+                                // fuse all iterators to do cooperative fetching
+                                Iterator fused = state.fuse(stage_idx, state->stages[stage_idx]->iters);
+                                // split out an extra iterator for vectorization
+                                const auto & iters0 = state.split(
+                                        stage_idx, fused, {1});
+                                state.vectorize(stage_idx, iters0[1]);
+                                const auto & iters1 = state.follow_fused_split(
+                                        stage_idx, iters0[0],
+                                        spatial_split_step_idxs, 1, true);
+                                state.bind_thread(stage_idx, iters1[1], kThreadX);
+                        }
+                }  // for (stage_idx ∈ range(state->stages.size()))
+        }  // for (task_idx ∈ range(pstates->size()))
 }
 
 
@@ -256,10 +290,10 @@ ClusterSearchPolicyNode::InitPopulationUnroll(
         State repr_state,
         std::vector < State > * const pstates)
 {
-        for (int stage_id = 0; stage_id < repr_state->stages.size();
-             ++stage_id)
+        for (int stage_idx = 0; stage_idx < repr_state->stages.size();
+             ++stage_idx)
         {
-                const Stage & stage = repr_state->stages[stage_id];
+                const Stage & stage = repr_state->stages[stage_idx];
                 if (stage->compute_at == kInlined || 
                     stage->op_type == kPlaceholder)
                 {
@@ -268,8 +302,8 @@ ClusterSearchPolicyNode::InitPopulationUnroll(
                 /// @note Special unroll policy is ignored.
                 bool annotate_auto_unroll = HasReduceIter(stage);
                 if (!NeedsMultilevelTiling(cur_cluster->tasks[cur_cluster->repr_idx],
-                                           repr_state, stage_id) ||
-                    HasRfactorStage(repr_state, stage_id))
+                                           repr_state, stage_idx) ||
+                    HasRfactorStage(repr_state, stage_idx))
                 {
                         annotate_auto_unroll = false;
                 }
@@ -347,9 +381,9 @@ ClusterSearchPolicyNode::Search(
 
                 std::vector < State > best_state_per_task(cluster->tasks.size());
 
-                for (int tidx = 0; tidx < cluster->tasks.size(); ++tidx)
+                for (int task_idx = 0; task_idx < cluster->tasks.size(); ++task_idx)
                 {
-                        best_state_per_task[tidx] = best_states[tidx][0];
+                        best_state_per_task[task_idx] = best_states[task_idx][0];
                 }
                 return best_state_per_task;
         // }
