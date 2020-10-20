@@ -111,7 +111,7 @@ private:
         /**
          * @brief Samples the initial population.
          */
-        void SampleInitPopulation(const int out_size,
+        void SampleInitPopulation(const size_t out_size,
                                   std::vector < std::vector < State > > * const out_states);
         /**
          * @brief Search for one round.

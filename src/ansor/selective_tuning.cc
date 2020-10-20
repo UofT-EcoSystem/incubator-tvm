@@ -153,7 +153,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 continue;
                         }
                         std::vector < int > extents;
-                        const int num_lengths = repr_split_step->lengths.size();
+                        const size_t num_lengths = repr_split_step->lengths.size();
                         for (const State & state : (*pstates))
                         {
                                 const SplitStepNode * const split_step
@@ -186,11 +186,11 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 }
                         }  // for (candidate ∈ candidates)
 
-                        int rand_candidate_idx = _rng() % candidates.size();
-                        for (int task_idx = 0; task_idx < extents.size(); ++task_idx)
+                        size_t rand_candidate_idx = _rng() % candidates.size();
+                        for (size_t task_idx = 0; task_idx < extents.size(); ++task_idx)
                         {
                                 std::vector < PrimExpr > lengths;
-                                for (int len_idx = 0; len_idx < num_lengths; ++len_idx)
+                                for (size_t len_idx = 0; len_idx < num_lengths; ++len_idx)
                                 {
                                         lengths.push_back(candidates[rand_candidate_idx][len_idx][task_idx]);
                                 }
@@ -220,12 +220,12 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                 fused_iter_ext_gt_wrap_size(cur_cluster->tasks.size());
         /// @note The assumption that we have here is that every state will
         ///       always share the same thread binding.
-        for (int task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
+        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
                 const SearchTask & task = cur_cluster->tasks[task_idx];
                 State & state = (*pstates)[task_idx];
                 std::set < int > multi_level_tiling_root_set;
-                for (int stage_idx = 0; stage_idx < state->stages.size();
+                for (size_t stage_idx = 0; stage_idx < state->stages.size();
                      ++stage_idx)
                 {
                         if (NeedsMultilevelTiling(task, state, stage_idx))
@@ -243,12 +243,12 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 multi_level_tiling_root_set.insert(attached_iter->second.first);
                         }
                 }  // for (stage_idx ∈ range(state->stages.size()))
-                for (int stage_idx = 0; stage_idx < state->stages.size();
+                for (size_t stage_idx = 0; stage_idx < state->stages.size();
                      ++stage_idx)
                 {
                         const Stage & stage = state->stages[stage_idx];
                         if (stage->compute_at == kInlined || 
-                            stage->compute_at == kPlaceholder)
+                            stage->op_type == kPlaceholder)
                         {
                                 continue;
                         }
@@ -288,7 +288,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 std::vector < Iterator > to_fuse;
 
                                 // 1. Fuse the outermost space tile as blockIdx.
-                                for (int i = 0; i < compute_op->axis.size(); ++i)
+                                for (size_t i = 0; i < compute_op->axis.size(); ++i)
                                 {
                                         const auto & iter = state->stages[stage_idx]->iters[i];
                                         if (!StrEndsWith(iter->name, ".0"))
@@ -302,7 +302,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 
                                 // 2. Fuse the second outermost space tile as vthread.
                                 to_fuse.clear();
-                                for (int i = 1; i < compute_op->axis.size() + 1; ++i)
+                                for (size_t i = 1; i < compute_op->axis.size() + 1; ++i)
                                 {
                                         const auto & it = state->stages[stage_idx]->iters[i];
                                         if (!StrEndsWith(it->name, ".1"))
@@ -368,7 +368,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                         {
                                 return false;
                         }
-                        for (int i = 0; i < lhs.size(); ++i)
+                        for (size_t i = 0; i < lhs.size(); ++i)
                         {
                                 if (lhs[i] != rhs[i])
                                 {
@@ -377,14 +377,14 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                         }
                         return true;
                 };
-        CHECK(std:all_of(fused_iter_ext_le_wrap_size.begin(),
+        CHECK(std::all_of(fused_iter_ext_le_wrap_size.begin(),
                          fused_iter_ext_le_wrap_size.end(),
                          [&fused_iter_ext_le_wrap_size, are_stage_idxs_all_same]
                          (const std::vector < int > & stage_idxs)
                          {
                                 return are_stage_idxs_all_same(stage_idxs, fused_iter_ext_le_wrap_size[0]);
                          }));
-        CHECK(std:all_of(fused_iter_ext_gt_wrap_size.begin(),
+        CHECK(std::all_of(fused_iter_ext_gt_wrap_size.begin(),
                          fused_iter_ext_gt_wrap_size.end(),
                          [&fused_iter_ext_gt_wrap_size, are_stage_idxs_all_same]
                          (const std::vector < int > & stage_idxs)
@@ -398,11 +398,12 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 int
 ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const pstates)
 {
-        for (int task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
+        size_t rand_auto_unroll_config = C_GPU_AUTO_UNROLL_CONFIGS[_rng() % 5];
+        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
                 const SearchTask & task = cur_cluster->tasks[task_idx];
                 State & state = (*pstates)[task_idx];
-                for (int stage_idx = 0; stage_idx < state->stages.size();
+                for (size_t stage_idx = 0; stage_idx < state->stages.size();
                      ++stage_idx)
                 {
                         const Stage & stage = state->stages[stage_idx];
@@ -418,6 +419,12 @@ ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const psta
                         {
                                 annotate_auto_unroll = false;
                         }
+                        if (annotate_auto_unroll)
+                        {
+                                state.pragma(stage_idx, state->stages[stage_idx]->iters[0],
+                                             std::string("auto_unroll_max_step") + "$" + 
+                                             std::to_string(rand_auto_unroll_config));
+                        }
                 }  // for (stage_idx ∈ range(state->stages.size()))
         }  // for (task_idx ∈ range(pstates->size()))
         return 0;
@@ -427,10 +434,10 @@ ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const psta
 
 void
 ClusterSearchPolicyNode::SampleInitPopulation(
-        const int out_size,
+        const size_t out_size,
         std::vector < std::vector < State > > * const out_states)
 {
-        int failed_attempts = 0;
+        size_t failed_attempts = 0;
         while (out_states->size() < out_size && 
                failed_attempts < out_size)
         {
@@ -493,7 +500,7 @@ ClusterSearchPolicyNode::Search(
 
                 std::vector < State > best_state_per_task(cluster->tasks.size());
 
-                for (int task_idx = 0; task_idx < cluster->tasks.size(); ++task_idx)
+                for (size_t task_idx = 0; task_idx < cluster->tasks.size(); ++task_idx)
                 {
                         best_state_per_task[task_idx] = best_states[task_idx][0];
                 }
