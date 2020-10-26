@@ -33,6 +33,7 @@ SearchCluster::SearchCluster(Array < SearchTask > tasks,
         data_ = std::move(node);
 }
 
+TVM_REGISTER_NODE_TYPE(SearchClusterNode);
 
 TVM_REGISTER_GLOBAL("ansor.SearchCluster")
         .set_body_typed(
@@ -41,6 +42,18 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                 {
                         return SearchCluster(tasks, sketches, repr_idx);
                 });
+
+
+constexpr double ClusterSearchPolicyNode::C_EPS_GREEDY;
+constexpr int ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_POPULATION;
+constexpr int ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_NUM_ITERS;
+constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_MUTATION_PROB;
+constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO;
+constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO;
+constexpr int ClusterSearchPolicyNode::C_GPU_AUTO_UNROLL_CONFIGS[];
+constexpr const char * ClusterSearchPolicyNode::C_GPU_MULTI_LEVEL_TILING_STRUCTURE;
+constexpr bool ClusterSearchPolicyNode::C_DISABLE_CHANGE_COMPUTE_LOCATION;
+
 
 const ClusterSplitFactorCache::VT &
 ClusterSplitFactorCache::GetFactorizationSchemes(
@@ -511,6 +524,7 @@ ClusterSearchPolicyNode::Search(
         //         LOG(FATAL) << "NOT Implemented";
         // }
 }
+
 
         }  // namespace ansor
 }  // namespace tvm

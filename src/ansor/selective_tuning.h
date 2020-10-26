@@ -28,7 +28,7 @@ public:
         }
 
         static constexpr const char * _type_key = "ansor.SearchCluster";
-        TVM_DECLARE_FINAL_OBJECT_INFO(SearchTaskNode, Object);
+        TVM_DECLARE_FINAL_OBJECT_INFO(SearchClusterNode, Object);
 };  // class SearchClusterNode
 
 
