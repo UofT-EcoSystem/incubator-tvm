@@ -97,34 +97,6 @@ TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchTask")
   return Array<ObjectRef>{sch, return_tensors};
 });
 
-
-// <bojian/TVM-SymbolicTuning>
-void
-AutoScheduleCluster(SearchCluster cluster,
-                    ClusterSearchPolicy cluster_search_policy,
-                    TuneOption tune_option) {
-  // search for the best schedule
-  ProgramMeasurer measurer =
-      ProgramMeasurer(tune_option->builder,
-                      tune_option->runner,
-                      tune_option->measure_callbacks,
-                      tune_option->verbose);
-  Array<State> states = cluster_search_policy->Search(
-      cluster, measurer,
-      tune_option->n_trials,
-      tune_option->early_stopping,
-      tune_option->num_measure_per_iter,
-      tune_option->pre_search_callbacks);
-}
-
-TVM_REGISTER_GLOBAL("ansor.AutoScheduleByCluster")
-    .set_body_typed([](SearchCluster cluster,
-                       ClusterSearchPolicy cluster_search_policy,
-                       TuneOption tune_option) {
-      AutoScheduleCluster(cluster, cluster_search_policy, tune_option);
-    });
-
-
 TVM_REGISTER_GLOBAL("ansor.AutoScheduleByWorkloadKey")
 .set_body_typed([](std::string workload_key, Target target,
                    Target target_host, SearchPolicy search_policy,

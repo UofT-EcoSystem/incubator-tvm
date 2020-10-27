@@ -83,6 +83,10 @@ class SelectiveTuningABC(ABC):
         return centroids, labels
 
     @classmethod
+    def MakeSearchCluster(cls, search_tasks):
+        pass
+
+    @classmethod
     def MarkDepend(cls, search_tasks):
         logger.info("Marking dependent tasks")
         centroids, labels = cls.ClusterPSM(search_tasks)
@@ -99,7 +103,7 @@ class SelectiveTuningABC(ABC):
         logger.info("Select {} tasks over {} tasks"
                     .format(sum([1 if task.dependent == task else 0
                                  for task in search_tasks]), len(search_tasks)))
-        return task
+        return cls.MakeSearchCluster(search_tasks)
 
 
 class SelectiveTuning(SelectiveTuningABC):

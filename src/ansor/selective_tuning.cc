@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "auto_schedule.h"
 #include "utils.h"
 #include "search_policy/utils.h"
 #include "transform_step.h"
@@ -544,6 +545,35 @@ TVM_REGISTER_GLOBAL("ansor.ClusterSearchPolicy")
         .set_body_typed([](CostModel program_cost_model, int seed)
                         {
                                 return ClusterSearchPolicy(program_cost_model, seed);
+                        });
+
+
+void
+AutoScheduleSearchCluster(SearchCluster cluster,
+                          ClusterSearchPolicy cluster_search_policy,
+                          TuneOption tune_option)
+{
+        // search for the best schedule
+        ProgramMeasurer measurer =
+                ProgramMeasurer(tune_option->builder,
+                                tune_option->runner,
+                                tune_option->measure_callbacks,
+                                tune_option->verbose);
+        Array < State > states = cluster_search_policy->Search(
+                cluster, measurer,
+                tune_option->n_trials,
+                tune_option->early_stopping,
+                tune_option->num_measure_per_iter,
+                tune_option->pre_search_callbacks);
+}
+
+
+TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchCluster")
+        .set_body_typed([](SearchCluster cluster,
+                           ClusterSearchPolicy cluster_search_policy,
+                           TuneOption tune_option)
+                        {
+                                AutoScheduleSearchCluster(cluster, cluster_search_policy, tune_option);
                         });
 
 

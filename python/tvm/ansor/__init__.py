@@ -47,4 +47,5 @@ from .env import GLOBAL_SCOPE
 # <bojian/TVM-SymbolicTuning>
 from .selective_tuning import SelectiveTuning, \
         SearchCluster, \
-        ClusterSearchPolicy
+        ClusterSearchPolicy, \
+        auto_schedule_cluster
