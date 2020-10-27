@@ -13,10 +13,18 @@ logger = logging.getLogger(__name__)
 
 @tvm._ffi.register_object("ansor.SearchCluster")
 class SearchCluster(Object):
-    def __init__(tasks, representative):
+    def __init__(self, tasks, sketches, repr_idx):
         self.__init_handle_by_constructor__(
                 _ffi_api.SearchCluster, 
-                tasks, representative)
+                tasks, sketches, repr_idx)
+
+
+@tvm._ffi.register_object("ansor.ClusterSearchPolicy")
+class ClusterSearchPolicy(Object):
+    def __init__(self, program_cost_model, seed):
+        self.__init_handle_by_constructor__(
+                _ffi_api.ClusterSearchPolicy,
+                program_cost_model, seed)
 
 
 class SelectiveTuning(SelectiveTuningABC):

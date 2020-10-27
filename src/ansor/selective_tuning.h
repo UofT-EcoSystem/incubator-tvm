@@ -36,7 +36,7 @@ class SearchCluster : public ObjectRef
 {
 public:
         SearchCluster(Array < SearchTask > tasks,
-                      Array < Array < State > > shared_sketch,
+                      Array < Array < State > > sketches,
                       const int repr_idx);
         TVM_DEFINE_OBJECT_REF_METHODS(SearchCluster, ObjectRef,  
                                       SearchClusterNode);
@@ -91,6 +91,9 @@ public:
 };
 
 
+class ClusterSearchPolicy;
+
+
 class ClusterSearchPolicyNode : public Object
 {
 private:
@@ -105,6 +108,7 @@ private:
         static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
         static constexpr bool C_DISABLE_CHANGE_COMPUTE_LOCATION = false;
 
+        CostModel _program_cost_model;
         std::mt19937 _rng;
         std::vector < State > _measured_states_vec;
 
@@ -146,13 +150,16 @@ public:
                Array < SearchCallback > pre_search_callbacks);
         static constexpr const char * const _type_key = "ansor.ClusterSearchPolicy";
         TVM_DECLARE_BASE_OBJECT_INFO(ClusterSearchPolicyNode, Object);
+
+        friend class ClusterSearchPolicy;
 };  // class ClusterSearchPolicyNode
 
 class ClusterSearchPolicy : public ObjectRef
 {
 public:
-    TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ClusterSearchPolicy, ObjectRef,
-                                          ClusterSearchPolicyNode);
+        ClusterSearchPolicy(CostModel program_cost_model, int seed);
+        TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ClusterSearchPolicy, ObjectRef,
+                                              ClusterSearchPolicyNode);
 };
 
         }  // namespace ansor

@@ -526,5 +526,26 @@ ClusterSearchPolicyNode::Search(
 }
 
 
+ClusterSearchPolicy::ClusterSearchPolicy(
+        CostModel program_cost_model,
+        const int seed)
+{
+        ObjectPtr < ClusterSearchPolicyNode > node
+                = make_object < ClusterSearchPolicyNode > ();
+        node->_program_cost_model = program_cost_model;
+        node->_rng = std::mt19937(seed);
+        data_ = node;
+}
+
+
+TVM_REGISTER_NODE_TYPE(ClusterSearchPolicyNode);
+
+TVM_REGISTER_GLOBAL("ansor.ClusterSearchPolicy")
+        .set_body_typed([](CostModel program_cost_model, int seed)
+                        {
+                                return ClusterSearchPolicy(program_cost_model, seed);
+                        });
+
+
         }  // namespace ansor
 }  // namespace tvm
