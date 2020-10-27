@@ -76,24 +76,25 @@ class SelectiveTuningABC(ABC):
         centroids = []
         for cluster in clusters:
             if cluster:
-                centroids.append(max(cluster, key=lambda tidx: _weight_sum(tidx, cluster)))
+                centroids.append(max(enumerate(cluster),
+                                     key=lambda i_tidx_pair: _weight_sum(i_tidx_pair[1], cluster)))
             else:  # empty cluster
-                centroids.append(-1)
+                centroids.append((-1, -1))
         logger.info("centroids={}, labels={}".format(centroids, labels))
-        return centroids, labels
+        return clusters, centroids, labels
 
     @classmethod
-    def MakeSearchCluster(cls, search_tasks):
+    def MakeSearchClusters(cls, search_tasks,
+                           clusters, centroids):
         pass
 
     @classmethod
     def MarkDepend(cls, search_tasks):
         logger.info("Marking dependent tasks")
-        centroids, labels = cls.ClusterPSM(search_tasks)
-        dependents = []
+        clusters, centroids, labels = cls.ClusterPSM(search_tasks)
         for tidx, task in enumerate(search_tasks):
             if labels[tidx] != -1:
-                repr_idx = centroids[labels[tidx]]
+                repr_idx = centroids[labels[tidx]][1]
                 representative = search_tasks[repr_idx]
                 logger.info("centroid={} (ReprTaskIdx={}) <= Task={} (TaskIdx={})"
                             .format(representative, repr_idx, task, tidx))
@@ -103,7 +104,7 @@ class SelectiveTuningABC(ABC):
         logger.info("Select {} tasks over {} tasks"
                     .format(sum([1 if task.dependent == task else 0
                                  for task in search_tasks]), len(search_tasks)))
-        return cls.MakeSearchCluster(search_tasks)
+        return cls.MakeSearchClusters(search_tasks, clusters, centroids)
 
 
 class SelectiveTuning(SelectiveTuningABC):

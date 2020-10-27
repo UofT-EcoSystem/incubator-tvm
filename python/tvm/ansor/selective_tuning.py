@@ -47,7 +47,17 @@ class SelectiveTuning(SelectiveTuningABC):
             return 0.
     
     @classmethod
-    def MakeSearchCluster
+    def MakeSearchClusters(cls, search_tasks, clusters, centroids):
+        search_clusters = []
+        for cidx, cluster in enumerate(clusters):
+            if cluster:
+                tasks, sketches = [], []
+                for tidx in cluster:
+                    tasks.append(search_tasks[tidx])
+                    sketches.append(
+                            search_tasks[tidx].initial_sketch_state)
+                search_clusters.append(SearchCluster(tasks, sketches, centroids[cidx][0]))
+        return search_clusters
 
 
 def auto_schedule_cluster(search_cluster, cluster_search_policy,
