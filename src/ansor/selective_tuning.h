@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_map>
 
+#include "cost_model/cost_model.h"
 #include "search_policy/search_policy.h"
 
 
