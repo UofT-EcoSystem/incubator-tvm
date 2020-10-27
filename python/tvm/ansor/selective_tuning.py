@@ -45,6 +45,9 @@ class SelectiveTuning(SelectiveTuningABC):
             return 1.
         else:
             return 0.
+    
+    @classmethod
+    def MakeSearchCluster
 
 
 def auto_schedule_cluster(search_cluster, cluster_search_policy,

@@ -50,7 +50,7 @@ class SelectiveTuningABC(ABC):
             if len(assigned_cluster[tidx]) == 1:
                 cidx = assigned_cluster[tidx][0][0]
                 clusters[cidx].add(tidx)
-                assgined_cluster[tidx][1] = cidx
+                assigned_cluster[tidx][1] = cidx
 
         def _weight_sum(primary_tidx, target_tidxs):
             return sum([cls.psm[primary_tidx][target_tidx] for target_tidx in target_tidxs])
