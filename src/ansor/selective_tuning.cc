@@ -51,7 +51,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                         const SearchClusterNode * const node
                                 = static_cast < const SearchClusterNode * > (ref.get());
                         p->stream << "class [SearchCluster] with "
-                                  << node->tasks.size() << " search tasks";
+                                  << node->tasks.size() << " search tasks (repr_idx="
+                                  << node->repr_idx << "), "
+                                  << "all with initial sketch state "
+                                  << node->sketches[node->repr_idx][0];
                 }
         );
 
