@@ -53,8 +53,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                         p->stream << "class [SearchCluster] with "
                                   << node->tasks.size() << " search tasks (repr_idx="
                                   << node->repr_idx << "), "
-                                  << "all with initial sketch state "
-                                  << node->sketches[node->repr_idx][0];
+                                  << "all with initial sketch state {"
+                                  << node->sketches[node->repr_idx][0] << "}";
                 }
         );
 
@@ -478,14 +478,18 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                         tmp_states.push_back(sketch[rand_sketch_idx]);
                 }
                 InitPopulationFillTileSize(&tmp_states);
+                LOG(INFO) << "Finished initializing the tile sizes";
                 if (InitPopulationThreadBind(&tmp_states))
                 {
                         failed_attempts += 1;
                         continue;
                 }
+                LOG(INFO) << "Finished initializing the thread bindings";
                 InitPopulationUnroll(&tmp_states);
+                LOG(INFO) << "Finished initializing the unrolling factors";
                 out_states->push_back(std::move(tmp_states));
         }
+        LOG(INFO) << "Finished sampling the initial population";
 }
 
 
