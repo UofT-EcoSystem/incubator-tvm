@@ -6,6 +6,8 @@ import tvm._ffi
 from ..autotvm import SelectiveTuningABC
 from ..runtime import Object
 from . import _ffi_api
+from .auto_schedule import SketchSearchPolicy
+from .cost_model.xgb_model import XGBModel
 
 import logging
 logger = logging.getLogger(__name__)
@@ -28,8 +30,14 @@ class ClusterSearchPolicy(Object):
 
 
 class SelectiveTuning(SelectiveTuningABC):
-    @classmethod
-    def ComputePairwiseSimilarity(cls, taskA, taskB):
+    __slots__ = 'search_policy'
+
+    def __init__(self):
+        self.search_policy = SketchSearchPolicy(
+                program_cost_model=XGBModel(seed=0),
+                seed=0)
+
+    def ComputePairwiseSimilarity(self, taskA, taskB):
         """
         Compute the similarity between two tasks.
 
@@ -40,14 +48,22 @@ class SelectiveTuning(SelectiveTuningABC):
         compared for similarity if they share the same initial sketch). This
         heuristic is subject to change in hte future.
         """
-        if _ffi_api.StateCmp(taskA.initial_sketch_state,
-                             taskB.initial_sketch_state):
+        if _ffi_api.StateCmp(taskA.sketch_states[0],
+                             taskB.sketch_states[0]):
             return 1.
         else:
             return 0.
-    
-    @classmethod
-    def MakeSearchClusters(cls, search_tasks, clusters, centroids):
+
+    def Annotate(self, search_task):
+        """
+        Annotate a search task with its own sketch states.
+        """
+        sketch_states = self.search_policy.generate_sketches(task=search_task)
+        logger.info("Search Task={}, Initial Sketch State={}"
+                    .format(search_task, sketch_states[0]))
+        search_task.sketch_states = sketch_states
+
+    def MakeSearchClusters(self, search_tasks, clusters, centroids):
         search_clusters = []
         for cidx, cluster in enumerate(clusters):
             if cluster:
@@ -55,7 +71,7 @@ class SelectiveTuning(SelectiveTuningABC):
                 for tidx in cluster:
                     tasks.append(search_tasks[tidx])
                     sketches.append(
-                            search_tasks[tidx].initial_sketch_state)
+                            search_tasks[tidx].sketch_states)
                 search_clusters.append(SearchCluster(tasks, sketches, centroids[cidx][0]))
         return search_clusters
 

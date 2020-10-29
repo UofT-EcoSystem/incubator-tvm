@@ -9,32 +9,29 @@ from abc import ABC, abstractmethod
 
 
 class SelectiveTuningABC(ABC):
-    @classmethod
     @abstractmethod
-    def ComputePairwiseSimilarity(cls, taskA, taskB):
+    def ComputePairwiseSimilarity(self, taskA, taskB):
         pass
 
-    @classmethod
-    def ComputePSM(cls, search_tasks):
-        cls.psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
+    def ComputePSM(self, search_tasks):
+        self.psm = np.zeros(shape=(len(search_tasks), len(search_tasks)),
                            dtype=np.float32)
         for i, _ in enumerate(search_tasks):
-            cls.psm[i, i] = 1.
+            self.psm[i, i] = 1.
             for j in range(i + 1, len(search_tasks)):
-                cls.psm[i, j] = cls.psm[j, i] = \
-                        cls.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
-        logger.info("psm=\n{}".format(cls.psm))
+                self.psm[i, j] = self.psm[j, i] = \
+                        self.ComputePairwiseSimilarity(search_tasks[i], search_tasks[j])
+        logger.info("psm=\n{}".format(self.psm))
 
-    @classmethod
-    def ClusterPSM(cls, search_tasks):
-        cls.ComputePSM(search_tasks)
+    def ClusterPSM(self, search_tasks):
+        self.ComputePSM(search_tasks)
         import networkx as nx
         # create a graph with task index as nodes and PSM as edge weights
         graph = nx.Graph()
         graph.add_nodes_from(range(len(search_tasks)))
         graph.add_edges_from([(i, j) for i in range(len(search_tasks))
                                      for j in range(i + 1, len(search_tasks))
-                                     if cls.psm[i, j] > 0.])
+                                     if self.psm[i, j] > 0.])
         # cluster assignment for each task
         assigned_cluster = [([], None) for _ in range(len(search_tasks))]
         # find cliques and initailize clusters
@@ -53,7 +50,7 @@ class SelectiveTuningABC(ABC):
                 assigned_cluster[tidx][1] = cidx
 
         def _weight_sum(primary_tidx, target_tidxs):
-            return sum([cls.psm[primary_tidx][target_tidx] for target_tidx in target_tidxs])
+            return sum([self.psm[primary_tidx][target_tidx] for target_tidx in target_tidxs])
 
         changed = True
         while changed:
@@ -83,15 +80,17 @@ class SelectiveTuningABC(ABC):
         logger.info("centroids={}, labels={}".format(centroids, labels))
         return clusters, centroids, labels
 
-    @classmethod
-    def MakeSearchClusters(cls, search_tasks,
-                           clusters, centroids):
+    def Annotate(self, search_task):
         pass
 
-    @classmethod
-    def MarkDepend(cls, search_tasks):
+    def MakeSearchClusters(self, search_tasks, clusters, centroids):
+        pass
+
+    def MarkDepend(self, search_tasks):
         logger.info("Marking dependent tasks")
-        clusters, centroids, labels = cls.ClusterPSM(search_tasks)
+        for search_task in search_tasks:
+            self.Annotate(search_task)
+        clusters, centroids, labels = self.ClusterPSM(search_tasks)
         for tidx, task in enumerate(search_tasks):
             if labels[tidx] != -1:
                 repr_idx = centroids[labels[tidx]][1]
@@ -104,12 +103,11 @@ class SelectiveTuningABC(ABC):
         logger.info("Select {} tasks over {} tasks"
                     .format(sum([1 if task.dependent == task else 0
                                  for task in search_tasks]), len(search_tasks)))
-        return cls.MakeSearchClusters(search_tasks, clusters, centroids)
+        return self.MakeSearchClusters(search_tasks, clusters, centroids)
 
 
 class SelectiveTuning(SelectiveTuningABC):
-    @classmethod
-    def ComputePairwiseSimilarity(cls, taskA, taskB):
+    def ComputePairwiseSimilarity(self, taskA, taskB):
         """
         Compare the pairwise similarity metric between two tasks.
         """
