@@ -44,6 +44,17 @@ TVM_REGISTER_GLOBAL("ansor.SearchCluster")
                         return SearchCluster(tasks, sketches, repr_idx);
                 });
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+        .set_dispatch < SearchClusterNode > (
+                [](const ObjectRef & ref, ReprPrinter * p)
+                {
+                        const SearchClusterNode * const node
+                                = static_cast < const SearchClusterNode * > (ref.get());
+                        p->stream << "class [SearchCluster] with "
+                                  << node->tasks.size() << " search tasks";
+                }
+        );
+
 
 constexpr double ClusterSearchPolicyNode::C_EPS_GREEDY;
 constexpr int ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_POPULATION;
@@ -553,6 +564,7 @@ AutoScheduleSearchCluster(SearchCluster cluster,
                           ClusterSearchPolicy cluster_search_policy,
                           TuneOption tune_option)
 {
+        LOG(INFO) << "Auto-scheduling " << cluster;
         // search for the best schedule
         ProgramMeasurer measurer =
                 ProgramMeasurer(tune_option->builder,
