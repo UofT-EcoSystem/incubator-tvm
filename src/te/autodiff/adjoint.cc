@@ -39,12 +39,8 @@
 #include <memory>
 #include <vector>
 
-<<<<<<< HEAD
 #include "cse.h"
 #include "ad_utils.h"
-=======
-#include "ad_util.h"
->>>>>>> Removed autoinliner and Merge CSE as part of the ad_util.
 
 namespace tvm {
 namespace te {
