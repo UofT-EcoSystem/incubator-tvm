@@ -39,7 +39,6 @@
 #include <memory>
 #include <vector>
 
-#include "cse.h"
 #include "ad_utils.h"
 
 namespace tvm {

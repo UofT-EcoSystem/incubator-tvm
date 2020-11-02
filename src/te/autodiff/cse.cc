@@ -21,7 +21,7 @@
  * \file cse.cc
  * \brief Common subexpression elimination
  */
-#include "ad_util.h"
+#include "ad_utils.h"
 
 #include <sstream>
 
@@ -60,19 +60,18 @@ struct TensorExprNode {
   using FCompare = NodeFunctor<bool(const ObjectRef&, const TensorExprNode&,
                                     const TensorExprNode* const)>;
   static FCompare & cmptable() {
-    static FCompare inst;
-    return inst; 
+    static FCompare instance;
+    return instance; 
   }
-  bool Compare_(const CallNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const PlaceholderOpNode* const op,
-                const TensorExprNode& other) const;
-  bool Compare_(const AddNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const SubNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const MulNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const DivNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const ReduceNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const IntImmNode* const op, const TensorExprNode& other) const;
-  bool Compare_(const FloatImmNode* const op, const TensorExprNode& other) const;
+  bool Compare_(const CallNode* const, const TensorExprNode&) const;
+  bool Compare_(const PlaceholderOpNode* const, const TensorExprNode&) const;
+  bool Compare_(const AddNode* const, const TensorExprNode&) const;
+  bool Compare_(const SubNode* const, const TensorExprNode&) const;
+  bool Compare_(const MulNode* const, const TensorExprNode&) const;
+  bool Compare_(const DivNode* const, const TensorExprNode&) const;
+  bool Compare_(const ReduceNode* const, const TensorExprNode&) const;
+  bool Compare_(const IntImmNode* const, const TensorExprNode&) const;
+  bool Compare_(const FloatImmNode* const, const TensorExprNode&) const;
 
   /*! \brief Compare two tensor expression subtree.
    */
@@ -90,29 +89,44 @@ struct TensorExprNode {
 class CSEOptimizer;
 
 /*!
- * \brief The \c TensorExprTree constructs a tensor expression tree out of 
- * 
- * 
+ * \brief The \c TensorExprTree constructs a tree-like structure from a tensor expression.
  */
 class TensorExprTree {
+ public:
+  using FConstruct = NodeFunctor<void(const ObjectRef&, TensorExprNode* const,
+                                      TensorExprTree* const)>
+  static FConstruct& cstrtable() {
+    static FConstruct instance;
+    return instance;
+  }
+  void Construct_(const CallNode* const, TensorExprNode* const);
+  void Construct_(const ProducerLoadNode* const, TensorExprNode* const);
+  void Construct_(const AddNode* const, TensorExprNode* const);
+  void Construct_(const SubNode* const, TensorExprNode* const);
+  void Construct_(const MulNode* const, TensorExprNode* const);
+  void Construct_(const DivNode* const, TensorExprNode* const);
+  void Construct_(const ReduceNode* const, TensorExprNode* const);
+  void Construct_(const IntImmNode* const, TensorExprNode* const);
+  void Construct_(const FloatImmNode* const, TensorExprNode* const);
+
+  /*! \brief 
+   */
+  TensorExprPtr Construct(const ObjectRef& ref);
  private:
   
- public:
-  TensorExprTree(const Tensor& tensor) {
-
-  }
 };  // class TensorExprConstr
 
 
 /*!
- * \brief The \c CSEOptimizer eliminates the common subexpressions between the source and target
- *        tensor. It is constructed from a source tensor expresssion
+ * \brief The \c CSEOptimizer eliminates the common subexpressions between the
+ *        source and target tensor.
  */
 class CSEOptimizer {
- private:
-  TensorExprTree src, tgt;
  public:
   CSEOptimizer(const Tensor& src);
+ private:
+  TensorExprTree src_tensor_expr_tree_,
+                 tgt_tensor_expr_tree_;
 };  // class CSEOptimizer
 
 
@@ -121,20 +135,22 @@ class CSEOptimizer {
 
 std::pair<Tensor, std::vector<Tensor> >
 CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
-  // 1. Apply auto-inliner to inline the injective operations. The point is to simplify the
-  //    tensor expressions, and particularly tensor indices.
+  // 1. Apply auto-inliner to inline the injective operations. The point is to
+  //    simplify the tensor expressions, and particularly tensor indices.
   
   // 2. Remove the common subexpresssions between the input gradients.
   for (const Tensor& input_grad : input_grads) {
 
   }
+  // 3. Remove the common subexpressions between the input gradients and output.
+  //    This is in essence infering the backward dependency.
   return std::make_pair(output, input_grads);
 }
 
 
-/**************************************************************************************************
+/*******************************************************************************
  * TensorExprTree/Node
- **************************************************************************************************/
+ *******************************************************************************/
 bool TensorExprNode::Compare_(
     const CallNode* const opnode,
     const TensorExprNode& other) const {
@@ -213,14 +229,14 @@ set_dispatch<OpNode>([](const ObjectRef& opref, const TensorExprNode& other,  \
 })
 
 TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
-    .DISPATCH_TO_CMP(CallNode)
-    .DISPATCH_TO_CMP(PlaceholderOpNode)
-    .DISPATCH_TO_CMP(AddNode)
-    .DISPATCH_TO_CMP(SubNode)
-    .DISPATCH_TO_CMP(MulNode)
-    .DISPATCH_TO_CMP(DivNode)
-    .DISPATCH_TO_CMP(ReduceNode)
-    .DISPATCH_TO_CMP(IntImmNode)
-    .DISPATCH_TO_CMP(FloatImmNode);
+.DISPATCH_TO_CMP(CallNode)
+.DISPATCH_TO_CMP(PlaceholderOpNode)
+.DISPATCH_TO_CMP(AddNode)
+.DISPATCH_TO_CMP(SubNode)
+.DISPATCH_TO_CMP(MulNode)
+.DISPATCH_TO_CMP(DivNode)
+.DISPATCH_TO_CMP(ReduceNode)
+.DISPATCH_TO_CMP(IntImmNode)
+.DISPATCH_TO_CMP(FloatImmNode);
 }  // namespace te
 }  // namespace tvm
