@@ -164,6 +164,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
         for (size_t step_idx = 0; step_idx < repr_state->transform_steps.size();
              ++step_idx)
         {
+                LOG(INFO) << "step_idx=" << step_idx;
                 if (const SplitStepNode * const repr_split_step =
                     repr_state->transform_steps[step_idx].as < SplitStepNode > ())
                 {
