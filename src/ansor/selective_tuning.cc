@@ -10,6 +10,8 @@
 #include "transform_step.h"
 
 
+#define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << var
+
 namespace tvm {
         namespace ansor {
 
@@ -160,7 +162,11 @@ int
 ClusterSearchPolicyNode::InitPopulationFillTileSize(
         std::vector < State > * const pstates)
 {
+        DEBUG_LOG_VAR(cur_cluster->repr_idx);
+        DEBUG_LOG_VAR(pstates->size());
         State & repr_state = (*pstates)[cur_cluster->repr_idx];
+        DEBUG_LOG_VAR(repr_state);
+        DEBUG_LOG_VAR(repr_state->transform_steps.size());
         for (size_t step_idx = 0; step_idx < repr_state->transform_steps.size();
              ++step_idx)
         {
@@ -472,7 +478,8 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                failed_attempts < out_size)
         {
                 int rand_sketch_idx = _rng() % (cur_cluster->sketches[0].size());
-                std::vector < State > tmp_states(cur_cluster->tasks.size());
+                std::vector < State > tmp_states;
+                DEBUG_LOG_VAR(cur_cluster->sketches.size());
                 for (const Array < State > & sketch : cur_cluster->sketches)
                 {
                         tmp_states.push_back(sketch[rand_sketch_idx]);
