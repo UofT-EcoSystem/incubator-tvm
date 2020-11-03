@@ -195,6 +195,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 extents.push_back(GetIntImm(split_step->extent));
                         }
                         
+                        LOG(INFO) << "Attempting to get the factorization schemes";
                         const ClusterSplitFactorCache::VT & candidates =
                                 _split_factor_cache.GetFactorizationSchemes(
                                         extents, num_lengths,
@@ -470,13 +471,12 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                failed_attempts < out_size)
         {
                 int rand_sketch_idx = _rng() % (cur_cluster->sketches[0].size());
-                State tmp_repr_state
-                        = cur_cluster->sketches[cur_cluster->repr_idx][rand_sketch_idx];
                 std::vector < State > tmp_states(cur_cluster->tasks.size());
                 for (const Array < State > & sketch : cur_cluster->sketches)
                 {
                         tmp_states.push_back(sketch[rand_sketch_idx]);
                 }
+                LOG(INFO) << "Finished selecting the random sketch states";
                 InitPopulationFillTileSize(&tmp_states);
                 LOG(INFO) << "Finished initializing the tile sizes";
                 if (InitPopulationThreadBind(&tmp_states))
@@ -508,6 +508,7 @@ ClusterSearchPolicyNode::SearchOneRound(
                                    C_EVOLUTIONARY_SEARCH_POPULATION));
         // sample the initial population
         std::vector < std::vector < State > > init_population;
+        LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
 }
@@ -528,6 +529,7 @@ ClusterSearchPolicyNode::Search(
 
         // if (num_trials <= 1) 
         // {
+                LOG(INFO) << "Starting to search for one round";
                 SearchOneRound(&best_states, 0, &random_states);
 
                 std::vector < State > best_state_per_task(cluster->tasks.size());
