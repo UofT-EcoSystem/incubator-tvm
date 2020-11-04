@@ -386,11 +386,14 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 if (GetExtent(vthread_iter) > 
                                     task->hardware_params->max_vthread_extent)
                                 {
+                                        LOG(WARNING) << "vthread.extent=" << GetExtent(vthread_iter) << " > "
+                                                     << task->hardware_params->max_vthread_extent;
                                         return -1;
                                 }
                                 state.bind_thread(stage_idx, vthread_iter, kVThread);
 
                                 // 3. Fuse the third outermost space tile as threadIdx.
+                                to_fuse.clear();
                                 for (size_t i = 2; i < compute_op->axis.size() + 2; i++)
                                 {
                                         const auto & iter = state->stages[stage_idx]->iters[i];
@@ -404,6 +407,8 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 if (GetExtent(threadidx_iter) < 
                                     task->hardware_params->warp_size)
                                 {
+                                        LOG(WARNING) << "threadIdx.extent=" << GetExtent(threadidx_iter) << " < "
+                                                     << task->hardware_params->warp_size;
                                         return -1;
                                 }
                                 state.bind_thread(stage_idx, threadidx_iter, kThreadX);
