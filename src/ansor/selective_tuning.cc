@@ -560,7 +560,7 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                         tmp_states.push_back(sketch[rand_sketch_idx]);
                 }
                 LOG(INFO) << "Finished selecting the random sketch states";
-                
+                InitPopulationFillTileSize(&tmp_states);
                 for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                      ++task_idx)
                 {
@@ -568,8 +568,6 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                                 = cur_cluster->tasks[task_idx]
                                              ->compute_dag.InferBound(tmp_states[task_idx]);
                 }
-
-                InitPopulationFillTileSize(&tmp_states);
                 LOG(INFO) << "Finished initializing the tile sizes";
                 if (InitPopulationThreadBind(&tmp_states))
                 {
@@ -582,6 +580,9 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 out_states->push_back(std::move(tmp_states));
         }
         LOG(INFO) << "Finished sampling the initial population";
+        LOG(INFO) << "Available # of candidates: " << out_states->size();
+        CHECK(out_states->size() != 0)
+                << "Failed to sample the initial population";
 }
 
 
