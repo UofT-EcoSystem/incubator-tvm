@@ -11,16 +11,19 @@
 #include "transform_step.h"
 
 
+template < typename T >
+inline std::string toString(const std::vector < T > & vec)
+{
+        std::ostringstream strout;
+        strout << "{";
+        for (const auto & v : vec)
+                strout << v << ", ";
+        strout << "}";
+        return strout.str();
+}
+
 #define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << var
-#define DEBUG_LOG_VEC(vec)              \
-do {                                    \
-        std::ostringstream strout;      \
-        strout << #vec "={";            \
-        for (const auto & v : vec)      \
-                strout << v << ", ";    \
-        strout << "}";                  \
-        LOG(INFO) << strout.str();      \
-} while (false);
+#define DEBUG_LOG_VEC(vec)  LOG(INFO) << #vec "=" << toString(vec)
 
 
 namespace tvm {
@@ -223,6 +226,10 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                                    ->hardware_params
                                                    ->max_innermost_split_factor);
                         LOG(INFO) << "Finished getting the factorization schemes";
+                        CHECK(candidates.size() != 0)
+                                << "Failed to get any factorization scheme "
+                                   "for extents=" << toString(extents) << ", "
+                                << "length=" << num_lengths;
 
                         // make sure that the dimensions are correct
                         for (const ClusterSplitFactorCache::StackT &
@@ -236,6 +243,8 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 }
                         }  // for (candidate ∈ candidates)
 
+                        LOG(INFO) << "Randomly picking the factorization schemes";
+
                         size_t rand_candidate_idx = _rng() % candidates.size();
                         for (size_t task_idx = 0; task_idx < extents.size(); ++task_idx)
                         {
@@ -245,17 +254,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                         lengths.push_back(candidates[rand_candidate_idx][len_idx][task_idx]);
                                 }
 
-                                auto GetSplitLength = [](const PrimExpr & e)
-                                                      {
-                                                              
-                                                      }
-                                std::ostringstream strout;
-                                strout << "lengths={";
-                                for (const auto & v : lengths)
-                                        strout << v << ", ";
-                                strout << "}";
-                                LOG(INFO) << strout.str();
-
+                                DEBUG_LOG_VEC(lengths);
 
                                 StateNode * pstate = (*pstates)[task_idx].CopyOnWrite();
                                 const SplitStepNode * const split_step
