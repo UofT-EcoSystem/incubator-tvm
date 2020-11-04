@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+#include <sstream>
 
 #include "auto_schedule.h"
 #include "utils.h"
@@ -11,6 +12,16 @@
 
 
 #define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << var
+#define DEBUG_LOG_VEC(vec)              \
+do {                                    \
+        std::ostringstream strout;      \
+        strout << #vec "={";            \
+        for (const auto & v : vec)      \
+                strout << v << ", ";    \
+        strout << "}";                  \
+        LOG(INFO) << strout.str();      \
+} while (false);
+
 
 namespace tvm {
         namespace ansor {
@@ -91,6 +102,7 @@ ClusterSplitFactorCache::GetFactorizationSchemes(
                 std::vector < PrimExpr > (extents.size(), PrimExpr()));
         _ret = &_cache[k];
         DFSEnumerate(extents);
+        DEBUG_LOG_VEC(extents);
         return *_ret;
 }
 
@@ -185,6 +197,8 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         }
                         if (defined)
                         {
+                                LOG(INFO) << "Directly returning as split length "
+                                             "has already been defined";
                                 continue;
                         }
                         std::vector < int > extents;
@@ -201,7 +215,6 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                            "same split lengths with its dependents";
                                 extents.push_back(GetIntImm(split_step->extent));
                         }
-                        
                         LOG(INFO) << "Attempting to get the factorization schemes";
                         const ClusterSplitFactorCache::VT & candidates =
                                 _split_factor_cache.GetFactorizationSchemes(
@@ -209,6 +222,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                         cur_cluster->tasks[cur_cluster->repr_idx]
                                                    ->hardware_params
                                                    ->max_innermost_split_factor);
+                        LOG(INFO) << "Finished getting the factorization schemes";
 
                         // make sure that the dimensions are correct
                         for (const ClusterSplitFactorCache::StackT &
@@ -230,6 +244,19 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 {
                                         lengths.push_back(candidates[rand_candidate_idx][len_idx][task_idx]);
                                 }
+
+                                auto GetSplitLength = [](const PrimExpr & e)
+                                                      {
+                                                              
+                                                      }
+                                std::ostringstream strout;
+                                strout << "lengths={";
+                                for (const auto & v : lengths)
+                                        strout << v << ", ";
+                                strout << "}";
+                                LOG(INFO) << strout.str();
+
+
                                 StateNode * pstate = (*pstates)[task_idx].CopyOnWrite();
                                 const SplitStepNode * const split_step
                                         = (*pstates)[task_idx]->transform_steps[step_idx].as < SplitStepNode > ();
