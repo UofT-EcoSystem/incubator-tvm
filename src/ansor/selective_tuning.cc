@@ -105,7 +105,9 @@ ClusterSplitFactorCache::GetFactorizationSchemes(
                 std::vector < PrimExpr > (extents.size(), PrimExpr()));
         _ret = &_cache[k];
         DFSEnumerate(extents);
+        
         DEBUG_LOG_VEC(extents);
+        
         return *_ret;
 }
 
@@ -161,7 +163,7 @@ ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
                 if (std::all_of(extents.begin(), extents.end(),
                                 [f](const int extent) -> int
                                 {
-                                        return extent % f;
+                                        return (extent % f) == 0;
                                 }))
                 {
                         cluster_factors.push_back(f);
@@ -179,13 +181,15 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 {
         DEBUG_LOG_VAR(cur_cluster->repr_idx);
         DEBUG_LOG_VAR(pstates->size());
+
         State & repr_state = (*pstates)[cur_cluster->repr_idx];
+        
         DEBUG_LOG_VAR(repr_state);
         DEBUG_LOG_VAR(repr_state->transform_steps.size());
+        
         for (size_t step_idx = 0; step_idx < repr_state->transform_steps.size();
              ++step_idx)
         {
-                LOG(INFO) << "step_idx=" << step_idx;
                 if (const SplitStepNode * const repr_split_step =
                     repr_state->transform_steps[step_idx].as < SplitStepNode > ())
                 {
@@ -218,13 +222,18 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                            "same split lengths with its dependents";
                                 extents.push_back(GetIntImm(split_step->extent));
                         }
-                        LOG(INFO) << "Attempting to get the factorization schemes";
+                        
+                        LOG(INFO) << "Attempting to get the factorization schemes "
+                                  << "for extents=" << toString(extents) << ", "
+                                  << "length=" << num_lengths;
+                        
                         const ClusterSplitFactorCache::VT & candidates =
                                 _split_factor_cache.GetFactorizationSchemes(
                                         extents, num_lengths,
                                         cur_cluster->tasks[cur_cluster->repr_idx]
                                                    ->hardware_params
                                                    ->max_innermost_split_factor);
+                        
                         LOG(INFO) << "Finished getting the factorization schemes";
                         CHECK(candidates.size() != 0)
                                 << "Failed to get any factorization scheme "
@@ -560,6 +569,16 @@ ClusterSearchPolicyNode::Search(
                 best_states  (cluster->tasks.size()),
                 random_states(cluster->tasks.size());
         this->cur_cluster = cluster;
+
+        /*
+        SplitFactorizationMemo split_memo;
+        std::vector < std::vector < PrimExpr > > factor_schemes
+                = split_memo.GetFactorizationSchemes(10, 4, 50);
+        for (const auto & scheme : factor_schemes)
+        {
+                DEBUG_LOG_VEC(scheme);
+        }
+         */
 
         // if (num_trials <= 1) 
         // {
