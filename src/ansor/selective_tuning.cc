@@ -15,19 +15,41 @@ template < typename T >
 inline std::string toString(const std::vector < T > & vec)
 {
         std::ostringstream strout;
-        strout << "{";
+        strout << "[";
         for (const auto & v : vec)
                 strout << v << ", ";
-        strout << "}";
+        strout << "]";
         return strout.str();
 }
+
+
+namespace tvm {
+        namespace ansor {
 
 #define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << var
 #define DEBUG_LOG_VEC(vec)  LOG(INFO) << #vec "=" << toString(vec)
 
 
-namespace tvm {
-        namespace ansor {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+        .set_dispatch < IteratorNode > (
+                [](const ObjectRef & ref, ReprPrinter * p)
+                {
+                        const IteratorNode * node
+                                = static_cast < const IteratorNode * > (ref.get());
+                        p->stream << "{Iterator "
+                                     "name="  << node->name  << ", "
+                                     "range=" << node->range << ", "
+                                     "attr="  << node->attr << "}";
+                });
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+        .set_dispatch < StageNode > (
+                [](const ObjectRef & ref, ReprPrinter * p)
+                {
+                        const StageNode * const node
+                                = static_cast < const StageNode * > (ref.get());
+                        p->stream << "{Stage op=" << node->op << "}";
+                }
+        );
 
 
 SearchCluster::SearchCluster(Array < SearchTask > tasks,
@@ -394,7 +416,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 
                                 // 3. Fuse the third outermost space tile as threadIdx.
                                 to_fuse.clear();
-                                for (size_t i = 2; i < compute_op->axis.size() + 2; i++)
+                                for (size_t i = 2; i < compute_op->axis.size() + 2; ++i)
                                 {
                                         const auto & iter = state->stages[stage_idx]->iters[i];
                                         if (!StrEndsWith(iter->name, ".2"))
@@ -402,11 +424,24 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                                 break;
                                         }
                                         to_fuse.push_back(state->stages[stage_idx]->iters[i]);
+                                        LOG(INFO) << "Fusing " << state->stages[stage_idx]->iters[i] << " "
+                                                     "of " << state->stages[stage_idx];
                                 }
+
+                                DEBUG_LOG_VEC(to_fuse);
+
                                 const auto & threadidx_iter = state.fuse(stage_idx, to_fuse);
                                 if (GetExtent(threadidx_iter) < 
                                     task->hardware_params->warp_size)
                                 {
+                                        if (threadidx_iter->range.defined())
+                                        {
+                                                LOG(INFO) << threadidx_iter->range;
+                                        }
+                                        else
+                                        {
+                                                LOG(INFO) << "threadidx_iter range has NOT been defined";
+                                        }
                                         LOG(WARNING) << "threadIdx.extent=" << GetExtent(threadidx_iter) << " < "
                                                      << task->hardware_params->warp_size;
                                         return -1;
@@ -525,6 +560,15 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                         tmp_states.push_back(sketch[rand_sketch_idx]);
                 }
                 LOG(INFO) << "Finished selecting the random sketch states";
+                
+                for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                     ++task_idx)
+                {
+                        tmp_states[task_idx]
+                                = cur_cluster->tasks[task_idx]
+                                             ->compute_dag.InferBound(tmp_states[task_idx]);
+                }
+
                 InitPopulationFillTileSize(&tmp_states);
                 LOG(INFO) << "Finished initializing the tile sizes";
                 if (InitPopulationThreadBind(&tmp_states))
