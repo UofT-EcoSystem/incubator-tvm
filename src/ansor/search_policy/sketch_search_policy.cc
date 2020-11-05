@@ -253,7 +253,14 @@ void SketchSearchPolicyNode::SearchOneRound(std::vector<State>* best_states,
 
   // Sample the init population
   std::vector<State> init_population;
+
+  // <bojian/TVM-SymbolicTuning> Added more loggings.
+  LOG(INFO) << "Sampling the initial population";
+
   SampleInitPopulation(sketch_cache_, population - num_use_measured, &init_population);
+
+  LOG(INFO) << "Finished the sampling";
+  LOG(INFO) << "Size of initial population=" << init_population.size();
 
   // PrintAllStates(init_population);
   // exit(0);

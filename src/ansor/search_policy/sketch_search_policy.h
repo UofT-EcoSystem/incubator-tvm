@@ -103,14 +103,19 @@ class SketchSearchPolicyNode: public SearchPolicyNode {
 
   TVM_DECLARE_FINAL_OBJECT_INFO(SketchSearchPolicyNode, SearchPolicyNode);
 
- protected:
+ // <bojian/TVM-SymbolicTuning> Temporarily open access of SketchSearchPolicyNode's
+ //                             methods for debugging.
+ // protected:
+ public:
   /*! \brief Pick states from best states and random states with eps-greedy policy */
   void PickStatesWithEpsGreedy(std::vector<MeasureInput>* inputs,
                                const std::vector<State>& best_states,
                                const std::vector<State>& random_states,
                                int remaining_n_trials);
 
- private:
+ // <bojian/TVM-SymbolicTuning> 
+ // private:
+ public:
   // Run one round of the search pipeline
   void SearchOneRound(std::vector<State>* best_states,
                       int num_random_states, std::vector<State>* random_states);

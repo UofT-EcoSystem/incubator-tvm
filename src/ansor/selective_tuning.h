@@ -122,9 +122,9 @@ private:
          * @brief Search for one round.
          */
         void SearchOneRound(
-                std::vector < std::vector < State > > * const best_states,
+                std::vector < std::vector < State > > * const pbest_states,
                 const int num_random_states,
-                std::vector < std::vector < State > > * const random_states);
+                std::vector < std::vector < State > > * const prandom_states);
         /**
          * @brief  Initialize the population's (tile sizes/thread bindings/
          *         unrolling factors).
@@ -136,6 +136,11 @@ private:
         int InitPopulationThreadBind(
                 std::vector < State > * const pstates);
         int InitPopulationUnroll(std::vector < State > * const pstates);
+
+        void RandomSampleStates(const std::vector < std::vector < State > > & init_population,
+                                const int num_measures,
+                                std::vector < std::vector < State > > * pbest_states);
+        int _num_measures_per_iter;
 public:
         SearchCluster cur_cluster;
 

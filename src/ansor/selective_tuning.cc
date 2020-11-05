@@ -10,6 +10,8 @@
 #include "search_policy/utils.h"
 #include "transform_step.h"
 
+#include "search_policy/sketch_search_policy.h"
+
 
 template < typename T >
 inline std::string toString(const std::vector < T > & vec)
@@ -380,6 +382,32 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                         = stage->op.as < te::ComputeOpNode > ();
                                 std::vector < Iterator > to_fuse;
 
+                                // The remaining part deals with the thread
+                                // binding for multi-level tiled stages.
+                                int total_space_extent = 1;
+                                for (const auto & i : compute_op->root_iter_vars())
+                                {
+                                        CHECK(i->dom.defined());
+                                        const IntImmNode * const extent
+                                                = i->dom->extent.as < IntImmNode >();
+                                        total_space_extent *= extent->value;
+                                }
+                                // Check if the total space extent is too small for multi-level thread binding.
+                                if (total_space_extent <= task->hardware_params->warp_size)
+                                {
+                                        for (const auto & it : state->stages[stage_idx]->iters)
+                                        {
+                                                if (it->iter_type == kReduce)
+                                                {
+                                                        break;
+                                                }
+                                                to_fuse.push_back(it);
+                                        }
+                                        const auto & fused = state.fuse(stage_idx, to_fuse);
+                                        state.bind_thread(stage_idx, fused, kThreadX);
+                                        continue;
+                                }
+
                                 // 1. Fuse the outermost space tile as blockIdx.
                                 for (size_t i = 0; i < compute_op->axis.size(); ++i)
                                 {
@@ -586,13 +614,35 @@ ClusterSearchPolicyNode::SampleInitPopulation(
 }
 
 
+void
+ClusterSearchPolicyNode::RandomSampleStates(
+        const std::vector < std::vector < State > > & init_population,
+        const int num_measures,
+        std::vector < std::vector < State > > * pbest_states)
+{
+        size_t rand_init_population_idx = _rng() % init_population.size();
+        pbest_states->clear();
+
+        for (int i = 0; i < num_measures; ++i)
+        {
+                pbest_states->emplace_back(cur_cluster->tasks.size());
+                for (size_t task_idx = 0;
+                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                {
+                        pbest_states->back()[task_idx]
+                                = init_population[rand_init_population_idx][task_idx];
+                }
+        }
+}
+
+
 void 
 ClusterSearchPolicyNode::SearchOneRound(
-        std::vector < std::vector < State > > * const best_states,
+        std::vector < std::vector < State > > * const pbest_states,
         const int num_random_states,
-        std::vector < std::vector < State > > * const random_states)
+        std::vector < std::vector < State > > * const prandom_states)
 {
-        best_states->clear(); random_states->clear();
+        pbest_states->clear(); prandom_states->clear();
 
         int num_use_measured
                 = std::min(static_cast < int > (_measured_states_vec.size()),
@@ -604,6 +654,8 @@ ClusterSearchPolicyNode::SearchOneRound(
         LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
+        RandomSampleStates(init_population,  3 * _num_measures_per_iter, pbest_states);
+        RandomSampleStates(init_population, 10 * _num_measures_per_iter, prandom_states);
 }
 
 
@@ -615,10 +667,10 @@ ClusterSearchPolicyNode::Search(
         const int num_measures_per_iter,
         Array < SearchCallback > pre_search_callbacks)
 {
-        std::vector < std::vector < State > > 
-                best_states  (cluster->tasks.size()),
-                random_states(cluster->tasks.size());
+        // [ × cluster_size]
+        std::vector < std::vector < State > > best_states, random_states;
         this->cur_cluster = cluster;
+        _num_measures_per_iter = num_measures_per_iter;
 
         /*
         SplitFactorizationMemo split_memo;
@@ -630,18 +682,27 @@ ClusterSearchPolicyNode::Search(
         }
          */
 
+        Map < String, ObjectRef > params{
+                {String("eps_greedy"), PrimExpr(0.05f)},
+                {String("evolutionary_search_population"), PrimExpr(2048)},
+                {String("evolutionary_search_num_iters"), PrimExpr(10)},
+                {String("evolutionary_search_mutation_prob"), PrimExpr(0.85f)},
+                {String("evolutionary_search_crossover_ratio"), PrimExpr(0.05f)},
+                {String("evolutionary_search_use_measured_ratio"), PrimExpr(0.2f)},
+                {String("cpu_multi_level_tiling_structure"), String("SSRSRS")},
+                {String("gpu_multi_level_tiling_structure"), String("SSSRRSRS")},
+                {String("disable_change_compute_location"), PrimExpr(0)}};
+        SketchSearchPolicy sketch_search_policy(RandomModel(), params, 0);
+        sketch_search_policy->cur_task
+                = this->cur_cluster->tasks[0];
+        std::vector < State > best_states_0, random_states_0;
+        sketch_search_policy->SearchOneRound(&best_states_0, 0, &random_states_0);
+
         // if (num_trials <= 1) 
         // {
                 LOG(INFO) << "Starting to search for one round";
                 SearchOneRound(&best_states, 0, &random_states);
-
-                std::vector < State > best_state_per_task(cluster->tasks.size());
-
-                for (size_t task_idx = 0; task_idx < cluster->tasks.size(); ++task_idx)
-                {
-                        best_state_per_task[task_idx] = best_states[task_idx][0];
-                }
-                return best_state_per_task;
+                return best_states[0];
         // }
         // else  // if (n_trails > 1)
         // {
@@ -671,7 +732,7 @@ TVM_REGISTER_GLOBAL("ansor.ClusterSearchPolicy")
                         });
 
 
-void
+Array < Array < ObjectRef > >
 AutoScheduleSearchCluster(SearchCluster cluster,
                           ClusterSearchPolicy cluster_search_policy,
                           TuneOption tune_option)
@@ -689,6 +750,20 @@ AutoScheduleSearchCluster(SearchCluster cluster,
                 tune_option->early_stopping,
                 tune_option->num_measure_per_iter,
                 tune_option->pre_search_callbacks);
+        std::vector < Array < ObjectRef > > auto_sched_results;
+        for (size_t task_idx = 0; task_idx < cluster->tasks.size();
+             ++task_idx)
+        {
+                auto_sched_results.push_back(Array < ObjectRef > ());
+                te::Schedule sched;
+                Array < te::Tensor > tensors;
+                std::tie(sched, tensors)
+                        = cluster->tasks[task_idx]
+                                 ->compute_dag.ApplySteps(states[task_idx]->transform_steps);
+                auto_sched_results.back().push_back(sched);
+                auto_sched_results.back().push_back(tensors);
+        }
+        return auto_sched_results;
 }
 
 
@@ -696,8 +771,9 @@ TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchCluster")
         .set_body_typed([](SearchCluster cluster,
                            ClusterSearchPolicy cluster_search_policy,
                            TuneOption tune_option)
+                        -> Array < Array < ObjectRef > >
                         {
-                                AutoScheduleSearchCluster(cluster, cluster_search_policy, tune_option);
+                                return AutoScheduleSearchCluster(cluster, cluster_search_policy, tune_option);
                         });
 
 
