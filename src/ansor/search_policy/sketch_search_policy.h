@@ -180,4 +180,21 @@ class PreloadCustomSketchRule : public SearchCallback {
 }  // namespace ansor
 }  // namespace tvm
 
+
+// <bojian/TVM-SymbolicTuning>
+template < typename T >
+inline std::string toString(const std::vector < T > & vec){
+  std::ostringstream strout;
+  strout << "[";
+  for (const auto & v : vec)
+    strout << v << ", ";
+  strout << "]";
+  return strout.str();
+}
+
+// <bojian/TVM-SymbolicTuning>
+#define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << (var)
+#define DEBUG_LOG_VEC(vec)  LOG(INFO) << #vec "=" << toString(vec)
+
+
 #endif  // TVM_ANSOR_SEARCH_POLICY_SKETCH_SEARCH_POLICY_H_

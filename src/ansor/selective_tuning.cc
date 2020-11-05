@@ -13,23 +13,8 @@
 #include "search_policy/sketch_search_policy.h"
 
 
-template < typename T >
-inline std::string toString(const std::vector < T > & vec)
-{
-        std::ostringstream strout;
-        strout << "[";
-        for (const auto & v : vec)
-                strout << v << ", ";
-        strout << "]";
-        return strout.str();
-}
-
-
 namespace tvm {
         namespace ansor {
-
-#define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << var
-#define DEBUG_LOG_VEC(vec)  LOG(INFO) << #vec "=" << toString(vec)
 
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -182,7 +167,7 @@ ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
         ClusterFactorsT & cluster_factors = _factor_cache[extents];
         const int min_extent = *std::min_element(extents.begin(), extents.end());
 
-        for (int f = 1; f < min_extent; ++f)
+        for (int f = 1; f <= min_extent; ++f)
         {
                 if (std::all_of(extents.begin(), extents.end(),
                                 [f](const int extent) -> int
@@ -208,7 +193,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 
         State & repr_state = (*pstates)[cur_cluster->repr_idx];
         
-        DEBUG_LOG_VAR(repr_state);
+        // DEBUG_LOG_VAR(repr_state);
         DEBUG_LOG_VAR(repr_state->transform_steps.size());
         
         for (size_t step_idx = 0; step_idx < repr_state->transform_steps.size();
@@ -392,6 +377,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                                 = i->dom->extent.as < IntImmNode >();
                                         total_space_extent *= extent->value;
                                 }
+                                DEBUG_LOG_VAR(total_space_extent);
                                 // Check if the total space extent is too small for multi-level thread binding.
                                 if (total_space_extent <= task->hardware_params->warp_size)
                                 {
@@ -457,6 +443,9 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 }
 
                                 DEBUG_LOG_VEC(to_fuse);
+                                // std::string dummy_string;
+                                // std::cin >> dummy_string;
+
 
                                 const auto & threadidx_iter = state.fuse(stage_idx, to_fuse);
                                 if (GetExtent(threadidx_iter) < 
@@ -474,6 +463,11 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                                      << task->hardware_params->warp_size;
                                         return -1;
                                 }
+
+                                DEBUG_LOG_VAR(GetExtent(threadidx_iter));
+                                // std::string dummy_string;
+                                // std::cin >> dummy_string;
+
                                 state.bind_thread(stage_idx, threadidx_iter, kThreadX);
                         }
                         else if (stage->compute_at == kIter &&
@@ -655,7 +649,7 @@ ClusterSearchPolicyNode::SearchOneRound(
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
         RandomSampleStates(init_population,  3 * _num_measures_per_iter, pbest_states);
-        RandomSampleStates(init_population, 10 * _num_measures_per_iter, prandom_states);
+        RandomSampleStates(init_population, 10 *  num_random_states, prandom_states);
 }
 
 
@@ -697,6 +691,8 @@ ClusterSearchPolicyNode::Search(
                 = this->cur_cluster->tasks[0];
         std::vector < State > best_states_0, random_states_0;
         sketch_search_policy->SearchOneRound(&best_states_0, 0, &random_states_0);
+        std::string dummy_string;
+        std::cin >> dummy_string;
 
         // if (num_trials <= 1) 
         // {
@@ -750,18 +746,16 @@ AutoScheduleSearchCluster(SearchCluster cluster,
                 tune_option->early_stopping,
                 tune_option->num_measure_per_iter,
                 tune_option->pre_search_callbacks);
-        std::vector < Array < ObjectRef > > auto_sched_results;
+        std::vector < Array < ObjectRef > > auto_sched_results(2);
         for (size_t task_idx = 0; task_idx < cluster->tasks.size();
              ++task_idx)
         {
-                auto_sched_results.push_back(Array < ObjectRef > ());
-                te::Schedule sched;
-                Array < te::Tensor > tensors;
+                te::Schedule sched; Array < te::Tensor > tensors;
                 std::tie(sched, tensors)
                         = cluster->tasks[task_idx]
                                  ->compute_dag.ApplySteps(states[task_idx]->transform_steps);
-                auto_sched_results.back().push_back(sched);
-                auto_sched_results.back().push_back(tensors);
+                auto_sched_results[0].push_back(sched);
+                auto_sched_results[1].push_back(tensors);
         }
         return auto_sched_results;
 }

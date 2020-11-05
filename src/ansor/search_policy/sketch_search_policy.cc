@@ -975,6 +975,9 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
         total_space_extent *= pint->value;
       }
 
+      // <bojian/TVM-SymbolicTuning>
+      DEBUG_LOG_VAR(total_space_extent);
+
       // Check if the total space extent is too small for multi-level thread binding
       if (total_space_extent <= policy->cur_task->hardware_params->warp_size) {
         for (const auto& it : (*state)->stages[stage_id]->iters) {
@@ -1025,10 +1028,19 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
         }
         to_fuse.push_back((*state)->stages[stage_id]->iters[i]);
       }
+
+      // <bojian/TVM-SymbolicTuning>
+      DEBUG_LOG_VEC(to_fuse);
+
       const auto& threadidx_it = state->fuse(stage_id, to_fuse);
       if (GetExtent(threadidx_it) < policy->cur_task->hardware_params->warp_size) {
         return -1;
       }
+
+      DEBUG_LOG_VAR(GetExtent(threadidx_it));
+      // std::string dummy_string;
+      // std::cin >> dummy_string;
+
       state->bind_thread(stage_id, threadidx_it, kThreadX);
     } else if (stage->compute_at == kIter && StrEndsWith(stage->op->name, ".shared")) {
       // Do cooperative fetching for the cache read stage.
