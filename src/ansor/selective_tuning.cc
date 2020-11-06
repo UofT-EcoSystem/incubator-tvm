@@ -687,12 +687,14 @@ ClusterSearchPolicyNode::Search(
                 {String("gpu_multi_level_tiling_structure"), String("SSSRRSRS")},
                 {String("disable_change_compute_location"), PrimExpr(0)}};
         SketchSearchPolicy sketch_search_policy(RandomModel(), params, 0);
-        sketch_search_policy->cur_task
-                = this->cur_cluster->tasks[0];
-        std::vector < State > best_states_0, random_states_0;
-        sketch_search_policy->SearchOneRound(&best_states_0, 0, &random_states_0);
-        std::string dummy_string;
-        std::cin >> dummy_string;
+        for (const SearchTask & task : this->cur_cluster->tasks)
+        {
+                sketch_search_policy->cur_task = task;
+                std::vector < State > best_states_0, random_states_0;
+                sketch_search_policy->SearchOneRound(&best_states_0, 0, &random_states_0);
+                std::string dummy_string;
+                std::cin >> dummy_string;
+        }
 
         // if (num_trials <= 1) 
         // {
