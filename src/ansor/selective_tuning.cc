@@ -666,7 +666,6 @@ ClusterSearchPolicyNode::Search(
         this->cur_cluster = cluster;
         _num_measures_per_iter = num_measures_per_iter;
 
-        /*
         SplitFactorizationMemo split_memo;
         std::vector < std::vector < PrimExpr > > factor_schemes
                 = split_memo.GetFactorizationSchemes(10, 4, 50);
@@ -674,7 +673,6 @@ ClusterSearchPolicyNode::Search(
         {
                 DEBUG_LOG_VEC(scheme);
         }
-         */
 
         Map < String, ObjectRef > params{
                 {String("eps_greedy"), PrimExpr(0.05f)},
