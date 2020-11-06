@@ -633,8 +633,8 @@ ClusterSearchPolicyNode::RandomSampleStates(
 void 
 ClusterSearchPolicyNode::SearchOneRound(
         std::vector < std::vector < State > > * const pbest_states,
-        const int num_random_states,
-        std::vector < std::vector < State > > * const prandom_states)
+        std::vector < std::vector < State > > * const prandom_states,
+        const int num_measures_per_iter, const int num_random_states)
 {
         pbest_states->clear(); prandom_states->clear();
 
@@ -648,8 +648,8 @@ ClusterSearchPolicyNode::SearchOneRound(
         LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
-        RandomSampleStates(init_population,  3 * _num_measures_per_iter, pbest_states);
-        RandomSampleStates(init_population, 10 *  num_random_states, prandom_states);
+        RandomSampleStates(init_population,  3 * num_measures_per_iter, pbest_states);
+        RandomSampleStates(init_population, 10 * num_random_states, prandom_states);
 }
 
 
@@ -697,7 +697,7 @@ ClusterSearchPolicyNode::Search(
         // if (num_trials <= 1) 
         // {
                 LOG(INFO) << "Starting to search for one round";
-                SearchOneRound(&best_states, 0, &random_states);
+                SearchOneRound(&best_states, &random_states, num_measures_per_iter, 0);
                 return best_states[0];
         // }
         // else  // if (n_trails > 1)

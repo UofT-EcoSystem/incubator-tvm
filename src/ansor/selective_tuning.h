@@ -123,8 +123,8 @@ private:
          */
         void SearchOneRound(
                 std::vector < std::vector < State > > * const pbest_states,
-                const int num_random_states,
-                std::vector < std::vector < State > > * const prandom_states);
+                std::vector < std::vector < State > > * const prandom_states,
+                const int num_measures_per_iter, const int num_random_states);
         /**
          * @brief  Initialize the population's (tile sizes/thread bindings/
          *         unrolling factors).
