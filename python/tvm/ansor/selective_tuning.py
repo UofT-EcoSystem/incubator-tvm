@@ -78,7 +78,7 @@ class SelectiveTuning(SelectiveTuningABC):
 
 def auto_schedule_cluster(search_cluster, cluster_search_policy,
                           tune_option):
-    sched, tensors = _ffi_api.AutoScheduleBySearchCluster(
+    scheds, tensors = _ffi_api.AutoScheduleBySearchCluster(
             search_cluster, cluster_search_policy,
             tune_option)
-    return sched, tensors
+    return scheds, tensors
