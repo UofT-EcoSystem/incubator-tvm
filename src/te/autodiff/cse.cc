@@ -40,8 +40,10 @@ typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
 
 struct TensorExprNode {
   ObjectRef opref;
-  Array<IterVar> axis;
   std::vector<TensorExprPtr> operands;
+  Array<PrimExpr> indices;
+  using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
+  Map<Var, ComputeOpAxis> var_compute_op_axis_map;
 
   /*! @brief Convert a \c TensorExprNode to string.
    */
@@ -75,13 +77,16 @@ struct TensorExprNode {
 
   /*! \brief Compare two tensor expression subtree.
    */
-  bool operator==(const TensorExprNode & other) const {
+  bool operator==(const TensorExprNode& other) const {
     static const FCompare & fcompare = cmptable();
     if (this->opref.defined() &&
         other.opref.defined()) {
       return fcompare(this->opref, other, this);
     }
     return !this->opref.defined() && !other.opref.defined();
+  }
+  bool operator!=(const TensorExprNode& other) const {
+    return !operator==(other);
   }
 };
 
@@ -94,7 +99,7 @@ class CSEOptimizer;
 class TensorExprTree {
  public:
   using FConstruct = NodeFunctor<void(const ObjectRef&, TensorExprNode* const,
-                                      TensorExprTree* const)>
+                                      TensorExprTree* const)>;
   static FConstruct& cstrtable() {
     static FConstruct instance;
     return instance;
@@ -106,14 +111,14 @@ class TensorExprTree {
   void Construct_(const MulNode* const, TensorExprNode* const);
   void Construct_(const DivNode* const, TensorExprNode* const);
   void Construct_(const ReduceNode* const, TensorExprNode* const);
-  void Construct_(const IntImmNode* const, TensorExprNode* const);
-  void Construct_(const FloatImmNode* const, TensorExprNode* const);
+  void Construct_(const IntImmNode* const, TensorExprNode* const) {}
+  void Construct_(const FloatImmNode* const, TensorExprNode* const) {}
 
   /*! \brief 
    */
-  TensorExprPtr Construct(const ObjectRef& ref);
- private:
+  TensorExprPtr Construct(const ObjectRef& ref, const Array<IterVar>& axis);
   
+ private:
 };  // class TensorExprConstr
 
 
@@ -156,8 +161,19 @@ bool TensorExprNode::Compare_(
     const TensorExprNode& other) const {
   const CallNode* const other_opnode = other.opref.as<CallNode>();
   CHECK(other_opnode != nullptr);
-  return opnode->op.same_as(other_opnode->op) &&
-         (*this->operands[0]) == (*other.operands[0]);
+  if (!opnode->op.same_as(other_opnode->op)) {
+    return false;
+  }
+  if (this->operands.size() != other.operands.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < this->operands.size(); ++i) {
+    if ((*(this->operands[i])) !=
+        (*(other.operands[i]))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool TensorExprNode::Compare_(
@@ -238,5 +254,40 @@ TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
 .DISPATCH_TO_CMP(ReduceNode)
 .DISPATCH_TO_CMP(IntImmNode)
 .DISPATCH_TO_CMP(FloatImmNode);
+
+
+void TensorExprTree::Construct_(
+    const CallNode* const opnode,
+    TensorExprNode* const tenode) {
+  CHECK(opnode->args.size() == 1)
+      << "Current implementation only handles unary CallNode's";
+  tenode->operands.push_back(Construct(opnode->args[0], tenode->axis));
+}
+
+#define DEFINE_BINARY_OP_CONSTRUCT(OpNode)  \
+void TensorExprTree::Construct_(            \
+    const OpNode* const opnode,             \
+    TensorExprNode* const tenode) {         \
+  tenode->operands.push_back(Construct(     \
+      opnode->a,                            \
+      tenode->axis));                       \
+  tenode->operands.push_back(Construct(     \
+      opnode->b,                            \
+      tenode->axis));                       \
+}
+
+DEFINE_BINARY_OP_CONSTRUCT(AddNode)
+DEFINE_BINARY_OP_CONSTRUCT(SubNode)
+DEFINE_BINARY_OP_CONSTRUCT(MulNode)
+DEFINE_BINARY_OP_CONSTRUCT(DivNode)
+
+void TensorExprTree::Construct_(
+    const ReduceNode* const opnode,
+    TensorExprNode* const tenode) {
+  // Array<IterVar> 
+}
+
+
+
 }  // namespace te
 }  // namespace tvm
