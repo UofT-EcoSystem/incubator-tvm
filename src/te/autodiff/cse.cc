@@ -35,17 +35,25 @@ namespace te {
 namespace {
 
 
+class IndicesRemapNode : public Object {
+
+};  // class IndicesRemapNode
+
 struct TensorExprNode;
 typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
+
+using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
 struct TensorExprNode {
   ObjectRef opref;
   std::vector<TensorExprPtr> operands;
+  // The indices are specially reserved for the comparison between placeholders.
   Array<PrimExpr> indices;
-  using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
+  // mapping from variable to axis of ComputeOp's
   Map<Var, ComputeOpAxis> var_compute_op_axis_map;
 
-  /*! @brief Convert a \c TensorExprNode to string.
+  /*!
+   * \brief Convert a \c TensorExprNode to string.
    */
   std::string toString(const unsigned indent = 0) const {
     std::ostringstream strout;
@@ -59,35 +67,48 @@ struct TensorExprNode {
     }
     return strout.str();
   }
-  using FCompare = NodeFunctor<bool(const ObjectRef&, const TensorExprNode&,
-                                    const TensorExprNode* const)>;
+
+  // Auxiliary class for comparing between tensor expressions.
+  class VarMap : public Map<Var, Var> {
+    /*!
+     *  \brief  Update this VarMap with all the entries from another VarMap.
+     *  \return true if the insertion is successful, and there is no conflict
+     *          between the two mappings, false otherwise
+     */
+   public:
+    bool Update(const VarMap&);
+  };  // class VarMap
+  /*!
+   * \brief ConditionalBool
+   */
+  class ConditionalBool : public std::pair<bool, VarMap> {
+   public:
+    ConditionalBool(const bool is_same)
+        : std::pair<bool, VarMap>(is_same, {}) {}
+  };  // class ConditionalBool
+
+
+  using FCompare = NodeFunctor<
+      ConditionalBool(const ObjectRef&, const TensorExprNode&,
+                      const TensorExprNode* const)
+      >;
   static FCompare & cmptable() {
     static FCompare instance;
     return instance; 
   }
-  bool Compare_(const CallNode* const, const TensorExprNode&) const;
-  bool Compare_(const PlaceholderOpNode* const, const TensorExprNode&) const;
-  bool Compare_(const AddNode* const, const TensorExprNode&) const;
-  bool Compare_(const SubNode* const, const TensorExprNode&) const;
-  bool Compare_(const MulNode* const, const TensorExprNode&) const;
-  bool Compare_(const DivNode* const, const TensorExprNode&) const;
-  bool Compare_(const ReduceNode* const, const TensorExprNode&) const;
-  bool Compare_(const IntImmNode* const, const TensorExprNode&) const;
-  bool Compare_(const FloatImmNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const CallNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const PlaceholderOpNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const AddNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const SubNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const MulNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const DivNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const ReduceNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const IntImmNode* const, const TensorExprNode&) const;
+  ConditionalBool Compare_(const FloatImmNode* const, const TensorExprNode&) const;
 
   /*! \brief Compare two tensor expression subtree.
    */
-  bool operator==(const TensorExprNode& other) const {
-    static const FCompare & fcompare = cmptable();
-    if (this->opref.defined() &&
-        other.opref.defined()) {
-      return fcompare(this->opref, other, this);
-    }
-    return !this->opref.defined() && !other.opref.defined();
-  }
-  bool operator!=(const TensorExprNode& other) const {
-    return !operator==(other);
-  }
+  bool operator==(const TensorExprNode& other) const;
 };
 
 
@@ -218,9 +239,11 @@ bool TensorExprNode::Compare_(
   if (opnode == other_opnode) {
     return true;
   }
-  CHECK(this->operands.size() == 1);
-  CHECK(other.operands.size() == 1);
-  return false;
+  // To make sure that two reduce nodes are the same, the followings have to be
+  // equal: (1) source, (2) commutative reducer, (3) condition.
+  return ((*this->operands[0]) == (*other.operands[0]) &&
+          (*this->operands[1]) == (*other.operands[1]) &&
+          (*this->operands[2]) == (*other.operands[2]));
 }
 
 
