@@ -10,7 +10,7 @@
 
 namespace tvm {
         namespace ansor {
-                namespace symtuning {
+
 
 // Vectorized Extents and Factors
 // [cluster_size]
@@ -137,6 +137,5 @@ public:
 };
 
 
-                }  // namespace symtuning
         }  // namespace ansor
 }  // namespace tvm

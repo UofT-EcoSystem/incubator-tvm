@@ -8,7 +8,6 @@
 
 namespace tvm {
         namespace ansor {
-                namespace symtuning {
 
 
 constexpr double ClusterSearchPolicyNode::C_EPS_GREEDY;
@@ -697,6 +696,6 @@ TVM_REGISTER_GLOBAL("ansor.AutoScheduleBySearchCluster")
                                 return AutoScheduleSearchCluster(cluster, cluster_search_policy, tune_option);
                         });
 
-                }  // namespace symtuning
+
         }  // namespace ansor
 }  // namespace tvm

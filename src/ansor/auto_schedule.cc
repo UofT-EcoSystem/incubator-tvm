@@ -26,7 +26,6 @@
 #include <tvm/runtime/registry.h>
 #include <string>
 #include <utility>
-#include "selective_tuning.h"
 #include "search_policy/sketch_search_policy.h"
 
 namespace tvm {

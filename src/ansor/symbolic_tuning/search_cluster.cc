@@ -3,7 +3,6 @@
 
 namespace tvm {
         namespace ansor {
-                namespace symtuning {
 
 
 SearchCluster::SearchCluster(Array < SearchTask > tasks,
@@ -51,6 +50,5 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         );
 
 
-                }  // namespace symtuning
         }  // namespace ansor
 }  // namespace tvm

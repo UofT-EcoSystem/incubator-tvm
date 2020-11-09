@@ -7,7 +7,6 @@
 
 namespace tvm {
         namespace ansor {
-                namespace symtuning {
 
 
 class SearchClusterNode : public Object
@@ -40,6 +39,5 @@ public:
 };  // class SearchCluster
 
 
-                }  // namespace symtuning
         }  // namespace ansor
 }  // namespace tvm
