@@ -1,48 +1,16 @@
 #pragma once
 
-
-#include <random>
-#include <stack>
-#include <tuple>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-#include "cost_model/cost_model.h"
-#include "search_policy/search_policy.h"
+#include "../cost_model/cost_model.h"
+#include "../search_policy/search_policy.h"
+#include "search_cluster.h"
 
 
 namespace tvm {
         namespace ansor {
-
-class SearchClusterNode : public Object
-{
-public:
-        Array < SearchTask > tasks;
-        Array < Array < State > > sketches;
-        int repr_idx;
-
-        void VisitAttrs(AttrVisitor * const v)
-        {
-                v->Visit("tasks", &tasks);
-                v->Visit("sketches", &sketches);
-                v->Visit("repr_idx", &repr_idx);
-        }
-
-        static constexpr const char * _type_key = "ansor.SearchCluster";
-        TVM_DECLARE_FINAL_OBJECT_INFO(SearchClusterNode, Object);
-};  // class SearchClusterNode
-
-
-class SearchCluster : public ObjectRef
-{
-public:
-        SearchCluster(Array < SearchTask > tasks,
-                      Array < Array < State > > sketches,
-                      const int repr_idx);
-        TVM_DEFINE_OBJECT_REF_METHODS(SearchCluster, ObjectRef,  
-                                      SearchClusterNode);
-};  // class SearchCluster
-
+                namespace symtuning {
 
 // Vectorized Extents and Factors
 // [cluster_size]
@@ -168,5 +136,7 @@ public:
                                               ClusterSearchPolicyNode);
 };
 
+
+                }  // namespace symtuning
         }  // namespace ansor
 }  // namespace tvm

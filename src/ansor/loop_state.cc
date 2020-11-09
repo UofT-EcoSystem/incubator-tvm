@@ -1236,5 +1236,23 @@ TVM_REGISTER_GLOBAL("ansor.StateCmp")
              rhs.ToStr();  // check for the actual conversion
     });
 
+// <bojian/TVM-SymbolicTuning> Added the loggings for IteratorNode's and StateNode's.
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<IteratorNode>(
+    [](const ObjectRef &ref, ReprPrinter *p) {
+      const IteratorNode *node
+          = static_cast < const IteratorNode * > (ref.get());
+      p->stream << "{Iterator name="  << node->name  << ", "
+                             "range=" << node->range << ", "
+                             "attr="  << node->attr  << "}";
+    });
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<StageNode>(
+    [](const ObjectRef &ref, ReprPrinter *p) {
+      const StageNode * const node
+          = static_cast < const StageNode * > (ref.get());
+      p->stream << "{Stage op=" << node->op << "}";
+    });
+
 }  // namespace ansor
 }  // namespace tvm
