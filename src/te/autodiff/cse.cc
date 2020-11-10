@@ -35,16 +35,13 @@ namespace te {
 namespace {
 
 
-class IndicesRemapNode : public Object {
-
-};  // class IndicesRemapNode
-
-struct TensorExprNode;
+class TensorExprNode;
 typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
 
 using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
-struct TensorExprNode {
+class TensorExprNode {
+ public:
   ObjectRef opref;
   std::vector<TensorExprPtr> operands;
   // The indices are specially reserved for the comparison between placeholders.
@@ -76,7 +73,7 @@ struct TensorExprNode {
      *          between the two mappings, false otherwise
      */
    public:
-    bool Update(const VarMap&);
+    bool Update(const VarMap& other);
   };  // class VarMap
   /*!
    * \brief ConditionalBool
@@ -85,8 +82,10 @@ struct TensorExprNode {
    public:
     ConditionalBool(const bool is_same)
         : std::pair<bool, VarMap>(is_same, {}) {}
+    ConditionalBool(const bool is_same, VarMap var_map)
+        : std::pair<bool, VarMap>(is_same, var_map) {}
+    operator bool() { return first; }
   };  // class ConditionalBool
-
 
   using FCompare = NodeFunctor<
       ConditionalBool(const ObjectRef&, const TensorExprNode&,
@@ -96,17 +95,19 @@ struct TensorExprNode {
     static FCompare instance;
     return instance; 
   }
-  ConditionalBool Compare_(const CallNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const PlaceholderOpNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const AddNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const SubNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const MulNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const DivNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const ReduceNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const IntImmNode* const, const TensorExprNode&) const;
-  ConditionalBool Compare_(const FloatImmNode* const, const TensorExprNode&) const;
-
-  /*! \brief Compare two tensor expression subtree.
+  ConditionalBool Compare_(const CallNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const PlaceholderOpNode* const opnode,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const AddNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const SubNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const MulNode* const opndoe, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const DivNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const ReduceNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const IntImmNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const FloatImmNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare(const TensorExprNode& other) const;
+  /*!
+   * \brief Compare two tensor expression subtree.
    */
   bool operator==(const TensorExprNode& other) const;
 };
@@ -134,11 +135,10 @@ class TensorExprTree {
   void Construct_(const ReduceNode* const, TensorExprNode* const);
   void Construct_(const IntImmNode* const, TensorExprNode* const) {}
   void Construct_(const FloatImmNode* const, TensorExprNode* const) {}
-
-  /*! \brief 
+  /*!
+   * \brief 
    */
   TensorExprPtr Construct(const ObjectRef& ref, const Array<IterVar>& axis);
-  
  private:
 };  // class TensorExprConstr
 
@@ -177,7 +177,37 @@ CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
 /*******************************************************************************
  * TensorExprTree/Node
  *******************************************************************************/
-bool TensorExprNode::Compare_(
+bool TensorExprNode::VarMap::Update(
+    const VarMap& other) {
+  for (const std::pair<Var, Var>& var_pair : other) {
+    iterator iter = this->find(var_pair.first);
+    if (iter != this->end()) {
+      if (!(*iter).second.same_as(var_pair.second)) {
+        // In the case when previously created mapping contradicts with the
+        // current one, return false and skip the insertion.
+        return false;
+      }
+    } else {  // if (iter == this->end())
+      // Create the variable mapping if it has not been created before.
+      this->Set(var_pair.first, var_pair.second);
+    }
+  }  // for (var_pair ∈ other)
+  return true;
+}
+
+#define RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(cmp, var_map)  \
+  do {                                                    \
+    ConditionalBool cmp_result = (cmp);                   \
+    if (!cmp_result) {                                    \
+      return false;                                       \
+    } else {                                              \
+      var_map.Update(cmp_result.second);                  \
+    }                                                     \
+  } while (0);
+
+
+TensorExprNode::ConditionalBool
+TensorExprNode::Compare_(
     const CallNode* const opnode,
     const TensorExprNode& other) const {
   const CallNode* const other_opnode = other.opref.as<CallNode>();
@@ -188,16 +218,15 @@ bool TensorExprNode::Compare_(
   if (this->operands.size() != other.operands.size()) {
     return false;
   }
+  VarMap var_map;
   for (size_t i = 0; i < this->operands.size(); ++i) {
-    if ((*(this->operands[i])) !=
-        (*(other.operands[i]))) {
-      return false;
-    }
+    RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(this->Compare(*(other.operands[i])), var_map);
   }
   return true;
 }
 
-bool TensorExprNode::Compare_(
+TensorExprNode::ConditionalBool
+TensorExprNode::Compare_(
     const PlaceholderOpNode* const opnode,
     const TensorExprNode& other) const {
   const PlaceholderOpNode* const other_opnode
@@ -206,6 +235,7 @@ bool TensorExprNode::Compare_(
   return opnode == other_opnode;
 }
 
+/*
 #define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNode)        \
 bool TensorExprNode::Compare_(                              \
     const OpNode* const opnode,                             \
@@ -309,8 +339,7 @@ void TensorExprTree::Construct_(
     TensorExprNode* const tenode) {
   // Array<IterVar> 
 }
-
-
+ */
 
 }  // namespace te
 }  // namespace tvm
