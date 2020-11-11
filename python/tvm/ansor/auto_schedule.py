@@ -208,7 +208,7 @@ class TuneOption(Object):
                  pre_search_callbacks=None
                  
                  # <bojian/TVM-AutoDiff> Added checkpoint file prefix.
-               , ckpt_file_prefix='ansor_ckpt_'
+                 # , ckpt_file_prefix='ansor_ckpt_'
                  
                  ):
         if isinstance(builder, str):
@@ -234,7 +234,7 @@ class TuneOption(Object):
             verbose, builder, runner, measure_callbacks, pre_search_callbacks
             
             # <bojian/TVM-AutoDiff> Added checkpoint file prefix.
-          , ckpt_file_prefix
+            # , ckpt_file_prefix
             
             )
 

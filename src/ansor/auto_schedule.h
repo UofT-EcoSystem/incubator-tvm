@@ -47,7 +47,7 @@ class TuneOptionNode : public Object {
                                                // run before search
 
   // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
-  String ckpt_file_prefix;
+  // String ckpt_file_prefix;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("n_trials", &n_trials);
@@ -76,7 +76,7 @@ class TuneOption : public ObjectRef {
              Array<SearchCallback> pre_search_callbacks
              
              // <bojian/TVM-AutoDiff> Added checkpoint file prefix.
-           , String ckpt_file_prefix
+             // , String ckpt_file_prefix
 
              );
 
