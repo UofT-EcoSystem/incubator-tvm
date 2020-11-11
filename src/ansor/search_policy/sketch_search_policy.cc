@@ -1037,6 +1037,7 @@ int InitPopulationThreadBind(const SketchSearchPolicyNode* policy, State* state)
         return -1;
       }
 
+      // <bojian/TVM-SymbolicTuning>
       DEBUG_LOG_VAR(GetExtent(threadidx_it));
       // std::string dummy_string;
       // std::cin >> dummy_string;

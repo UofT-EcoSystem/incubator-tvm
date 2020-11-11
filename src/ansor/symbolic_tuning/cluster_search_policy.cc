@@ -616,8 +616,8 @@ ClusterSearchPolicyNode::Search(
                 sketch_search_policy->cur_task = task;
                 std::vector < State > best_states_0, random_states_0;
                 sketch_search_policy->SearchOneRound(&best_states_0, 0, &random_states_0);
-                std::string dummy_string;
-                std::cin >> dummy_string;
+                // std::string dummy_string;
+                // std::cin >> dummy_string;
         }
 
         // if (num_trials <= 1) 
