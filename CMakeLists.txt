@@ -38,7 +38,9 @@ tvm_option(USE_THREADS "Build with thread support" ON)
 
 # <bojian/TVM-SymbolicTuning>
 # tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
-tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" ON)
+tvm_option(USE_LLVM
+           "Build with LLVM, can be set to specific llvm-config path" 
+           ON)
 
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
