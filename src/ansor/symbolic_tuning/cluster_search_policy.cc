@@ -525,7 +525,34 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 LOG(INFO) << "Finished initializing the thread bindings";
                 InitPopulationUnroll(&tmp_states);
                 LOG(INFO) << "Finished initializing the unrolling factors";
-                out_states->push_back(std::move(tmp_states));
+
+                bool all_valid = true;
+                for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
+                {
+                        std::vector < float > pop_scores;
+                        tmp_states[task_idx]
+                                = cur_cluster->tasks[task_idx]
+                                             ->compute_dag.InferBound(tmp_states[task_idx]);
+                        _program_cost_model->Predict(cur_cluster->tasks[task_idx],
+                                                     {tmp_states[task_idx]},
+                                                     &pop_scores);
+                        DEBUG_LOG_VAR(pop_scores[0]);
+                        // std::string dummy_string;
+                        // std::cin >> dummy_string;
+                        if (pop_scores[0] <= -1e10)
+                        {
+                                all_valid = false;
+                        }
+                }
+                if (all_valid)
+                {
+                        out_states->push_back(std::move(tmp_states));
+                }
+                else
+                {
+                        LOG(INFO) << "State pruned for failing the lowering test";
+                        ++failed_attempts;
+                }
         }
         LOG(INFO) << "Finished sampling the initial population";
         LOG(INFO) << "Available # of candidates: " << out_states->size();
@@ -551,6 +578,18 @@ ClusterSearchPolicyNode::RandomSampleStates(
                 {
                         pbest_states->back()[task_idx]
                                 = init_population[rand_init_population_idx][task_idx];
+
+                        if (i == 0)
+                        {
+                                std::vector < float > pop_scores;
+                                State init_population_state_wbound
+                                        = cur_cluster->tasks[task_idx]
+                                                     ->compute_dag.InferBound(init_population[rand_init_population_idx][task_idx]);
+                                _program_cost_model->Predict(cur_cluster->tasks[task_idx],
+                                                     {init_population_state_wbound},
+                                                     &pop_scores);
+                                DEBUG_LOG_VAR(pop_scores[0]);
+                        }
                 }
         }
 }

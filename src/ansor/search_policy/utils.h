@@ -724,6 +724,9 @@ State RandomMutateComputeLocation(const State& old_state, std::mt19937* random_g
 State CrossOverState(const SearchTask& task, std::mt19937* random_gen, const State& p1,
                      const State& p2, std::vector<int>* fail_counters);
 
+// <bojian/TVM-AutoDiff>
+bool HasNestedParallel(const State& state);
+
 // Prune invalid states and return the results in-place.
 void PruneInvalidState(const SearchTask& task, std::vector<State>* states);
 
