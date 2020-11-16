@@ -82,3 +82,6 @@ def auto_schedule_cluster(search_cluster, cluster_search_policy,
             search_cluster, cluster_search_policy,
             tune_option)
     return scheds, tensors
+
+
+class 
