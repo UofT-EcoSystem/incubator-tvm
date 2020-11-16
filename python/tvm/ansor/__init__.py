@@ -45,7 +45,7 @@ from .relay_integration import extract_from_program, extract_from_multiple_progr
 from .env import GLOBAL_SCOPE
 
 # <bojian/TVM-SymbolicTuning>
-from .selective_tuning import SelectiveTuning, \
-        SearchCluster, \
-        ClusterSearchPolicy, \
-        auto_schedule_cluster
+from .symbolic_tuning import SelectiveTuning, \
+                             SearchCluster, \
+                             ClusterSearchPolicy, \
+                             auto_schedule_cluster

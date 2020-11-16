@@ -9,7 +9,7 @@ namespace tvm {
         namespace ansor {
 
 
-class ParamCostModelNode : public Object
+class ParameterizedPythonBasedCostModelNode : public Object
 {
 private:
         PackedFunc _update_func, _predict_func, _predict_stages_func;
@@ -23,18 +23,20 @@ public:
                            const std::vector < std::vector < State > > & states,
                            std::vector < std::vector < float > > * const scores,
                            std::vector < std::vector < std::vector < float > > > * const stage_scores);
-        static constexpr const char * _type_key = "ansor.ParamCostModel";
-        TVM_DECLARE_FINAL_OBJECT_INFO(ParamCostModelNode, Object);
+        static constexpr const char * _type_key = "ansor.ParameterizedPythonBasedCostModel";
+        TVM_DECLARE_FINAL_OBJECT_INFO(ParameterizedPythonBasedCostModelNode, Object);
 };
 
 
-class ParamCostModel : public ObjectRef
+class ParameterizedPythonBasedCostModel : public ObjectRef
 {
 public:
-        ParamCostModel(PackedFunc update_func, PackedFunc predict_func,
-                       PackedFunc predict_stages_func);
-        TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ParamCostModel, ObjectRef,
-                                              ParamCostModelNode);
+        ParameterizedPythonBasedCostModel(
+                PackedFunc update_func, PackedFunc predict_func,
+                PackedFunc predict_stages_func);
+        TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(
+                ParameterizedPythonBasedCostModel, ObjectRef,
+                ParameterizedPythonBasedCostModelNode);
 };  // class ParamCostModel
 
 
