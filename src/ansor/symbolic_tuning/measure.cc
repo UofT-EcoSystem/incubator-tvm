@@ -1,4 +1,6 @@
 #include "../measure.h"
+#include "cluster_search_policy.h"
+#include "search_cluster.h"
 
 
 namespace tvm {

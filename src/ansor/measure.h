@@ -31,8 +31,9 @@
 #include <utility>
 #include "search_task.h"
 #include "loop_state.h"
-#include "symbolic_tuning/search_cluster.h"
-#include "symbolic_tuning/cluster_search_policy.h"
+// <bojian/TVM-SymbolicTuning>
+// #include "symbolic_tuning/search_cluster.h"
+// #include "symbolic_tuning/cluster_search_policy.h"
 
 namespace tvm {
 namespace ansor {
@@ -287,6 +288,11 @@ class LocalRunner: public Runner {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LocalRunner, Runner,
                                         LocalRunnerNode);
 };
+
+
+// <bojian/TVM-SymbolicTuning> Forward Declarations
+class SearchCluster;
+class ClusterSearchPolicy;
 
 /*!
  * \brief Measurer that measures the time costs of tvm programs
