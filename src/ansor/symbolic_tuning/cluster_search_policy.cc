@@ -630,6 +630,7 @@ ClusterSearchPolicyNode::Search(
         this->cur_cluster = cluster;
         _num_measures_per_iter = num_measures_per_iter;
 
+        // =====================================================================
         SplitFactorizationMemo split_memo;
         std::vector < std::vector < PrimExpr > > factor_schemes
                 = split_memo.GetFactorizationSchemes(10, 4, 50);
@@ -637,7 +638,6 @@ ClusterSearchPolicyNode::Search(
         {
                 DEBUG_LOG_VEC(scheme);
         }
-
         Map < String, ObjectRef > params{
                 {String("eps_greedy"), PrimExpr(0.05f)},
                 {String("evolutionary_search_population"), PrimExpr(2048)},
@@ -658,16 +658,16 @@ ClusterSearchPolicyNode::Search(
                 // std::cin >> dummy_string;
         }
 
-        // if (num_trials <= 1) 
-        // {
+        if (num_trials <= 1) 
+        {
                 LOG(INFO) << "Starting to search for one round";
                 SearchOneRound(&best_states, &random_states, num_measures_per_iter, 0);
                 return best_states[0];
-        // }
-        // else  // if (n_trails > 1)
-        // {
-        //         LOG(FATAL) << "NOT Implemented";
-        // }
+        }
+        else  // if (n_trails > 1)
+        {
+                LOG(FATAL) << "NOT Implemented";
+        }
 }
 
 
