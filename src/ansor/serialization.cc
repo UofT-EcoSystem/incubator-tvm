@@ -499,7 +499,8 @@ void ReadMeasureRecord(const std::string& str,
   }
 }
 
-void LogToFileNode::callback(const SearchPolicy& policy,
+                             // <bojian/TVM-SymbolicTuning>
+void LogToFileNode::callback(// const SearchPolicy& policy,
                              const Array<MeasureInput>& inputs,
                              const Array<MeasureResult>& results) {
   std::ofstream ofs(filename, std::ofstream::app);

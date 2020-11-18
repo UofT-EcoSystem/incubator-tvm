@@ -92,7 +92,9 @@ void MeasureModelNode::Predict(const SearchTask& task,
   for (const auto& state : states) {
     inputs.push_back(MeasureInput(task, state));
   }
-  measurer->SilentMeasure(task, inputs, &results);
+                          // <bojian/TVM-SymbolicTuning>
+  measurer->SilentMeasure(// task, 
+                          inputs, &results);
 
   scores->clear();
   scores->reserve(results.size());

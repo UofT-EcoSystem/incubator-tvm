@@ -31,6 +31,8 @@
 #include <utility>
 #include "search_task.h"
 #include "loop_state.h"
+#include "symbolic_tuning/search_cluster.h"
+#include "symbolic_tuning/cluster_search_policy.h"
 
 namespace tvm {
 namespace ansor {
@@ -157,7 +159,8 @@ class MeasureCallbackNode: public Object {
  public:
   /*! \biref Callback function that will be called on measurement input/result pairs
    * after measurement */
-  virtual void callback(const SearchPolicy& policy,
+                        // <bojian/TVM-SymbolicTuning> Removed policy from the callback interface.
+  virtual void callback(// const SearchPolicy& policy,
                         const Array<MeasureInput>& inputs,
                         const Array<MeasureResult>& results) = 0;
   static constexpr const char *_type_key = "ansor.MeasureCallback";
@@ -314,8 +317,16 @@ class ProgramMeasurerNode: public Object {
                std::vector<MeasureResult>* results,
                int batch_size = -1);
 
+
+  // <bojian/TVM-SymbolicTuning> Added the measure function for the search cluster.
+  void Measure(const SearchCluster& cluster,
+               const ClusterSearchPolicy & policy,
+               const std::vector<std::vector<MeasureInput>>& inputs,
+               std::vector<std::vector<MeasureResult>>* const results);
+
   /*! \biref Do measurement silently */
-  void SilentMeasure(const SearchTask& task,
+                     // Removed search task as one of the silent measure arguments.
+  void SilentMeasure(// const SearchTask& task,
                      const std::vector<MeasureInput>& inputs,
                      std::vector<MeasureResult>* results);
 

@@ -39,7 +39,8 @@ class LogToFileNode : public MeasureCallbackNode {
   std::string filename;
 
   /*! \brief Log measure pairs to file. This is called by the search policy */
-  void callback(const SearchPolicy& policy,
+                // <bojian/TVM-SymbolicTuning> 
+  void callback(// const SearchPolicy& policy,
                 const Array<MeasureInput>& inputs,
                 const Array<MeasureResult>& results) final;
 

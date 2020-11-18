@@ -230,7 +230,9 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
     std::vector<MeasureResult> result_batch;
 
     // build and run
-    SilentMeasure(task, input_batch, &result_batch);
+                  // <bojian/TVM-SymbolicTuning>
+    SilentMeasure(// task, 
+                  input_batch, &result_batch);
 
     // update current best state according to the new measure result
     for (size_t j = 0; j < input_batch.size(); ++j) {
@@ -265,7 +267,9 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
 
     // Call callback functions
     for (const auto& callback : callbacks) {
-      callback->callback(policy, input_batch, result_batch);
+                         // <bojian/TVM-SymbolicTuning>
+      callback->callback(// policy, 
+                         input_batch, result_batch);
     }
 
     // Store result batch
@@ -279,7 +283,8 @@ void ProgramMeasurerNode::Measure(const SearchTask& task,
   }
 }
 
-void ProgramMeasurerNode::SilentMeasure(const SearchTask& task,
+                                        // <bojian/TVM-SymbolicTuning>
+void ProgramMeasurerNode::SilentMeasure(// const SearchTask& task,
                                         const std::vector<MeasureInput>& inputs,
                                         std::vector<MeasureResult>* results) {
   // Close the thread pool to avoid the conflits with python environment
