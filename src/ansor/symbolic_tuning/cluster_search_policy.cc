@@ -707,7 +707,7 @@ ClusterSearchPolicyNode::Search(
         Array < SearchCallback > pre_search_callbacks)
         // pre-search callbacks are not used, for now
 {
-        // [ × cluster_size]
+        // [* × cluster_size]
         std::vector < std::vector < State > > best_states, random_states;
         cur_cluster = cluster;
         _num_measures_per_iter = num_measures_per_iter;
@@ -747,7 +747,7 @@ ClusterSearchPolicyNode::Search(
         }
         else  // if (num_trials > 1)
         {
-                // [ × cluster_size]
+                // [* × cluster_size]
                 std::vector < std::vector < MeasureInput > > inputs;
                 std::vector < std::vector < MeasureResult > > results;
                 const int num_random_states = C_EPS_GREEDY * num_measures_per_iter;
@@ -780,6 +780,16 @@ ClusterSearchPolicyNode::Search(
                         }
                         measurer->Measure(cur_cluster, GetRef < ClusterSearchPolicy > (this),
                                           inputs, &results);
+                        for (const std::vector < MeasureResult > & results_per_cluster : results)
+                        {
+                                CHECK(results_per_cluster.size() == cur_cluster->tasks.size());
+                                for (size_t task_idx = 0;
+                                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                                {
+                                        _measured_states_thruput[task_idx].push_back(
+                                                1.0f / FloatArrayMean(results_per_cluster[task_idx]->costs));
+                                }
+                        }
                 }  // for (trail_idx ∈ [0, num_trials))
                 Array < State > best_states_from_measurer;
                 for (size_t task_idx = 0;
