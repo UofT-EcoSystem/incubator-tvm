@@ -617,6 +617,17 @@ ClusterSearchPolicyNode::SearchOneRound(
 }
 
 
+void 
+ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
+        std::vector < MeasureInput > * const inputs,
+        const std::vector < std::vector < State > > & best_states,
+        const std::vector < std::vector < State > > & random_states,
+        const int remaining_num_trials)
+{
+        
+}
+
+
 Array < State >
 ClusterSearchPolicyNode::Search(
         SearchCluster cluster, ProgramMeasurer measurer,
@@ -628,9 +639,7 @@ ClusterSearchPolicyNode::Search(
         // [ × cluster_size]
         std::vector < std::vector < State > > best_states, random_states;
         this->cur_cluster = cluster;
-        _num_measures_per_iter = num_measures_per_iter;
 
-        // =====================================================================
         SplitFactorizationMemo split_memo;
         std::vector < std::vector < PrimExpr > > factor_schemes
                 = split_memo.GetFactorizationSchemes(10, 4, 50);
@@ -664,10 +673,50 @@ ClusterSearchPolicyNode::Search(
                 SearchOneRound(&best_states, &random_states, num_measures_per_iter, 0);
                 return best_states[0];
         }
-        else  // if (n_trails > 1)
+        else  // if (num_trials > 1)
         {
-                LOG(FATAL) << "NOT Implemented";
+                std::vector < std::vector < MeasureInput > > inputs;
+                std::vector < std::vector < MeasureResult > > results;
+                const int num_random_states = C_EPS_GREEDY * num_measures_per_iter;
+                measurer->Reset();
+
+                for (int num_trials_done = 0; num_trials_done < num_trials; num_trials_done += inputs.size())
+                {
+                        SearchOneRound(&best_states, &random_states,
+                                       num_measures_per_iter, num_random_states);
+#define INFER_BOUND_FOREACH(states)                                             \
+        for (std::vector < State > & states_per_cluster : states)               \
+        {                                                                       \
+                CHECK(states_per_cluster.size() == cur_cluster->tasks.size());  \
+                for (size_t task_idx = 0;                                       \
+                     task_idx < cur_cluster->tasks.size(); ++task_idx)          \
+                {                                                               \
+                        states_per_cluster[task_idx]                            \
+                                = cur_cluster->tasks[task_idx]->compute_dag.InferBound(states_per_cluster[task_idx]);  \
+                }                                                               \
         }
+                        INFER_BOUND_FOREACH(best_states);
+                        INFER_BOUND_FOREACH(random_states);
+                        PickStatesWithEpsGreedy(&inputs, best_states, random_states,
+                                                num_trials - num_trials_done);
+                        if (inputs.empty())
+                        {
+                                LOG(INFO) << "All candidates in the search space "
+                                             "have been measured";
+                                break;
+                        }
+                        measurer->Measure(cur_cluster, GetRef < ClusterSearchPolicy > (this),
+                                          inputs, &results);
+                }  // for (trail_idx ∈ [0, num_trials))
+                Array < State > best_states_from_measurer;
+                for (size_t task_idx = 0;
+                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                {
+                        best_states_from_measurer.push_back(
+                                measurer->best_state[cur_cluster->tasks[task_idx]->workload_key]);
+                }
+                return best_states_from_measurer;
+        }  // if (num_trials > 1)
 }
 
 

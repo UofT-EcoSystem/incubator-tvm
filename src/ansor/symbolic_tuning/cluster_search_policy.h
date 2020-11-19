@@ -79,8 +79,20 @@ private:
 
         CostModel _program_cost_model;
         std::mt19937 _rng;
-        std::vector < State > _measured_states_vec;
 
+        std::unordered_set < State > _measured_states_set;
+        std::vector < State > _measured_states_vec;
+        std::vector < float > _measured_states_thruput;
+
+        /**
+         * @brief Pick states from the best and random states, using the
+         *        epsilon-greedy algorithm.
+         */
+        void PickStatesWithEpsGreedy(
+                std::vector < MeasureInput > * const inputs,
+                const std::vector < std::vector < State > > & best_states,
+                const std::vector < std::vector < State > > & random_states,
+                const int remaining_num_trials);
         /**
          * @brief Samples the initial population.
          */
@@ -108,7 +120,7 @@ private:
         void RandomSampleStates(const std::vector < std::vector < State > > & init_population,
                                 const int num_measures,
                                 std::vector < std::vector < State > > * pbest_states);
-        int _num_measures_per_iter;
+        // int _num_measures_per_iter;
 public:
         SearchCluster cur_cluster;
 
