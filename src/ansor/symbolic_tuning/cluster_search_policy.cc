@@ -111,12 +111,12 @@ ClusterSplitFactorCache::GetFactors(const ClusterExtentsT & extents)
 
 int
 ClusterSearchPolicyNode::InitPopulationFillTileSize(
-        std::vector < State > * const pstates)
+        std::vector < State > * const states)
 {
         DEBUG_LOG_VAR(cur_cluster->repr_idx);
-        DEBUG_LOG_VAR(pstates->size());
+        DEBUG_LOG_VAR(states->size());
 
-        State & repr_state = (*pstates)[cur_cluster->repr_idx];
+        State & repr_state = (*states)[cur_cluster->repr_idx];
         
         // DEBUG_LOG_VAR(repr_state);
         DEBUG_LOG_VAR(repr_state->transform_steps.size());
@@ -144,7 +144,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         }
                         std::vector < int > extents;
                         const size_t num_lengths = repr_split_step->lengths.size();
-                        for (const State & state : (*pstates))
+                        for (const State & state : (*states))
                         {
                                 const SplitStepNode * const split_step
                                         = state->transform_steps[step_idx].as < SplitStepNode > ();
@@ -182,7 +182,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                                 for (const std::vector < PrimExpr > &
                                      cluster_factor : candidate)
                                 {
-                                        CHECK(cluster_factor.size() == pstates->size());
+                                        CHECK(cluster_factor.size() == states->size());
                                 }
                         }  // for (candidate ∈ candidates)
 
@@ -199,9 +199,9 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 
                                 DEBUG_LOG_VEC(lengths);
 
-                                StateNode * pstate = (*pstates)[task_idx].CopyOnWrite();
+                                StateNode * pstate = (*states)[task_idx].CopyOnWrite();
                                 const SplitStepNode * const split_step
-                                        = (*pstates)[task_idx]->transform_steps[step_idx].as < SplitStepNode > ();
+                                        = (*states)[task_idx]->transform_steps[step_idx].as < SplitStepNode > ();
                                 pstate->transform_steps[step_idx]
                                         = SplitStep(split_step->stage_id,
                                                     split_step->iter_id,
@@ -216,7 +216,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 
 int
 ClusterSearchPolicyNode::InitPopulationThreadBind(
-        std::vector < State > * const pstates)
+        std::vector < State > * const states)
 {
         // The vector of ints is used to make sure that all search tasks undergo
         // exactly the same binding at the same stage index.
@@ -228,7 +228,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
                 const SearchTask & task = cur_cluster->tasks[task_idx];
-                State & state = (*pstates)[task_idx];
+                State & state = (*states)[task_idx];
                 std::set < int > multi_level_tiling_root_set;
                 for (size_t stage_idx = 0; stage_idx < state->stages.size();
                      ++stage_idx)
@@ -417,7 +417,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 state.bind_thread(stage_idx, iters1[1], kThreadX);
                         }
                 }  // for (stage_idx ∈ range(state->stages.size()))
-        }  // for (task_idx ∈ range(pstates->size()))
+        }  // for (task_idx ∈ range(states->size()))
         auto are_stage_idxs_all_same = 
                 [](const std::vector < int > & lhs,
                    const std::vector < int > & rhs)
@@ -454,13 +454,13 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 
 
 int
-ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const pstates)
+ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const states)
 {
         size_t rand_auto_unroll_config = C_GPU_AUTO_UNROLL_CONFIGS[_rng() % 5];
         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
                 const SearchTask & task = cur_cluster->tasks[task_idx];
-                State & state = (*pstates)[task_idx];
+                State & state = (*states)[task_idx];
                 for (size_t stage_idx = 0; stage_idx < state->stages.size();
                      ++stage_idx)
                 {
@@ -484,7 +484,7 @@ ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const psta
                                              std::to_string(rand_auto_unroll_config));
                         }
                 }  // for (stage_idx ∈ range(state->stages.size()))
-        }  // for (task_idx ∈ range(pstates->size()))
+        }  // for (task_idx ∈ range(states->size()))
         return 0;
 }
 
@@ -564,18 +564,18 @@ void
 ClusterSearchPolicyNode::RandomSampleStates(
         const std::vector < std::vector < State > > & init_population,
         const int num_measures,
-        std::vector < std::vector < State > > * pbest_states)
+        std::vector < std::vector < State > > * best_states)
 {
         size_t rand_init_population_idx = _rng() % init_population.size();
-        pbest_states->clear();
+        best_states->clear();
 
         for (int i = 0; i < num_measures; ++i)
         {
-                pbest_states->emplace_back(cur_cluster->tasks.size());
+                best_states->emplace_back(cur_cluster->tasks.size());
                 for (size_t task_idx = 0;
                      task_idx < cur_cluster->tasks.size(); ++task_idx)
                 {
-                        pbest_states->back()[task_idx]
+                        best_states->back()[task_idx]
                                 = init_population[rand_init_population_idx][task_idx];
 
                         if (i == 0)
@@ -596,11 +596,11 @@ ClusterSearchPolicyNode::RandomSampleStates(
 
 void 
 ClusterSearchPolicyNode::SearchOneRound(
-        std::vector < std::vector < State > > * const pbest_states,
-        std::vector < std::vector < State > > * const prandom_states,
-        const int num_measures_per_iter, const int num_random_states)
+        std::vector < std::vector < State > > * const best_states,
+        std::vector < std::vector < State > > * const random_states,
+        const int num_random_states)
 {
-        pbest_states->clear(); prandom_states->clear();
+        best_states->clear(); random_states->clear();
 
         int num_use_measured
                 = std::min(static_cast < int > (_measured_states_vec.size()),
@@ -612,18 +612,20 @@ ClusterSearchPolicyNode::SearchOneRound(
         LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
-        RandomSampleStates(init_population,  3 * num_measures_per_iter, pbest_states);
-        RandomSampleStates(init_population, 10 * num_random_states, prandom_states);
+        RandomSampleStates(init_population,  3 * _num_measures_per_iter, best_states);
+        RandomSampleStates(init_population, 10 *  num_random_states, random_states);
 }
 
 
 void 
 ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
-        std::vector < MeasureInput > * const inputs,
+        std::vector < MeasureInput > * const ibatch,
         const std::vector < std::vector < State > > & best_states,
         const std::vector < std::vector < State > > & random_states,
         const int remaining_num_trials)
 {
+        const size_t num_best_states
+                = _num_measures_per_iter - C_EPS_GREEDY * _num_measures_per_iter;
         
 }
 
@@ -632,13 +634,15 @@ Array < State >
 ClusterSearchPolicyNode::Search(
         SearchCluster cluster, ProgramMeasurer measurer,
         const int num_trials,
-        const int early_stopping,
+        const int early_stopping,  // early stopping is not used
         const int num_measures_per_iter,
         Array < SearchCallback > pre_search_callbacks)
+        // pre-search callbacks are not used, for now
 {
         // [ × cluster_size]
         std::vector < std::vector < State > > best_states, random_states;
-        this->cur_cluster = cluster;
+        cur_cluster = cluster;
+        _num_measures_per_iter = num_measures_per_iter;
 
         SplitFactorizationMemo split_memo;
         std::vector < std::vector < PrimExpr > > factor_schemes
@@ -670,7 +674,7 @@ ClusterSearchPolicyNode::Search(
         if (num_trials <= 1) 
         {
                 LOG(INFO) << "Starting to search for one round";
-                SearchOneRound(&best_states, &random_states, num_measures_per_iter, 0);
+                SearchOneRound(&best_states, &random_states, 0);
                 return best_states[0];
         }
         else  // if (num_trials > 1)
@@ -683,7 +687,7 @@ ClusterSearchPolicyNode::Search(
                 for (int num_trials_done = 0; num_trials_done < num_trials; num_trials_done += inputs.size())
                 {
                         SearchOneRound(&best_states, &random_states,
-                                       num_measures_per_iter, num_random_states);
+                                       num_random_states);
 #define INFER_BOUND_FOREACH(states)                                             \
         for (std::vector < State > & states_per_cluster : states)               \
         {                                                                       \

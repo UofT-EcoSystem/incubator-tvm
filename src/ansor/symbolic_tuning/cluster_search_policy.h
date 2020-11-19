@@ -80,6 +80,7 @@ private:
         CostModel _program_cost_model;
         std::mt19937 _rng;
 
+        int _num_measures_per_iter;
         std::unordered_set < State > _measured_states_set;
         std::vector < State > _measured_states_vec;
         std::vector < float > _measured_states_thruput;
@@ -89,7 +90,7 @@ private:
          *        epsilon-greedy algorithm.
          */
         void PickStatesWithEpsGreedy(
-                std::vector < MeasureInput > * const inputs,
+                std::vector < MeasureInput > * const ibatch,
                 const std::vector < std::vector < State > > & best_states,
                 const std::vector < std::vector < State > > & random_states,
                 const int remaining_num_trials);
@@ -102,9 +103,9 @@ private:
          * @brief Search for one round.
          */
         void SearchOneRound(
-                std::vector < std::vector < State > > * const pbest_states,
-                std::vector < std::vector < State > > * const prandom_states,
-                const int num_measures_per_iter, const int num_random_states);
+                std::vector < std::vector < State > > * const best_states,
+                std::vector < std::vector < State > > * const random_states,
+                const int num_random_states);
         /**
          * @brief  Initialize the population's (tile sizes/thread bindings/
          *         unrolling factors).
@@ -112,14 +113,14 @@ private:
          */
         ClusterSplitFactorCache _split_factor_cache;
         int InitPopulationFillTileSize(
-                std::vector < State > * const pstates);
+                std::vector < State > * const states);
         int InitPopulationThreadBind(
-                std::vector < State > * const pstates);
-        int InitPopulationUnroll(std::vector < State > * const pstates);
+                std::vector < State > * const states);
+        int InitPopulationUnroll(std::vector < State > * const states);
 
         void RandomSampleStates(const std::vector < std::vector < State > > & init_population,
                                 const int num_measures,
-                                std::vector < std::vector < State > > * pbest_states);
+                                std::vector < std::vector < State > > * best_states);
         // int _num_measures_per_iter;
 public:
         SearchCluster cur_cluster;
