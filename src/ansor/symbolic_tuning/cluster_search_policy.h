@@ -81,16 +81,16 @@ private:
         std::mt19937 _rng;
 
         int _num_measures_per_iter;
-        std::unordered_set < State > _measured_states_set;
-        std::vector < State > _measured_states_vec;
-        std::vector < float > _measured_states_thruput;
+        std::vector < std::unordered_set < std::string > > _measured_states_set;
+        std::vector < std::vector < State > > _measured_states_vec;
+        std::vector < std::vector < float > > _measured_states_thruput;
 
         /**
          * @brief Pick states from the best and random states, using the
          *        epsilon-greedy algorithm.
          */
         void PickStatesWithEpsGreedy(
-                std::vector < MeasureInput > * const ibatch,
+                std::vector < std::vector < MeasureInput > > * const ibatch,
                 const std::vector < std::vector < State > > & best_states,
                 const std::vector < std::vector < State > > & random_states,
                 const int remaining_num_trials);

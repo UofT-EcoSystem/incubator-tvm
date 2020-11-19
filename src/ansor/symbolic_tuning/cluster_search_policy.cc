@@ -619,14 +619,82 @@ ClusterSearchPolicyNode::SearchOneRound(
 
 void 
 ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
-        std::vector < MeasureInput > * const ibatch,
+        std::vector < std::vector < MeasureInput > > * const inputs,
         const std::vector < std::vector < State > > & best_states,
         const std::vector < std::vector < State > > & random_states,
         const int remaining_num_trials)
 {
         const size_t num_best_states
                 = _num_measures_per_iter - C_EPS_GREEDY * _num_measures_per_iter;
-        
+        inputs->clear();
+        size_t best_idx = 0, random_idx = 0;
+
+        while (static_cast < int > (inputs->size()) <
+               std::min(_num_measures_per_iter, remaining_num_trials))
+        {
+                const std::vector < State > * states;
+                bool has_best = best_idx < best_states.size(),
+                     has_random = random_idx < random_states.size();
+                if (inputs->size() < num_best_states)
+                {
+                        if (has_best)
+                        {
+                                states = &best_states[best_idx++];
+                        }
+                        else if (has_random)
+                        {
+                                states = &random_states[random_idx++];
+                        }
+                        else
+                        {
+                                break;
+                        }
+                }
+                else
+                {
+                        if (has_random)
+                        {
+                                states = &random_states[random_idx++];
+                        }
+                        else if (has_best)
+                        {
+                                states = &best_states[best_idx++];
+                        }
+                        else
+                        {
+                                break;
+                        }
+                }
+                // check if it has already been measured
+                bool all_states_measured = true;
+                for (size_t task_idx = 0;
+                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                {
+                        std::string state_str = (*states)[task_idx].ToStr();
+                        if (!_measured_states_set[task_idx].count(state_str))
+                        {
+                                all_states_measured = false;
+                        }
+                }
+                if (all_states_measured)
+                {
+                        continue;
+                }
+                for (size_t task_idx = 0;
+                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                {
+                        std::string state_str = (*states)[task_idx].ToStr();
+                        _measured_states_set[task_idx].insert(state_str);
+                        _measured_states_vec[task_idx].push_back((*states)[task_idx]);
+                }
+                inputs->push_back(std::vector < MeasureInput > ());
+                for (size_t task_idx = 0;
+                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                {
+                        inputs->back().emplace_back(cur_cluster->tasks[task_idx],
+                                                    (*states)[task_idx]);
+                }
+        }  // while (ibatch->size() < min(num_measures_per_iter, remaining_num_trials))
 }
 
 
@@ -679,6 +747,7 @@ ClusterSearchPolicyNode::Search(
         }
         else  // if (num_trials > 1)
         {
+                // [ × cluster_size]
                 std::vector < std::vector < MeasureInput > > inputs;
                 std::vector < std::vector < MeasureResult > > results;
                 const int num_random_states = C_EPS_GREEDY * num_measures_per_iter;
