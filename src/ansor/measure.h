@@ -318,17 +318,22 @@ class ProgramMeasurerNode: public Object {
 
   /*! \biref Do measurement */
   void Measure(const SearchTask& task,
-               const SearchPolicy& policy,
+               // <bojian/TVM-SymbolicTuning> Removed policy as one of the measure
+               //                             arguments since it is ONLY used
+               //                             for logging purposes.
+               // const SearchPolicy& policy,
                const std::vector<MeasureInput>& inputs,
                std::vector<MeasureResult>* results,
                int batch_size = -1);
 
 
   // <bojian/TVM-SymbolicTuning> Added the measure function for the search cluster.
+  /*
   void Measure(const SearchCluster& cluster,
                const ClusterSearchPolicy & policy,
                const std::vector<std::vector<MeasureInput>>& inputs,
                std::vector<std::vector<MeasureResult>>* const results);
+   */
 
   /*! \biref Do measurement silently */
                      // Removed search task as one of the silent measure arguments.

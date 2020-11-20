@@ -105,7 +105,9 @@ State SketchSearchPolicyNode::Search(SearchTask task, int n_trials,
 
       // Measure candidate states
       PrintTitle("Measure", verbose);
-      measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
+                                  // <bojian/TVM-SymbolicTuning>
+      measurer->Measure(cur_task, // GetRef<SearchPolicy>(this), 
+                        inputs, &results);
       ct += inputs.size();
 
       if (ct - measurer->best_ct[cur_task->workload_key] > early_stopping) {
@@ -154,7 +156,9 @@ std::pair<Array<MeasureInput>, Array<MeasureResult> >
 
   // Measure candidate states
   PrintTitle("Measure", verbose);
-  measurer->Measure(cur_task, GetRef<SearchPolicy>(this), inputs, &results);
+                              // <bojian/TVM-SymbolicTuning>
+  measurer->Measure(cur_task, // GetRef<SearchPolicy>(this), 
+                    inputs, &results);
 
   // Update throughputs of measured states. These states will join the LocalMutation in later rounds
   for (const auto& res : results) {

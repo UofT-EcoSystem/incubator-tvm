@@ -207,7 +207,8 @@ void ProgramMeasurerNode::Reset() {
 }
 
 void ProgramMeasurerNode::Measure(const SearchTask& task,
-                                  const SearchPolicy& policy,
+                                  // <bojian/TVM-SymbolicTuning>
+                                  // const SearchPolicy& policy,
                                   const std::vector<MeasureInput>& inputs,
                                   std::vector<MeasureResult>* results,
                                   int batch_size) {
