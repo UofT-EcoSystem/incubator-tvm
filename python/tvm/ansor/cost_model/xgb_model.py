@@ -114,18 +114,6 @@ class XGBModel(PythonBasedModel):
                                  maximize=False,
                                  verbose_eval=self.verbose_eval)])
 
-
-    # <bojian/TVM-SymbolicTuning>
-    def perdict_for_cluster(self, cluster, states):
-        features = get_per_stmt_features_from_cluster_states(cluster, states)
-        if self.bst is not None and \
-           len(self.inputs) > self.num_warmup_sample:
-            
-        # predict -∞ for invalid states that failed to be lowered
-
-
-
-
     def predict(self, task, states):
         features = get_per_stmt_features_from_states(states, task)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
