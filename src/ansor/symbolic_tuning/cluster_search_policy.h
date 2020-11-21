@@ -121,8 +121,12 @@ private:
 
         void RandomSampleStates(const std::vector < std::vector < State > > & init_population,
                                 const int num_measures,
-                                std::vector < std::vector < State > > * best_states);
-        // int _num_measures_per_iter;
+                                std::vector < std::vector < State > > * const best_states);
+
+        void EvolutionarySearch(
+                const std::vector < std::vector < State > > & population,
+                const int num_best_states,
+                std::vector < std::vector < State > > * const best_states);
 public:
         SearchCluster cur_cluster;
 

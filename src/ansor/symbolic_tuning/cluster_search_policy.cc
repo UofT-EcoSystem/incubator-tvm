@@ -564,7 +564,7 @@ void
 ClusterSearchPolicyNode::RandomSampleStates(
         const std::vector < std::vector < State > > & init_population,
         const int num_measures,
-        std::vector < std::vector < State > > * best_states)
+        std::vector < std::vector < State > > * const best_states)
 {
         size_t rand_init_population_idx = _rng() % init_population.size();
         best_states->clear();
@@ -695,6 +695,26 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
                                                       (*states)[task_idx]);
                 }
         }  // while (ibatch->size() < min(num_measures_per_iter, remaining_num_trials))
+}
+
+
+void
+ClusterSearchPolicyNode::EvolutionarySearch(
+        const std::vector < std::vector < State > > & population,
+        const int num_best_states,
+        std::vector < std::vector < State > > * const best_states)
+{
+        const int num_crossovers = C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO *
+                                   C_EVOLUTIONARY_SEARCH_POPULATION;
+        std::vector < std::vector < State > > ping_buf, pong_buf, 
+                                              * buf_now  = &ping_buf, 
+                                              * buf_next = &pong_buf;
+        ping_buf.reserve(population);
+        pong_buf.reserve(population);
+
+        ping_buf.insert(ping_buf.begin(), population.begin(),
+                        population.end());
+        
 }
 
 
