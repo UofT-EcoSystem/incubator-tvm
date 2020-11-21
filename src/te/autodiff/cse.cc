@@ -116,43 +116,12 @@ class TensorExprNode {
 class CSEOptimizer;
 
 /*!
- * \brief The \c TensorExprTree constructs a tree-like structure from a tensor expression.
- */
-class TensorExprTree {
- public:
-  using FConstruct = NodeFunctor<void(const ObjectRef&, TensorExprNode* const,
-                                      TensorExprTree* const)>;
-  static FConstruct& cstrtable() {
-    static FConstruct instance;
-    return instance;
-  }
-  void Construct_(const CallNode* const, TensorExprNode* const);
-  void Construct_(const ProducerLoadNode* const, TensorExprNode* const);
-  void Construct_(const AddNode* const, TensorExprNode* const);
-  void Construct_(const SubNode* const, TensorExprNode* const);
-  void Construct_(const MulNode* const, TensorExprNode* const);
-  void Construct_(const DivNode* const, TensorExprNode* const);
-  void Construct_(const ReduceNode* const, TensorExprNode* const);
-  void Construct_(const IntImmNode* const, TensorExprNode* const) {}
-  void Construct_(const FloatImmNode* const, TensorExprNode* const) {}
-  /*!
-   * \brief 
-   */
-  TensorExprPtr Construct(const ObjectRef& ref, const Array<IterVar>& axis);
- private:
-};  // class TensorExprConstr
-
-
-/*!
  * \brief The \c CSEOptimizer eliminates the common subexpressions between the
  *        source and target tensor.
  */
 class CSEOptimizer {
  public:
   CSEOptimizer(const Tensor& src);
- private:
-  TensorExprTree src_tensor_expr_tree_,
-                 tgt_tensor_expr_tree_;
 };  // class CSEOptimizer
 
 
