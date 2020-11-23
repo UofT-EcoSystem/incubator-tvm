@@ -1,5 +1,7 @@
 #include "cluster_search_policy.h"
 
+#include <algorithm>
+
 #include "../search_policy/sketch_search_policy.h"
 #include "../search_policy/utils.h"
 #include "../transform_step.h"
@@ -607,7 +609,7 @@ ClusterSearchPolicyNode::SearchOneRound(
                            static_cast < int > (
                                    C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO *
                                    C_EVOLUTIONARY_SEARCH_POPULATION));
-        // sample the initial population
+        // sample the initial population [* × cluster_size]
         std::vector < std::vector < State > > init_population;
         LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
@@ -697,24 +699,90 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
         }  // while (ibatch->size() < min(num_measures_per_iter, remaining_num_trials))
 }
 
+using StatesScorePair = std::pair < std::vector < State >, float >;
+
+bool operator>(const StatesScorePair & lhs,
+               const StatesScorePair & rhs)
+{
+        return lhs.second > rhs.second;
+}
+
 
 void
 ClusterSearchPolicyNode::EvolutionarySearch(
+        // [* × cluster_size]
         const std::vector < std::vector < State > > & population,
         const int num_best_states,
         std::vector < std::vector < State > > * const best_states)
 {
         const int num_crossovers = C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO *
                                    C_EVOLUTIONARY_SEARCH_POPULATION;
-        std::vector < std::vector < State > > ping_buf, pong_buf, 
-                                              * buf_now  = &ping_buf, 
-                                              * buf_next = &pong_buf;
-        ping_buf.reserve(population);
-        pong_buf.reserve(population);
+        // [cluster_size × *]
+        std::vector < std::vector < State > >
+                ping_buf(cur_cluster->tasks.size(),
+                         std::vector < State > (population.size())),
+                pong_buf;
+        size_t ping_buf_size = population.size();
+        std::vector < StatesScorePair > heap;
+        // [cluster_size × *]
+        std::vector < std::unordered_set < std::string > > in_heap(
+                _measured_states_set);
+        std::vector < std::vector < float > >
+                scores(cur_cluster->tasks.size(), std::vector < float > (population.size()));
+        std::vector < float > scores_per_population(cur_cluster->tasks.size());
 
-        ping_buf.insert(ping_buf.begin(), population.begin(),
-                        population.end());
-        
+        // initialize the ping buffer to the population transposed
+        for (size_t i = 0; i < population.size(); ++i)
+        {
+                CHECK(population[i].size() ==
+                      cur_cluster->tasks.size());
+                for (size_t j = 0; j < cur_cluster->tasks.size(); ++j)
+                {
+                        ping_buf[j][i] = population[i][j];
+                }
+        }
+        for (int iter = 0; iter < C_EVOLUTIONARY_SEARCH_NUM_ITERS; ++iter)
+        {
+                // 1. Predict the performance numbers for all the search tasks
+                //    in the search cluster.
+                for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                     ++task_idx)
+                {
+                        cur_cluster->tasks[task_idx]->compute_dag.InferBound(&ping_buf[task_idx]);
+                        PruneInvalidState(cur_cluster->tasks[task_idx],
+                                          &ping_buf[task_idx]);
+                        _program_cost_model->Predict(cur_cluster->tasks[task_idx], 
+                                                     ping_buf[task_idx], &scores[task_idx]);
+                        CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
+                }
+                // 2. Transpose the scores into [cluster_size × *]. Then ∀
+                //    population, accumulate its scores.
+                for (size_t pop_idx = 0; pop_idx < ping_buf_size;
+                     ++pop_idx)
+                {
+                        for (size_t task_idx = 0;
+                             task_idx < cur_cluster->tasks.size(); ++task_idx)
+                        {
+                                scores_per_population[task_idx] = scores[task_idx][pop_idx];
+                        }
+                        std::accumulate(scores_per_population.begin(),
+                                         )
+                }
+
+                        if (in_heap.count(state_str) == 0)
+                        {
+                                
+                        }
+                        else if () 
+                        {
+
+                        }
+                        if (scores[i] > max_score)
+                        {
+
+                        }
+                }
+        }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
 }
 
 
