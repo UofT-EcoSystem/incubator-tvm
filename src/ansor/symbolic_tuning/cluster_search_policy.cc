@@ -722,14 +722,19 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 ping_buf(cur_cluster->tasks.size(),
                          std::vector < State > (population.size())),
                 pong_buf;
-        size_t ping_buf_size = population.size();
-        std::vector < StatesScorePair > heap;
+        size_t ping_buf_size = population.size(), pong_buf_size = 0;
+        // [num_best_states × (cluster_size, float)]
+        std::vector < StatesScorePair > scoreboard;
         // [cluster_size × *]
-        std::vector < std::unordered_set < std::string > > in_heap(
-                _measured_states_set);
+        std::vector < std::unordered_set < std::string > > scoreboard_set(_measured_states_set);
         std::vector < std::vector < float > >
                 scores(cur_cluster->tasks.size(), std::vector < float > (population.size()));
-        std::vector < float > scores_per_population(cur_cluster->tasks.size());
+        std::vector < float > scores_per_population(cur_cluster->tasks.size()),
+                              acc_scores(ping_buf_size);
+        std::vector < State > states_per_population(cur_cluster->tasks.size());
+        std::vector < std::string > state_strs_per_population(cur_cluster->tasks.size());
+        std::vector < double > prefix_sum_probs(ping_buf_size);
+        float max_score = 0.f;
 
         // initialize the ping buffer to the population transposed
         for (size_t i = 0; i < population.size(); ++i)
@@ -740,6 +745,13 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 {
                         ping_buf[j][i] = population[i][j];
                 }
+        }
+        // initialize the task indices, an auxiliary data structure for traversal
+        std::vector < size_t > task_indices(cur_cluster->tasks.size());
+        for (size_t task_idx = 0;
+             task_idx < cur_cluster->tasks.size(); ++task_idx)
+        {
+                task_indices[task_idx] = task_idx;
         }
         for (int iter = 0; iter < C_EVOLUTIONARY_SEARCH_NUM_ITERS; ++iter)
         {
@@ -755,32 +767,84 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                      ping_buf[task_idx], &scores[task_idx]);
                         CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
                 }
-                // 2. Transpose the scores into [cluster_size × *]. Then ∀
-                //    population, accumulate its scores.
                 for (size_t pop_idx = 0; pop_idx < ping_buf_size;
                      ++pop_idx)
                 {
+                        // 2. Transpose the scores into [cluster_size × *]. Then
+                        //    ∀ population, accumulate its scores.
                         for (size_t task_idx = 0;
                              task_idx < cur_cluster->tasks.size(); ++task_idx)
                         {
                                 scores_per_population[task_idx] = scores[task_idx][pop_idx];
+                                states_per_population[task_idx]
+                                        = ping_buf[task_idx][pop_idx];
+                                state_strs_per_population[task_idx]
+                                        = ping_buf[task_idx][pop_idx].ToStr();
                         }
-                        std::accumulate(scores_per_population.begin(),
-                                         )
+                        acc_scores[pop_idx] = 
+                                std::accumulate(scores_per_population.begin(),
+                                                scores_per_population.end(), 0.f);
+                        auto state_recorded_on_scoreboard = 
+                                [&scoreboard_set,
+                                 &state_strs_per_population](const size_t task_idx)
+                                -> bool
+                                {
+                                        return scoreboard_set[task_idx].count(state_strs_per_population[task_idx]) == 0;
+                                };
+
+                        if (std::any_of(task_indices.begin(), task_indices.end(),
+                                        state_recorded_on_scoreboard))
+                        {
+                                // make sure that all search tasks are consistent
+                                CHECK(std::all_of(task_indices.begin(), task_indices.end(),
+                                                  state_recorded_on_scoreboard));
+                                if (scoreboard.size() < static_cast < size_t > (num_best_states))
+                                {
+                                        scoreboard.emplace_back(states_per_population, acc_scores[pop_idx]);
+                                        std::push_heap(scoreboard.begin(), scoreboard.end(),
+                                                       std::greater < StatesScorePair > ());
+                                        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                                             ++task_idx)
+                                        {
+                                                scoreboard_set[task_idx].insert(state_strs_per_population[task_idx]);
+                                        }
+                                }
+                                // Otherwise, push the states onto the scoreboard if
+                                // the accumulated score is larger than the smallest
+                                // score on board.
+                                else if (acc_scores[pop_idx] > scoreboard.front().second)
+                                {
+                                        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); 
+                                             ++task_idx)
+                                        {
+                                                scoreboard_set[task_idx].erase(
+                                                        scoreboard.front().first[task_idx].ToStr());
+                                                scoreboard_set[task_idx].insert(ping_buf[task_idx][pop_idx].ToStr());
+                                        }
+                                        // maintain the scoreboard
+                                        std::pop_heap (scoreboard.begin(), scoreboard.end(),
+                                                       std::greater < StatesScorePair > ());
+                                        scoreboard.back() = StatesScorePair(states_per_population, acc_scores[pop_idx]);
+                                        std::push_heap(scoreboard.begin(), scoreboard.end(),
+                                                       std::greater < StatesScorePair > ());
+                                }
+                                if (acc_scores[pop_idx] > max_score)
+                                {
+                                        max_score = acc_scores[pop_idx];
+                                }
+                        }  // if (std::any_of(task_indices.begin(), task_indices.end(),
+                           //                 state_recorded_on_scoreboard))
+                }  // for (pop_idx ∈ [0, ping_buf_size))
+                double sum = 0.;
+                prefix_sum_probs.resize(acc_scores.size());
+                for (size_t i = 0; i < acc_scores.size(); ++i)
+                {
+                        sum += std::max(acc_scores[i], 0.f);
+                        prefix_sum_probs[i] = sum;
                 }
-
-                        if (in_heap.count(state_str) == 0)
-                        {
-                                
-                        }
-                        else if () 
-                        {
-
-                        }
-                        if (scores[i] > max_score)
-                        {
-
-                        }
+                for (size_t i = 0; i < acc_scores.size(); ++i)
+                {
+                        prefix_sum_probs[i] = prefix_sum_probs[i] / sum;
                 }
         }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
 }
