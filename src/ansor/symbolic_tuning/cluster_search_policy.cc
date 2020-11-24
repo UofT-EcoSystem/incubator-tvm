@@ -15,7 +15,7 @@ constexpr double ClusterSearchPolicyNode::C_EPS_GREEDY;
 constexpr int ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_POPULATION;
 constexpr int ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_NUM_ITERS;
 constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_MUTATION_PROB;
-constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO;
+constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_CROSS_OVER_RATIO;
 constexpr double ClusterSearchPolicyNode::C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO;
 constexpr int ClusterSearchPolicyNode::C_GPU_AUTO_UNROLL_CONFIGS[];
 constexpr const char * ClusterSearchPolicyNode::C_GPU_MULTI_LEVEL_TILING_STRUCTURE;
@@ -715,8 +715,6 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         const int num_best_states,
         std::vector < std::vector < State > > * const best_states)
 {
-        const int num_crossovers = C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO *
-                                   C_EVOLUTIONARY_SEARCH_POPULATION;
         // [cluster_size × *]
         std::vector < std::vector < State > >
                 ping_buf(cur_cluster->tasks.size(),
@@ -736,6 +734,14 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         std::vector < double > prefix_sum_probs(ping_buf_size);
         float max_score = 0.f;
 
+        // cross over parameters
+        const int c_num_cross_overs
+                = C_EVOLUTIONARY_SEARCH_CROSS_OVER_RATIO *
+                  C_EVOLUTIONARY_SEARCH_POPULATION;
+        int mutation_succ_cnt = 0, crossover_succ_cnt = 0,
+            mutation_fail_cnt = 0, corssover_fail_cnt = 0;
+        std::vector < int > crossover_fail_counters = {0, 0, 0, 0, 0};
+
         // initialize the ping buffer to the population transposed
         for (size_t i = 0; i < population.size(); ++i)
         {
@@ -753,7 +759,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         {
                 task_indices[task_idx] = task_idx;
         }
-        for (int iter = 0; iter < C_EVOLUTIONARY_SEARCH_NUM_ITERS; ++iter)
+        for (int evo_search_iter = 0; evo_search_iter <= C_EVOLUTIONARY_SEARCH_NUM_ITERS;
+             ++evo_search_iter)
         {
                 // 1. Predict the performance numbers for all the search tasks
                 //    in the search cluster.
@@ -835,6 +842,13 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         }  // if (std::any_of(task_indices.begin(), task_indices.end(),
                            //                 state_recorded_on_scoreboard))
                 }  // for (pop_idx ∈ [0, ping_buf_size))
+                if (evo_search_iter == C_EVOLUTIONARY_SEARCH_NUM_ITERS)
+                {
+                        break;
+                }
+                // =============================================================
+                // Crossover
+                // =============================================================
                 double sum = 0.;
                 prefix_sum_probs.resize(acc_scores.size());
                 for (size_t i = 0; i < acc_scores.size(); ++i)
@@ -845,6 +859,18 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 for (size_t i = 0; i < acc_scores.size(); ++i)
                 {
                         prefix_sum_probs[i] = prefix_sum_probs[i] / sum;
+                }
+                for (size_t co = 0;
+                     _cross_over_enabled &&
+                     static_cast < int > (pong_buf_size) < c_num_cross_overs &&
+                     co < c_num_cross_overs; ++co)
+                {
+                        int pop_idx1 = RandomChoose(prefix_sum_probs, &_rng),
+                            pop_idx2 = RandomChoose(prefix_sum_probs, &_rng);
+                        if (pop_idx1 == pop_idx2)
+                        {
+                                
+                        }
                 }
         }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
 }

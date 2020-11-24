@@ -71,7 +71,7 @@ private:
         static constexpr int C_EVOLUTIONARY_SEARCH_POPULATION = 2048;
         static constexpr int C_EVOLUTIONARY_SEARCH_NUM_ITERS = 10;
         static constexpr double C_EVOLUTIONARY_SEARCH_MUTATION_PROB = 0.85;
-        static constexpr double C_EVOLUTIONARY_SEARCH_CROSSOVER_RATIO = 0.05;
+        static constexpr double C_EVOLUTIONARY_SEARCH_CROSS_OVER_RATIO = 0.05;
         static constexpr double C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO = 0.2;
         static constexpr int C_GPU_AUTO_UNROLL_CONFIGS[] = {0, 16, 64, 512, 1024};
         static constexpr const char * C_GPU_MULTI_LEVEL_TILING_STRUCTURE = "SSSRRSRS";
@@ -85,6 +85,8 @@ private:
         std::vector < std::unordered_set < std::string > > _measured_states_set;
         std::vector < std::vector < State > > _measured_states_vec;
         std::vector < std::vector < float > > _measured_states_thruput;
+
+        bool _cross_over_enabled = true;
 
         /**
          * @brief Pick states from the best and random states, using the
