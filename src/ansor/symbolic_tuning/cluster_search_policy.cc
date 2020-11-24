@@ -609,7 +609,7 @@ ClusterSearchPolicyNode::SearchOneRound(
                            static_cast < int > (
                                    C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO *
                                    C_EVOLUTIONARY_SEARCH_POPULATION));
-        // sample the initial population [* × cluster_size]
+        // sample the initial population [pop_size × cluster_size]
         std::vector < std::vector < State > > init_population;
         LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
@@ -710,27 +710,27 @@ bool operator>(const StatesScorePair & lhs,
 
 void
 ClusterSearchPolicyNode::EvolutionarySearch(
-        // [* × cluster_size]
+        // [pop_size × cluster_size]
         const std::vector < std::vector < State > > & population,
         const int num_best_states,
         std::vector < std::vector < State > > * const best_states)
 {
-        // [cluster_size × *]
+        // [cluster_size × pop_size]
         std::vector < std::vector < State > >
                 ping_buf(cur_cluster->tasks.size(),
                          std::vector < State > (population.size())),
-                pong_buf;
+                pong_buf(cur_cluster->tasks.size());
         size_t ping_buf_size = population.size(), pong_buf_size = 0;
         // [num_best_states × (cluster_size, float)]
         std::vector < StatesScorePair > scoreboard;
-        // [cluster_size × *]
+        // [cluster_size × num_best_states]
         std::vector < std::unordered_set < std::string > > scoreboard_set(_measured_states_set);
         std::vector < std::vector < float > >
                 scores(cur_cluster->tasks.size(), std::vector < float > (population.size()));
         std::vector < float > scores_per_population(cur_cluster->tasks.size()),
                               acc_scores(ping_buf_size);
         std::vector < State > states_per_population(cur_cluster->tasks.size());
-        std::vector < std::string > state_strs_per_population(cur_cluster->tasks.size());
+        std::vector < std::vector < std::string > > pop_state_strs;  // [cluster_size × pop_size]
         std::vector < double > prefix_sum_probs(ping_buf_size);
         float max_score = 0.f;
 
@@ -738,9 +738,9 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         const int c_num_cross_overs
                 = C_EVOLUTIONARY_SEARCH_CROSS_OVER_RATIO *
                   C_EVOLUTIONARY_SEARCH_POPULATION;
-        int mutation_succ_cnt = 0, crossover_succ_cnt = 0,
-            mutation_fail_cnt = 0, corssover_fail_cnt = 0;
-        std::vector < int > crossover_fail_counters = {0, 0, 0, 0, 0};
+        int mutation_succ_cnt = 0, cross_over_succ_cnt = 0,
+            mutation_fail_cnt = 0, cross_over_fail_cnt = 0;
+        std::vector < int > cross_over_fail_counters = {0, 0, 0, 0, 0};
 
         // initialize the ping buffer to the population transposed
         for (size_t i = 0; i < population.size(); ++i)
@@ -774,18 +774,19 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                      ping_buf[task_idx], &scores[task_idx]);
                         CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
                 }
+                pop_state_strs.assign(cur_cluster->tasks.size(),
+                                      std::vector < std::string > (ping_buf_size));
                 for (size_t pop_idx = 0; pop_idx < ping_buf_size;
                      ++pop_idx)
                 {
-                        // 2. Transpose the scores into [cluster_size × *]. Then
-                        //    ∀ population, accumulate its scores.
+                        // 2. ∀population, accumulate its scores.
                         for (size_t task_idx = 0;
                              task_idx < cur_cluster->tasks.size(); ++task_idx)
                         {
                                 scores_per_population[task_idx] = scores[task_idx][pop_idx];
                                 states_per_population[task_idx]
                                         = ping_buf[task_idx][pop_idx];
-                                state_strs_per_population[task_idx]
+                                pop_state_strs[task_idx][pop_idx]
                                         = ping_buf[task_idx][pop_idx].ToStr();
                         }
                         acc_scores[pop_idx] = 
@@ -793,10 +794,10 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                 scores_per_population.end(), 0.f);
                         auto state_recorded_on_scoreboard = 
                                 [&scoreboard_set,
-                                 &state_strs_per_population](const size_t task_idx)
+                                 &pop_state_strs, &pop_idx](const size_t task_idx)
                                 -> bool
                                 {
-                                        return scoreboard_set[task_idx].count(state_strs_per_population[task_idx]) == 0;
+                                        return scoreboard_set[task_idx].count(pop_state_strs[task_idx][pop_idx]) == 0;
                                 };
 
                         if (std::any_of(task_indices.begin(), task_indices.end(),
@@ -813,7 +814,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                                              ++task_idx)
                                         {
-                                                scoreboard_set[task_idx].insert(state_strs_per_population[task_idx]);
+                                                scoreboard_set[task_idx].insert(pop_state_strs[task_idx][pop_idx]);
                                         }
                                 }
                                 // Otherwise, push the states onto the scoreboard if
@@ -867,11 +868,73 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 {
                         int pop_idx1 = RandomChoose(prefix_sum_probs, &_rng),
                             pop_idx2 = RandomChoose(prefix_sum_probs, &_rng);
-                        if (pop_idx1 == pop_idx2)
+                        CHECK(pop_idx1 >= 0 && pop_idx1 < ping_buf_size);
+                        CHECK(pop_idx2 >= 0 && pop_idx2 < ping_buf_size);
+                        auto is_same_pop_state =
+                                [&pop_state_strs, &pop_idx1, &pop_idx2](const size_t task_idx)
+                                {
+                                        return pop_state_strs[task_idx][pop_idx1] == 
+                                               pop_state_strs[task_idx][pop_idx2];
+                                };
+                        if (pop_idx1 == pop_idx2 || 
+                            std::any_of(task_indices.begin(), task_indices.end(),
+                                        is_same_pop_state))
                         {
-                                
-                        }
+                                CHECK(std::all_of(
+                                        task_indices.begin(), task_indices.end(),
+                                        is_same_pop_state));
+                                for (size_t task_idx = 0;
+                                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                                {
+                                        pong_buf[task_idx].push_back(ping_buf[task_idx][pop_idx1]);
+                                }
+                                ++pong_buf_size;
+                        } 
+                        else  // if (pop_idx1 != pop_idx2)
+                        {
+                                std::vector < State > cross_over_states(cur_cluster->tasks.size());
+                                for (size_t task_idx = 0;
+                                     task_idx < cur_cluster->tasks.size(); ++task_idx)
+                                {
+                                        cross_over_states.push_back(
+                                                CrossOverState(cur_cluster->tasks[task_idx], &_rng,
+                                                               ping_buf[task_idx][pop_idx1],
+                                                               ping_buf[task_idx][pop_idx2],
+                                                               &cross_over_fail_counters));
+                                }
+                                auto is_cross_over_state_defined = 
+                                        [](const State & state)
+                                        {
+                                                return state.defined();
+                                        };
+                                if (std::any_of(cross_over_states.begin(),
+                                                cross_over_states.end(),
+                                                is_cross_over_state_defined))
+                                {
+                                        CHECK(std::all_of(cross_over_states.begin(),
+                                                          cross_over_states.end(),
+                                                          is_cross_over_state_defined));
+                                        for (size_t task_idx = 0;
+                                             task_idx < cur_cluster->tasks.size(); ++task_idx)
+                                        {
+                                                pong_buf[task_idx].push_back(cross_over_states[task_idx]);
+                                        }
+                                        ++pong_buf_size;
+                                        ++cross_over_succ_cnt;
+                                }
+                                else
+                                {
+                                        ++cross_over_fail_cnt;
+                                }
+                        }  // if (pop_idx1 == pop_idx2)
+                }  // for (co ∈ [0, c_num_cross_overs))
+                // turn off crossover forever if we cannot perform it successfully
+                if (cross_over_succ_cnt == 0)
+                {
+                        _cross_over_enabled = false;
+                        cross_over_succ_cnt = cross_over_fail_cnt = -1;
                 }
+                
         }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
 }
 
@@ -885,7 +948,7 @@ ClusterSearchPolicyNode::Search(
         Array < SearchCallback > pre_search_callbacks)
         // pre-search callbacks are not used, for now
 {
-        // [* × cluster_size]
+        // num_best/random_states × cluster_size]
         std::vector < std::vector < State > > best_states, random_states;
         cur_cluster = cluster;
         _num_measures_per_iter = num_measures_per_iter;
@@ -925,7 +988,7 @@ ClusterSearchPolicyNode::Search(
         }
         else  // if (num_trials > 1)
         {
-                // [cluster_size × *]
+                // [cluster_size × num_measures_per_iter]
                 std::vector < std::vector < MeasureInput > >  inputs;
                 std::vector < std::vector < MeasureResult > > results;
                 const int num_random_states = C_EPS_GREEDY * num_measures_per_iter;
