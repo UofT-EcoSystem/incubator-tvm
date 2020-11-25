@@ -699,6 +699,20 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
         }  // while (ibatch->size() < min(num_measures_per_iter, remaining_num_trials))
 }
 
+
+std::vector < State >
+RandomMutateTileSize(const std::vector < State > & states)
+{
+        CHECK(states.size() == cur_cluster->tasks.size());
+        std::vector < std::vector < size_t > > split_step_indices;
+
+        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
+        {
+                for (size_t )
+        }
+}
+
+
 using StatesScorePair = std::pair < std::vector < State >, float >;
 
 bool operator>(const StatesScorePair & lhs,
@@ -720,7 +734,6 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 ping_buf(cur_cluster->tasks.size(),
                          std::vector < State > (population.size())),
                 pong_buf(cur_cluster->tasks.size());
-        size_t ping_buf_size = population.size(), pong_buf_size = 0;
         // [num_best_states × (cluster_size, float)]
         std::vector < StatesScorePair > scoreboard;
         // [cluster_size × num_best_states]
@@ -728,10 +741,10 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         std::vector < std::vector < float > >
                 scores(cur_cluster->tasks.size(), std::vector < float > (population.size()));
         std::vector < float > scores_per_population(cur_cluster->tasks.size()),
-                              acc_scores(ping_buf_size);
+                              acc_scores(population.size());
         std::vector < State > states_per_population(cur_cluster->tasks.size());
         std::vector < std::vector < std::string > > pop_state_strs;  // [cluster_size × pop_size]
-        std::vector < double > prefix_sum_probs(ping_buf_size);
+        std::vector < double > prefix_sum_probs(population.size());
         float max_score = 0.f;
 
         // cross over parameters
@@ -741,6 +754,9 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         int mutation_succ_cnt = 0, cross_over_succ_cnt = 0,
             mutation_fail_cnt = 0, cross_over_fail_cnt = 0;
         std::vector < int > cross_over_fail_counters = {0, 0, 0, 0, 0};
+
+        // mutation parameters
+        std::uniform_real_distribution <> uniform_distrib(0.f, 1.f);
 
         // initialize the ping buffer to the population transposed
         for (size_t i = 0; i < population.size(); ++i)
@@ -762,8 +778,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         for (int evo_search_iter = 0; evo_search_iter <= C_EVOLUTIONARY_SEARCH_NUM_ITERS;
              ++evo_search_iter)
         {
-                // 1. Predict the performance numbers for all the search tasks
-                //    in the search cluster.
+                // predict the performance numbers for all the search tasks in
+                // the search cluster
                 for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                      ++task_idx)
                 {
@@ -775,11 +791,11 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
                 }
                 pop_state_strs.assign(cur_cluster->tasks.size(),
-                                      std::vector < std::string > (ping_buf_size));
-                for (size_t pop_idx = 0; pop_idx < ping_buf_size;
+                                      std::vector < std::string > (population.size()));
+                for (size_t pop_idx = 0; pop_idx < population.size();
                      ++pop_idx)
                 {
-                        // 2. ∀population, accumulate its scores.
+                        // ∀population, accumulate its scores.
                         for (size_t task_idx = 0;
                              task_idx < cur_cluster->tasks.size(); ++task_idx)
                         {
@@ -817,8 +833,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                 scoreboard_set[task_idx].insert(pop_state_strs[task_idx][pop_idx]);
                                         }
                                 }
-                                // Otherwise, push the states onto the scoreboard if
-                                // the accumulated score is larger than the smallest
+                                // push the states onto the scoreboard if the
+                                // accumulated score is larger than the smallest
                                 // score on board.
                                 else if (acc_scores[pop_idx] > scoreboard.front().second)
                                 {
@@ -850,6 +866,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 // =============================================================
                 // Crossover
                 // =============================================================
+                size_t pong_buf_size = 0;
+
                 double sum = 0.;
                 prefix_sum_probs.resize(acc_scores.size());
                 for (size_t i = 0; i < acc_scores.size(); ++i)
@@ -861,15 +879,13 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 {
                         prefix_sum_probs[i] = prefix_sum_probs[i] / sum;
                 }
-                for (size_t co = 0;
-                     _cross_over_enabled &&
-                     static_cast < int > (pong_buf_size) < c_num_cross_overs &&
-                     co < c_num_cross_overs; ++co)
+
+                for (size_t co = 0; _cross_over_enabled && co < c_num_cross_overs; ++co)
                 {
                         int pop_idx1 = RandomChoose(prefix_sum_probs, &_rng),
                             pop_idx2 = RandomChoose(prefix_sum_probs, &_rng);
-                        CHECK(pop_idx1 >= 0 && pop_idx1 < ping_buf_size);
-                        CHECK(pop_idx2 >= 0 && pop_idx2 < ping_buf_size);
+                        CHECK(pop_idx1 >= 0 && pop_idx1 < population.size());
+                        CHECK(pop_idx2 >= 0 && pop_idx2 < population.size());
                         auto is_same_pop_state =
                                 [&pop_state_strs, &pop_idx1, &pop_idx2](const size_t task_idx)
                                 {
@@ -934,7 +950,34 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         _cross_over_enabled = false;
                         cross_over_succ_cnt = cross_over_fail_cnt = -1;
                 }
-                
+                // =============================================================
+                // Mutation
+                // =============================================================
+                while (pong_buf_size < population.size())
+                {
+                        int pop_idx = RandomChoose(prefix_sum_probs, &_rng);
+                        if (uniform_distrib(_rng) < C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
+                        {
+                                std::vector < State > mutated_states;
+
+                                int rule_id = RandomChoose({0.9, 1.0}, &_rng);
+                                switch (rule_id)
+                                {
+                                        case 0:
+
+                                                break;
+                                        case 1:
+
+                                                break;
+                                        default:
+                                                LOG(FATAL) << "Invalid rule_id=" << rule_id;
+                                }
+                        }
+                        else  // if (uniform_distrib(_rng) >= C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
+                        {
+
+                        }  // if (uniform_distrib(_rng) < C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
+                }  // while (pong_buf_size < population.size())
         }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
 }
 
