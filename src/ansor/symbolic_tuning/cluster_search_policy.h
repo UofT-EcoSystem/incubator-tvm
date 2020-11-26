@@ -131,11 +131,13 @@ private:
                 const int num_best_states,
                 std::vector < std::vector < State > > * const best_states);
 public:
-        SearchCluster cur_cluster;
+        SearchCluster  cur_cluster;
+        HardwareParams hardware_params;
 
         void VisitAttrs(AttrVisitor * v)
         {
                 v->Visit("cur_cluster", &cur_cluster);
+                v->Visit("hardware_params", &hardware_params);
         }
         Array < State >
         Search(SearchCluster cluster, ProgramMeasurer measurer,

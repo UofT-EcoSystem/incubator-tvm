@@ -165,9 +165,7 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
                         const ClusterSplitFactorCache::VT & candidates =
                                 _split_factor_cache.GetFactorizationSchemes(
                                         extents, num_lengths,
-                                        cur_cluster->tasks[cur_cluster->repr_idx]
-                                                   ->hardware_params
-                                                   ->max_innermost_split_factor);
+                                        hardware_params->max_innermost_split_factor);
                         
                         LOG(INFO) << "Finished getting the factorization schemes";
                         CHECK(candidates.size() != 0)
@@ -272,7 +270,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                         Iterator fused_iter;
                                         state = FuseAllOuterSpaceIterators(state, stage_idx, &fused_iter);
 
-                                        if (GetExtent(fused_iter) <= task->hardware_params->warp_size)
+                                        if (GetExtent(fused_iter) <= hardware_params->warp_size)
                                         {
                                                 state.bind_thread(stage_idx, fused_iter, kThreadX);
                                                 fused_iter_ext_le_wrap_size[task_idx].push_back(stage_idx);
@@ -281,7 +279,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                         {
                                                 const auto & split_iters = state.split(
                                                         stage_idx, fused_iter,
-                                                        {task->hardware_params->warp_size});
+                                                        {hardware_params->warp_size});
                                                 state.bind_thread(stage_idx, split_iters[0], kBlockX);
                                                 state.bind_thread(stage_idx, split_iters[1], kThreadX);
                                                 fused_iter_ext_gt_wrap_size[task_idx].push_back(stage_idx);
@@ -305,7 +303,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                 }
                                 DEBUG_LOG_VAR(total_space_extent);
                                 // Check if the total space extent is too small for multi-level thread binding.
-                                if (total_space_extent <= task->hardware_params->warp_size)
+                                if (total_space_extent <= hardware_params->warp_size)
                                 {
                                         for (const auto & it : state->stages[stage_idx]->iters)
                                         {
@@ -345,11 +343,10 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                         to_fuse.push_back(state->stages[stage_idx]->iters[i]);
                                 }
                                 const auto & vthread_iter = state.fuse(stage_idx, to_fuse);
-                                if (GetExtent(vthread_iter) > 
-                                    task->hardware_params->max_vthread_extent)
+                                if (GetExtent(vthread_iter) > hardware_params->max_vthread_extent)
                                 {
                                         LOG(WARNING) << "vthread.extent=" << GetExtent(vthread_iter) << " > "
-                                                     << task->hardware_params->max_vthread_extent;
+                                                     << hardware_params->max_vthread_extent;
                                         return -1;
                                 }
                                 state.bind_thread(stage_idx, vthread_iter, kVThread);
@@ -374,8 +371,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 
 
                                 const auto & threadidx_iter = state.fuse(stage_idx, to_fuse);
-                                if (GetExtent(threadidx_iter) < 
-                                    task->hardware_params->warp_size)
+                                if (GetExtent(threadidx_iter) < hardware_params->warp_size)
                                 {
                                         if (threadidx_iter->range.defined())
                                         {
@@ -386,7 +382,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
                                                 LOG(INFO) << "threadidx_iter range has NOT been defined";
                                         }
                                         LOG(WARNING) << "threadIdx.extent=" << GetExtent(threadidx_iter) << " < "
-                                                     << task->hardware_params->warp_size;
+                                                     << hardware_params->warp_size;
                                         return -1;
                                 }
 
@@ -590,8 +586,8 @@ ClusterSearchPolicyNode::RandomSampleStates(
                                                      &pop_scores);
                                 DEBUG_LOG_VAR(pop_scores[0]);
                         }
-                }
-        }
+                }  // ∀task
+        }  // for (i ∈ [0, num_measures))
 }
 
 
@@ -705,9 +701,7 @@ ClusterSearchPolicyNode::RandomMutateTileSize(const std::vector < State > & stat
         CHECK(states.size() == cur_cluster->tasks.size());
         std::vector < size_t > split_step_indices;
         const int c_max_innermost_split_factor
-                = cur_cluster->tasks[cur_cluster->repr_idx]
-                             ->hardware_params
-                             ->max_innermost_split_factor;
+                = hardware_params->max_innermost_split_factor;
 
         /// @note It has already been verified in `InitPopulationFillTileSize`
         ///       that all search tasks are performing the same split step as
@@ -1048,6 +1042,7 @@ ClusterSearchPolicyNode::Search(
         // num_best/random_states × cluster_size]
         std::vector < std::vector < State > > best_states, random_states;
         cur_cluster = cluster;
+        hardware_params = cluster->tasks[cluster->repr_idx]->hardware_params;
         _num_measures_per_iter = num_measures_per_iter;
 
         SplitFactorizationMemo split_memo;
