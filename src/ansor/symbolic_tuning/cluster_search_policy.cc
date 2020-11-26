@@ -198,10 +198,9 @@ ClusterSearchPolicyNode::InitPopulationFillTileSize(
 
                                 DEBUG_LOG_VEC(lengths);
 
-                                StateNode * pstate = (*states)[task_idx].CopyOnWrite();
                                 const SplitStepNode * const split_step
                                         = (*states)[task_idx]->transform_steps[step_idx].as < SplitStepNode > ();
-                                pstate->transform_steps[step_idx]
+                                (*states)[task_idx].CopyOnWrite()->transform_steps[step_idx]
                                         = SplitStep(split_step->stage_id,
                                                     split_step->iter_id,
                                                     split_step->extent, lengths,
@@ -726,34 +725,128 @@ ClusterSearchPolicyNode::RandomMutateTileSize(const std::vector < State > & stat
                 return std::vector < State > ();
         }
         size_t split_step_idx;
-        std::vector < int > extents(cur_cluster->tasks.size());
-        auto nontrivial_split_step =
-                [](const int extent) -> bool
-                {
-                        return extent != 0 || extent != 1;
-                };
+        std::vector < const SplitStepNode * > split_steps(cur_cluster->tasks.size());
         for (size_t retry_cnt = 0; retry_cnt < split_step_indices.size() / 2;
              ++retry_cnt)
         {
                 split_step_idx = split_step_indices[_rng() % split_step_indices.size()];
                 std::transform(states.begin(), states.end(),
-                               extents.begin(),
-                               [&split_step_idx](const State & state) -> int
+                               split_steps.begin(),
+                               [&split_step_idx](const State & state) -> const SplitStepNode *
                                {
                                        const SplitStepNode * const split_step
                                                = state->transform_steps[split_step_idx].as < SplitStepNode > ();
                                        CHECK(split_step != nullptr);
-                                       return GetIntImm(split_step->extent);
+                                       return split_step;
                                });
                 // A nontrivial split-step has been found.
-                if (std::all_of(extents.begin(), extents.end(),
-                                nontrivial_split_step))
+                if (std::all_of(split_steps.begin(), split_steps.end(),
+                                [](const SplitStepNode * const split_step) -> bool
+                                {
+                                        return GetIntImm(split_step->extent) != 0 ||
+                                               GetIntImm(split_step->extent) != 1;
+                                }))
                 {
-                        std::vector < int > lengths(
-                                cur_cluster->tasks.size(),
-                                );
-                        CHECK(split_step != nullptr);
-                        break;
+                        std::vector < std::vector < int > >
+                                split_step_lengths(cur_cluster->tasks.size());
+                        std::transform(split_steps.begin(), split_steps.end(),
+                                       split_step_lengths.begin(),
+                                       [](const SplitStepNode * const split_step) -> std::vector < int >
+                                       {
+                                               std::vector < int > lengths(
+                                                       split_step->lengths.size() + 1, 1);
+                                               for (size_t i = 0; i < split_step->lengths.size(); ++i)
+                                               {
+                                                       lengths[i + 1] = GetIntImm(split_step->lengths[i]);
+                                               }
+                                               lengths[0] = GetIntImm(split_step->extent) / ElementProduct(lengths);
+                                               return lengths;
+                                       });
+                        std::vector < int > random_perm;
+                        const size_t split_step_lengths_size
+                                = split_step_lengths[cur_cluster->repr_idx].size();
+                        RandomPermutation(split_step_lengths_size,
+                                          &random_perm, &_rng);
+                        for (size_t perm_idx = 0; perm_idx < random_perm.size(); ++perm_idx)
+                        {
+                                const size_t src_idx = random_perm[perm_idx],
+                                             dst_idx = random_perm[(perm_idx + 1) % random_perm.size()];
+                                std::vector < int > src_lengths(cur_cluster->tasks.size());
+
+                                std::transform(split_step_lengths.begin(),
+                                               split_step_lengths.end(),
+                                               src_lengths.begin(),
+                                               [&src_idx](const std::vector < int > & lengths) -> int
+                                               {
+                                                       return lengths[src_idx];
+                                               });
+                                ClusterFactorsT factors = _split_factor_cache.GetFactors(src_lengths);
+                                int chosen_factor;
+                                if (factors.size() == 1)
+                                {
+                                        continue;
+                                }
+                                if (dst_idx == split_step_lengths_size - 1)
+                                {
+                                        for (int factor_idx = factors.size() - 1; factor_idx >= 1;
+                                             --factor_idx)
+                                        {
+                                                if (std::all_of(split_step_lengths.begin(),
+                                                                split_step_lengths.end(),
+                                                                [&factors, &factor_idx, &dst_idx, this](
+                                                                        const std::vector < int > & lengths) -> bool
+                                                                {
+                                                                        return factors[factor_idx] * lengths[dst_idx] < hardware_params->max_innermost_split_factor;
+                                                                }))
+                                                {
+                                                        chosen_factor = factors[1 + _rng() % (factor_idx)];
+                                                        break;
+                                                }
+                                        }
+                                        continue;
+                                }  // if (dst_idx != split_step_lengths_size - 1)
+                                else
+                                {
+                                        chosen_factor = factors[1 + _rng() % (factors.size() - 1)];
+                                }
+                                std::vector < std::vector < PrimExpr > >
+                                        new_split_step_lengths(cur_cluster->tasks.size());
+
+                                std::transform(split_step_lengths.begin(),
+                                               split_step_lengths.end(),
+                                               new_split_step_lengths.begin(),
+                                               [&src_idx, &dst_idx, &chosen_factor,
+                                                &split_step_lengths_size](
+                                                       const std::vector < int > & lengths) -> std::vector < int >
+                                               {
+                                                       std::vector < int > new_lengths;
+                                                       for (size_t i = 1; i < split_step_lengths_size; ++i)
+                                                       {
+                                                               if (i == src_idx)
+                                                                       new_lengths.emplace_back(lengths[i] / chosen_factor);
+                                                               else if (i == dst_idx)
+                                                                       new_lengths.emplace_back(lengths[i] * chosen_factor);
+                                                               else
+                                                                       new_lengths.emplace_back(lengths[i]);
+                                                       }
+                                                       return new_lengths;
+                                               });
+                                std::vector < State > new_states(cur_cluster->tasks.size());
+
+                                for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                                     ++task_idx)
+                                {
+                                        new_states[task_idx] = states[task_idx];
+                                        new_states[task_idx].CopyOnWrite()->transform_steps[split_step_idx]
+                                                = SplitStep(split_steps[task_idx]->stage_id,
+                                                            split_steps[task_idx]->iter_id,
+                                                            split_steps[task_idx]->extent,
+                                                            new_split_step_lengths[task_idx],
+                                                            split_steps[task_idx]->inner_to_outer);
+                                }
+                                return new_states;
+                        }  // for (perm_idx ∈ [0, random_perm.size()))
+                        return std::vector < State > ();
                 }  // if (std::all_of(extents.begin(), extents.end(),
                    //                 nontrivial_split_step))
         }  // for (retry_cnt ∈ [0, split_step_indices.size() / 2))

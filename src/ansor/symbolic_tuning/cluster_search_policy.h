@@ -26,11 +26,15 @@ public:
         using VT = std::vector < StackT >;
 private:
         std::unordered_map < KT, VT > _cache;
-        /**
-         * @brief 
-         */
         void DFSEnumerate(const ClusterExtentsT & extents,
                           const int depth = 0);
+        // internal variables to avoid passing parameters around different methods
+        VT * _ret;
+        StackT _working_stack;  // [num_lengths × cluster_size]
+        int _num_lengths;
+        int _max_innermost_factor;
+        std::unordered_map < ClusterExtentsT, ClusterFactorsT > _factor_cache;
+public:
         /**
          * @brief Get the factors based on the extents.
          * @todo  Because currently the returned factors are of size
@@ -41,13 +45,6 @@ private:
          */
         const ClusterFactorsT &
         GetFactors(const ClusterExtentsT & extents);
-        // internal variables to avoid passing parameters around different methods
-        VT * _ret;
-        StackT _working_stack;  // [num_lengths × cluster_size]
-        int _num_lengths;
-        int _max_innermost_factor;
-        std::unordered_map < ClusterExtentsT, ClusterFactorsT > _factor_cache;
-public:
         /**
          * @brief  Get the factorization schemes based on the (extents,
          *         num_lengths, max_innermost_factor) tuple.
