@@ -125,6 +125,7 @@ private:
                                 const int num_measures,
                                 std::vector < std::vector < State > > * const best_states);
 
+        std::vector < State > RandomMutateTileSize(const std::vector < State > & states);
         void EvolutionarySearch(
                 const std::vector < std::vector < State > > & population,
                 const int num_best_states,
