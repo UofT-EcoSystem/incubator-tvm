@@ -452,7 +452,7 @@ ClusterSearchPolicyNode::InitPopulationThreadBind(
 int
 ClusterSearchPolicyNode::InitPopulationUnroll(std::vector < State > * const states)
 {
-        size_t rand_auto_unroll_config = C_GPU_AUTO_UNROLL_CONFIGS[_rng() % 5];
+        int rand_auto_unroll_config = C_GPU_AUTO_UNROLL_CONFIGS[_rng() % 5];
         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
         {
                 const SearchTask & task = cur_cluster->tasks[task_idx];
@@ -722,7 +722,7 @@ ClusterSearchPolicyNode::RandomMutateTileSize(const std::vector < State > & stat
         }  // for (tf_step_idx ∈ [0, states[cur_cluster->repr_idx]->transform_steps.size()))
         if (split_step_indices.empty())
         {
-                return std::vector < State > ();
+                return std::vector < State > (cur_cluster->tasks.size());
         }
         size_t split_step_idx;
         std::vector < const SplitStepNode * > split_steps(cur_cluster->tasks.size());
@@ -846,11 +846,59 @@ ClusterSearchPolicyNode::RandomMutateTileSize(const std::vector < State > & stat
                                 }
                                 return new_states;
                         }  // for (perm_idx ∈ [0, random_perm.size()))
-                        return std::vector < State > ();
+                        return std::vector < State > (cur_cluster->tasks.size());
                 }  // if (std::all_of(extents.begin(), extents.end(),
                    //                 nontrivial_split_step))
         }  // for (retry_cnt ∈ [0, split_step_indices.size() / 2))
-        return std::vector < State > ();
+        return std::vector < State > (cur_cluster->tasks.size());
+}
+
+
+std::vector < State >
+ClusterSearchPolicyNode::RandomMutateMaxUnrollStep(
+        const std::vector < State > & states)
+{
+        std::vector < int > pragma_step_indices;
+
+        for (size_t tf_step_idx = 0;
+             tf_step_idx < states[cur_cluster->repr_idx]->transform_steps.size();
+             ++tf_step_idx)
+        {
+                if (const PragmaStepNode * const pragma_step
+                            = states[cur_cluster->repr_idx]->transform_steps[tf_step_idx].as < PragmaStepNode > ())
+                {
+                        if (pragma_step->pragma_type.find("auto_unroll_max_step") != std::string::npos)
+                        {
+                                pragma_step_indices.push_back(tf_step_idx);
+                        }
+                }
+        }
+        if (pragma_step_indices.empty())
+        {
+                return std::vector < State > (cur_cluster->tasks.size());
+        }
+        size_t pragma_step_idx = pragma_step_indices[_rng() % pragma_step_indices.size()];
+        int rand_auto_unroll_config = C_GPU_AUTO_UNROLL_CONFIGS[_rng() % 5];
+
+        std::vector < State > new_states;
+
+        std::transform(states.begin(),
+                       states.end(),
+                       new_states.begin(),
+                       [&pragma_step_idx, &rand_auto_unroll_config](
+                               const State & state) -> State
+                       {
+                               const PragmaStepNode * const pragma_step
+                                       = state->transform_steps[pragma_step_idx].as < PragmaStepNode > ();
+                               State new_state = state;
+                               new_state.CopyOnWrite()->transform_steps[pragma_step_idx]
+                                       = PragmaStep(pragma_step->stage_id,
+                                                    pragma_step->iter_id,
+                                                    std::string("auto_unroll_max_step") + "$" + 
+                                                    std::to_string(rand_auto_unroll_config));
+                               return new_state;
+                       });
+        return new_states;
 }
 
 
@@ -1105,20 +1153,39 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                 switch (rule_id)
                                 {
                                         case 0:
-
+                                                mutated_states = RandomMutateTileSize(ping_buf[pop_idx]);
                                                 break;
                                         case 1:
-
+                                                mutated_states = RandomMutateMaxUnrollStep(ping_buf[pop_idx]);
                                                 break;
                                         default:
                                                 LOG(FATAL) << "Invalid rule_id=" << rule_id;
                                 }
+                                if (std::all_of(mutated_states.begin(),
+                                                mutated_states.end(),
+                                                [](const State & state)
+                                                {
+                                                        return state.defined();
+                                                }))
+                                {
+                                        ++mutation_succ_cnt;
+                                        pong_buf.push_back(mutated_states);
+                                        ++pong_buf_size;
+                                }
+                                else
+                                {
+                                        ++mutation_fail_cnt;
+                                }
                         }
                         else  // if (uniform_distrib(_rng) >= C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
                         {
-
+                                pong_buf.push_back(ping_buf[pop_idx]);
+                                ++pong_buf_size;
                         }  // if (uniform_distrib(_rng) < C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
                 }  // while (pong_buf_size < population.size())
+                CHECK(pong_buf_size == population.size());
+                ping_buf = std::move(pong_buf);
+                
         }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
 }
 
