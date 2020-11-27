@@ -81,7 +81,7 @@ private:
         // [cluster_size × num_measures_per_iter]
         std::vector < std::unordered_set < std::string > > _measured_states_set;
         std::vector < std::vector < State > > _measured_states_vec;
-        std::vector < std::vector < float > > _measured_states_thruput;
+        std::vector < float > _measured_states_cost;
 
         bool _cross_over_enabled = true;
 

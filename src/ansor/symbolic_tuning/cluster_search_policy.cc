@@ -608,7 +608,29 @@ ClusterSearchPolicyNode::SearchOneRound(
         LOG(INFO) << "Sampling the initial population";
         SampleInitPopulation(C_EVOLUTIONARY_SEARCH_POPULATION - num_use_measured,
                              &init_population);
-        RandomSampleStates(init_population,  3 * _num_measures_per_iter, best_states);
+
+        if (!_program_cost_model->IsInstance < RandomModelNode > ())
+        {
+                std::vector < int > indices;
+                Argsort(_measured_states_cost, &indices);
+                for (size_t i = 0; i < num_use_measured; ++i)
+                {
+                        std::vector < State > measured_states_to_use(cur_cluster->tasks.size());
+                        std::transform(_measured_states_vec.begin(),
+                                       _measured_states_vec.end(),
+                                        measured_states_to_use.begin(),
+                                       [&indices, &i, this](const std::vector < State > & measured_states) -> State
+                                       {
+                                               return measured_states[indices[_num_measures_per_iter - 1 - i]];
+                                       });
+                        init_population.push_back(measured_states_to_use);
+                }
+                EvolutionarySearch(init_population, _num_measures_per_iter * 2, best_states);
+        }
+        else 
+        {
+                RandomSampleStates(init_population,  3 * _num_measures_per_iter, best_states);
+        }
         RandomSampleStates(init_population, 10 *  num_random_states, random_states);
 }
 
@@ -1147,16 +1169,24 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         int pop_idx = RandomChoose(prefix_sum_probs, &_rng);
                         if (uniform_distrib(_rng) < C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
                         {
-                                std::vector < State > mutated_states;
+                                std::vector < State > ping_states(cur_cluster->tasks.size()),
+                                                      mutated_states;
 
+                                std::transform(ping_buf.begin(),
+                                               ping_buf.end(),
+                                               ping_states.begin(),
+                                               [&pop_idx](const std::vector < State > & states) -> State
+                                               {
+                                                       return states[pop_idx];
+                                               });
                                 int rule_id = RandomChoose({0.9, 1.0}, &_rng);
                                 switch (rule_id)
                                 {
                                         case 0:
-                                                mutated_states = RandomMutateTileSize(ping_buf[pop_idx]);
+                                                mutated_states = RandomMutateTileSize(ping_states);
                                                 break;
                                         case 1:
-                                                mutated_states = RandomMutateMaxUnrollStep(ping_buf[pop_idx]);
+                                                mutated_states = RandomMutateMaxUnrollStep(ping_states);
                                                 break;
                                         default:
                                                 LOG(FATAL) << "Invalid rule_id=" << rule_id;
@@ -1169,7 +1199,11 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                 }))
                                 {
                                         ++mutation_succ_cnt;
-                                        pong_buf.push_back(mutated_states);
+                                        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                                             ++task_idx)
+                                        {
+                                                pong_buf[task_idx].push_back(mutated_states[task_idx]);
+                                        }
                                         ++pong_buf_size;
                                 }
                                 else
@@ -1179,14 +1213,27 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         }
                         else  // if (uniform_distrib(_rng) >= C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
                         {
-                                pong_buf.push_back(ping_buf[pop_idx]);
+                                for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                                     ++task_idx)
+                                {
+                                        pong_buf[task_idx].push_back(ping_buf[task_idx][pop_idx]);
+                                }
                                 ++pong_buf_size;
                         }  // if (uniform_distrib(_rng) < C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
                 }  // while (pong_buf_size < population.size())
                 CHECK(pong_buf_size == population.size());
                 ping_buf = std::move(pong_buf);
-                
+                pong_buf.assign(cur_cluster->tasks.size(), std::vector < State > ());
+                pong_buf_size = 0;
         }  // for (i ∈ range[0, C_EVOLUTIONARY_SEARCH_NUM_ITERS))
+        std::sort(scoreboard.begin(), scoreboard.end(), std::greater < StatesScorePair > ());
+
+        best_states->clear();
+        for (const StatesScorePair & states_score_pair
+             : scoreboard)
+        {
+                best_states->push_back(states_score_pair.first);
+        }
 }
 
 
@@ -1288,14 +1335,14 @@ ClusterSearchPolicyNode::Search(
                                 measurer->Measure(cur_cluster->tasks[task_idx], inputs[task_idx],
                                                   &results[task_idx]);
                         }
-
+                        _measured_states_cost.assign(_num_measures_per_iter, 0.f);
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                              ++task_idx)
                         {
-                                for (const MeasureResult & res : results[task_idx])
+                                for (size_t res_idx = 0; res_idx < _num_measures_per_iter; ++res_idx)
                                 {
-                                        _measured_states_thruput[task_idx]
-                                                .push_back(1.0f / FloatArrayMean(res->costs));
+                                        _measured_states_cost[res_idx]
+                                                += FloatArrayMean(results[task_idx][res_idx]->costs);
                                 }
                         }
                 }  // for (trail_idx ∈ [0, num_trials))
