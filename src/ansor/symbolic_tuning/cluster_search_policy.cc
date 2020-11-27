@@ -613,7 +613,7 @@ ClusterSearchPolicyNode::SearchOneRound(
         {
                 std::vector < int > indices;
                 Argsort(_measured_states_cost, &indices);
-                for (size_t i = 0; i < num_use_measured; ++i)
+                for (int i = 0; i < num_use_measured; ++i)
                 {
                         std::vector < State > measured_states_to_use(cur_cluster->tasks.size());
                         std::transform(_measured_states_vec.begin(),
@@ -839,9 +839,9 @@ ClusterSearchPolicyNode::RandomMutateTileSize(const std::vector < State > & stat
                                                new_split_step_lengths.begin(),
                                                [&src_idx, &dst_idx, &chosen_factor,
                                                 &split_step_lengths_size](
-                                                       const std::vector < int > & lengths) -> std::vector < int >
+                                                       const std::vector < int > & lengths) -> std::vector < PrimExpr >
                                                {
-                                                       std::vector < int > new_lengths;
+                                                       std::vector < PrimExpr > new_lengths;
                                                        for (size_t i = 1; i < split_step_lengths_size; ++i)
                                                        {
                                                                if (i == src_idx)
@@ -1093,8 +1093,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
 
                 for (size_t co = 0; _cross_over_enabled && co < c_num_cross_overs; ++co)
                 {
-                        int pop_idx1 = RandomChoose(prefix_sum_probs, &_rng),
-                            pop_idx2 = RandomChoose(prefix_sum_probs, &_rng);
+                        size_t pop_idx1 = RandomChoose(prefix_sum_probs, &_rng),
+                               pop_idx2 = RandomChoose(prefix_sum_probs, &_rng);
                         CHECK(pop_idx1 >= 0 && pop_idx1 < population.size());
                         CHECK(pop_idx2 >= 0 && pop_idx2 < population.size());
                         auto is_same_pop_state =
@@ -1339,7 +1339,7 @@ ClusterSearchPolicyNode::Search(
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                              ++task_idx)
                         {
-                                for (size_t res_idx = 0; res_idx < _num_measures_per_iter; ++res_idx)
+                                for (int res_idx = 0; res_idx < _num_measures_per_iter; ++res_idx)
                                 {
                                         _measured_states_cost[res_idx]
                                                 += FloatArrayMean(results[task_idx][res_idx]->costs);
