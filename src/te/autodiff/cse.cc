@@ -57,7 +57,11 @@ class TensorExprNode {
     bool Update(const VarMap& other);
   };  // class VarMap
   /*!
-   * \brief 
+   * \brief ConditionalBool is the return type of the compare method. It is a
+   *        pair consists of a boolean variable and a variable mapping. While
+   *        the former represents whether two tensor expressions MIGHT be
+   *        equivalent or not, the latter represents the variable mapping that
+   *        needs to satisfied for the equivalence relation.
    */
   class ConditionalBool : public std::pair<bool, VarMap> {
    public:
@@ -76,16 +80,24 @@ class TensorExprNode {
     static FCompare instance;
     return instance; 
   }
-  ConditionalBool Compare_(const CallNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const CallNode* const opnode,
+                           const TensorExprNode& other) const;
   ConditionalBool Compare_(const PlaceholderOpNode* const opnode,
                            const TensorExprNode& other) const;
-  ConditionalBool Compare_(const AddNode* const opnode, const TensorExprNode& other) const;
-  ConditionalBool Compare_(const SubNode* const opnode, const TensorExprNode& other) const;
-  ConditionalBool Compare_(const MulNode* const opndoe, const TensorExprNode& other) const;
-  ConditionalBool Compare_(const DivNode* const opnode, const TensorExprNode& other) const;
-  ConditionalBool Compare_(const ReduceNode* const opnode, const TensorExprNode& other) const;
-  ConditionalBool Compare_(const IntImmNode* const opnode, const TensorExprNode& other) const;
-  ConditionalBool Compare_(const FloatImmNode* const opnode, const TensorExprNode& other) const;
+  ConditionalBool Compare_(const AddNode* const opnode,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const SubNode* const opnode,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const MulNode* const opndoe,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const DivNode* const opnode,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const ReduceNode* const opnode,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const IntImmNode* const opnode,
+                           const TensorExprNode& other) const;
+  ConditionalBool Compare_(const FloatImmNode* const opnode,
+                           const TensorExprNode& other) const;
   /*!
    * \brief  Compare two tensor expressions (internal use).
    * \return 
@@ -193,7 +205,13 @@ TensorExprNode::Compare_(
   return opnode == other_opnode;
 }
 
+#define DEFINE_COMMUTATIVE_BINARY_OP
+TensorExprNode::ConditionalBool
+TensorExprNode::Compare_(
+    const AddNode* const opnode,
+    const TensorExprNode& other) {
 
+}
 
 }  // namespace te
 }  // namespace tvm
