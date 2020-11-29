@@ -88,7 +88,7 @@ class TensorExprNode {
                            const TensorExprNode& other) const;
   ConditionalBool Compare_(const SubNode* const opnode,
                            const TensorExprNode& other) const;
-  ConditionalBool Compare_(const MulNode* const opndoe,
+  ConditionalBool Compare_(const MulNode* const opnode,
                            const TensorExprNode& other) const;
   ConditionalBool Compare_(const DivNode* const opnode,
                            const TensorExprNode& other) const;
@@ -192,7 +192,7 @@ TensorExprNode::Compare_(
     RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
         TensorExprNode(opnode->args[i]).Compare(other_opnode->args[i]), var_map);
   }
-  return true;
+  return ConditionalBool(true, var_map);
 }
 
 TensorExprNode::ConditionalBool
@@ -205,13 +205,17 @@ TensorExprNode::Compare_(
   return opnode == other_opnode;
 }
 
-#define DEFINE_COMMUTATIVE_BINARY_OP
-TensorExprNode::ConditionalBool
-TensorExprNode::Compare_(
-    const AddNode* const opnode,
-    const TensorExprNode& other) {
-
+#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(op_type)  \
+TensorExprNode::ConditionalBool                        \
+TensorExprNode::Compare_(                              \
+    const op_type* const opnode,                       \
+    const TensorExprNode& other) {                     \
+  return false;                                        \
 }
+
+DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(AddNode);
+DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode);
+
 
 }  // namespace te
 }  // namespace tvm
