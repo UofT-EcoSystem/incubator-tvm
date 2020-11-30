@@ -253,6 +253,23 @@ DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(SubNode)
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode)
 DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 
+#define DEFINE_IMM_COMPARE(OpNodeType)                                   \
+TensorExprNode::ConditionalBool                                          \
+TensorExprNode::Compare_(                                                \
+    const OpNodeType* const opnode,                                      \
+    const TensorExprNode& other) const {                                 \
+  const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();  \
+  CHECK(other_opnode != nullptr);                                        \
+  if (opnode->value == other_opnode->value) {                            \
+    return true;                                                         \
+  } else {                                                               \
+    return false;                                                        \
+  }                                                                      \
+}
+
+DEFINE_IMM_COMPARE(IntImmNode)
+DEFINE_IMM_COMPARE(FloatImmNode)
+
 
 }  // namespace te
 }  // namespace tvm
