@@ -77,11 +77,12 @@ private:
         CostModel _program_cost_model;
         std::mt19937 _rng;
 
-        int _num_measures_per_iter;
+        int _max_measures_per_iter, 
+            _num_measures_this_iter;
         // [cluster_size × num_measures_per_iter]
         std::vector < std::unordered_set < std::string > > _measured_states_set;
         std::vector < std::vector < State > > _measured_states_vec;
-        std::vector < float > _measured_states_cost;
+        std::vector < float > _measured_states_thruput;
 
         bool _cross_over_enabled = true;
 
@@ -90,7 +91,7 @@ private:
          *        epsilon-greedy algorithm.
          */
         void PickStatesWithEpsGreedy(
-                std::vector < std::vector < MeasureInput > > * const ibatch,
+                std::vector < std::vector < MeasureInput > > * const inputs,
                 const std::vector < std::vector < State > > & best_states,
                 const std::vector < std::vector < State > > & random_states,
                 const int remaining_num_trials);
@@ -101,7 +102,6 @@ private:
                                   std::vector < std::vector < State > > * const out_states);
         /**
          * @brief Search for one round.
-         * 
          */
         void SearchOneRound(
                 std::vector < std::vector < State > > * const best_states,
@@ -144,7 +144,7 @@ public:
         Search(SearchCluster cluster, ProgramMeasurer measurer,
                const int num_trials,
                const int early_stopping,
-               const int num_measures_per_iter,
+               const int max_measures_per_iter,
                Array < SearchCallback > pre_search_callbacks);
         static constexpr const char * const _type_key = "ansor.ClusterSearchPolicy";
         TVM_DECLARE_BASE_OBJECT_INFO(ClusterSearchPolicyNode, Object);

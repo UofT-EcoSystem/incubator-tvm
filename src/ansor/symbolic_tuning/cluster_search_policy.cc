@@ -586,7 +586,7 @@ ClusterSearchPolicyNode::SearchOneRound(
         best_states->clear(); random_states->clear();
 
         int num_use_measured
-                = std::min(static_cast < int > (_measured_states_vec.size()),
+                = std::min(static_cast < int > (_num_measures_this_iter),
                            static_cast < int > (
                                    C_EVOLUTIONARY_SEARCH_USE_MEASURED_RATIO *
                                    C_EVOLUTIONARY_SEARCH_POPULATION));
@@ -599,24 +599,24 @@ ClusterSearchPolicyNode::SearchOneRound(
         if (!_program_cost_model->IsInstance < RandomModelNode > ())
         {
                 std::vector < int > indices;
-                Argsort(_measured_states_cost, &indices);
+                Argsort(_measured_states_thruput, &indices);
                 for (int i = 0; i < num_use_measured; ++i)
                 {
                         std::vector < State > measured_states_to_use(cur_cluster->tasks.size());
                         std::transform(_measured_states_vec.begin(),
                                        _measured_states_vec.end(),
                                         measured_states_to_use.begin(),
-                                       [&indices, &i, this](const std::vector < State > & measured_states) -> State
+                                       [&indices, &i](const std::vector < State > & measured_states) -> State
                                        {
-                                               return measured_states[indices[_num_measures_per_iter - 1 - i]];
+                                               return measured_states[indices[i]];
                                        });
                         init_population.push_back(measured_states_to_use);
                 }
-                EvolutionarySearch(init_population, 2 * _num_measures_per_iter, best_states);
+                EvolutionarySearch(init_population, 2 * _max_measures_per_iter, best_states);
         }
         else 
         {
-                RandomSampleStates(init_population,  3 * _num_measures_per_iter, best_states);
+                RandomSampleStates(init_population,  3 * _max_measures_per_iter, best_states);
         }
         RandomSampleStates(init_population, 10 *  num_random_states, random_states);
 }
@@ -630,16 +630,15 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
         const int remaining_num_trials)
 {
         const size_t c_num_best_states
-                = _num_measures_per_iter - C_EPS_GREEDY * _num_measures_per_iter;
+                = _max_measures_per_iter - C_EPS_GREEDY * _max_measures_per_iter;
 
-        for (size_t inputs_size = 0, best_idx = 0, random_idx = 0;
-             inputs_size < static_cast < size_t > (std::min(_num_measures_per_iter, remaining_num_trials));
-             ++inputs_size)
+        for (size_t best_idx = 0, random_idx = 0;
+             _num_measures_this_iter < static_cast < size_t > (std::min(_max_measures_per_iter, remaining_num_trials));)
         {
                 const std::vector < State > * states;
                 bool has_best = best_idx < best_states.size(),
                      has_random = random_idx < random_states.size();
-                if (inputs_size < c_num_best_states)
+                if (_num_measures_this_iter < c_num_best_states)
                 {
                         if (has_best)
                         {
@@ -697,6 +696,7 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
                         (*inputs)[task_idx].emplace_back(cur_cluster->tasks[task_idx],
                                                          (*states)[task_idx]);
                 }
+                ++_num_measures_this_iter;
         }  // for  (inputs_size ∈ [0, min(_num_measures_per_iter, remaining_num_trials)))
 }
 
@@ -1236,7 +1236,7 @@ ClusterSearchPolicyNode::Search(
         SearchCluster cluster, ProgramMeasurer measurer,
         const int num_trials,
         const int early_stopping,  // early stopping is not used
-        const int num_measures_per_iter,
+        const int max_measures_per_iter,
         Array < SearchCallback > pre_search_callbacks)
         // pre-search callbacks are not used, for now
 {
@@ -1244,7 +1244,8 @@ ClusterSearchPolicyNode::Search(
         std::vector < std::vector < State > > best_states, random_states;
         cur_cluster = cluster;
         hardware_params = cluster->tasks[cluster->repr_idx]->hardware_params;
-        _num_measures_per_iter = num_measures_per_iter;
+        _max_measures_per_iter = max_measures_per_iter;
+        _num_measures_this_iter = 0;
 
         SplitFactorizationMemo split_memo;
         std::vector < std::vector < PrimExpr > > factor_schemes
@@ -1282,14 +1283,17 @@ ClusterSearchPolicyNode::Search(
         else  // if (num_trials > 1)
         {
                 // [cluster_size × num_measures_per_iter]
-                std::vector < std::vector < MeasureInput > >  inputs;
-                std::vector < std::vector < MeasureResult > > results;
-                const int num_random_states = C_EPS_GREEDY * num_measures_per_iter;
+                std::vector < std::vector < MeasureInput > >  inputs(
+                        cur_cluster->tasks.size());
+                std::vector < std::vector < MeasureResult > > results(
+                        cur_cluster->tasks.size());
+                const int c_num_random_states = C_EPS_GREEDY * _max_measures_per_iter;
                 measurer->Reset();
 
-                for (int num_trials_done = 0; num_trials_done < num_trials; num_trials_done += inputs.size())
+                for (int num_trials_done = 0; num_trials_done < num_trials;
+                     num_trials_done += _num_measures_this_iter)
                 {
-                        if (!inputs.empty())
+                        if (!_num_measures_this_iter)
                         {
                                 CHECK(inputs .size() == cur_cluster->tasks.size());
                                 CHECK(results.size() == cur_cluster->tasks.size());
@@ -1301,7 +1305,7 @@ ClusterSearchPolicyNode::Search(
                         }
 
                         SearchOneRound(&best_states, &random_states,
-                                       num_random_states);
+                                       c_num_random_states);
 #define INFER_BOUND_FOREACH(states)                                             \
         for (std::vector < State > & states_per_cluster : states)               \
         {                                                                       \
@@ -1315,11 +1319,10 @@ ClusterSearchPolicyNode::Search(
         }
                         INFER_BOUND_FOREACH(best_states);
                         INFER_BOUND_FOREACH(random_states);
-                        inputs .resize(cur_cluster->tasks.size());
-                        results.resize(cur_cluster->tasks.size());
+                        _num_measures_this_iter = 0;
                         PickStatesWithEpsGreedy(&inputs, best_states, random_states,
                                                 num_trials - num_trials_done);
-                        if (inputs.empty())
+                        if (_num_measures_this_iter == 0)
                         {
                                 LOG(INFO) << "All candidates in the search space "
                                              "have been measured";
@@ -1328,21 +1331,22 @@ ClusterSearchPolicyNode::Search(
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                              ++task_idx)
                         {
+                                CHECK(inputs [task_idx].size() == _num_measures_this_iter);
                                 measurer->Measure(cur_cluster->tasks[task_idx], inputs[task_idx],
                                                   &results[task_idx]);
-                                CHECK(inputs[task_idx].size() == results[task_idx].size());
+                                CHECK(results[task_idx].size() == _num_measures_this_iter);
                         }
-                        _measured_states_cost.assign(_num_measures_per_iter, 0.f);
+                        _measured_states_thruput.assign(_num_measures_this_iter, 0.f);
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                              ++task_idx)
                         {
-                                for (int res_idx = 0; res_idx < _num_measures_per_iter; ++res_idx)
+                                for (int res_idx = 0; res_idx < _num_measures_this_iter; ++res_idx)
                                 {
-                                        _measured_states_cost[res_idx]
-                                                += FloatArrayMean(results[task_idx][res_idx]->costs);
+                                        _measured_states_thruput[res_idx]
+                                                += 1.f / FloatArrayMean(results[task_idx][res_idx]->costs);
                                 }
                         }
-                }  // for (trail_idx ∈ [0, num_trials))
+                }  // for (num_trials_done ∈ [0, num_trials))
                 Array < State > best_states_from_measurer;
                 for (size_t task_idx = 0;
                      task_idx < cur_cluster->tasks.size(); ++task_idx)
