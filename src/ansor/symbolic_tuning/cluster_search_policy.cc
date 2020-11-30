@@ -558,21 +558,20 @@ ClusterSearchPolicyNode::SampleInitPopulation(
 
 void
 ClusterSearchPolicyNode::RandomSampleStates(
-        const std::vector < std::vector < State > > & init_population,
+        const std::vector < std::vector < State > > & population,
         const int num_measures,
-        std::vector < std::vector < State > > * const best_states)
+        std::vector < std::vector < State > > * const random_states)
 {
-        best_states->clear();
-
+        random_states->clear();
         for (int i = 0; i < num_measures; ++i)
         {
-                size_t rand_init_population_idx = _rng() % init_population.size();
-                best_states->emplace_back(cur_cluster->tasks.size());
+                size_t rand_init_population_idx = _rng() % population.size();
+                random_states->emplace_back(cur_cluster->tasks.size());
                 for (size_t task_idx = 0;
                      task_idx < cur_cluster->tasks.size(); ++task_idx)
                 {
-                        best_states->back()[task_idx]
-                                = init_population[rand_init_population_idx][task_idx];
+                        random_states->back()[task_idx]
+                                = population[rand_init_population_idx][task_idx];
                 }  // ∀task
         }  // for (i ∈ [0, num_measures))
 }
@@ -928,11 +927,13 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         const int num_best_states,
         std::vector < std::vector < State > > * const best_states)
 {
+        // ping-pong buffer used during the evolutionary search process
         // [cluster_size × pop_size]
         std::vector < std::vector < State > >
                 ping_buf(cur_cluster->tasks.size(),
                          std::vector < State > (population.size())),
                 pong_buf(cur_cluster->tasks.size());
+        // scoreboard
         // [num_best_states × (cluster_size, float)]
         std::vector < StatesScorePair > scoreboard;
         // [cluster_size × num_best_states]
@@ -977,6 +978,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         for (int evo_search_iter = 0; evo_search_iter <= C_EVOLUTIONARY_SEARCH_NUM_ITERS;
              ++evo_search_iter)
         {
+                // =============================================================
                 // predict the performance numbers for all the search tasks in
                 // the search cluster
                 for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
@@ -989,6 +991,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                      ping_buf[task_idx], &scores[task_idx]);
                         CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
                 }
+                // =============================================================
                 pop_state_strs.assign(cur_cluster->tasks.size(),
                                       std::vector < std::string > (population.size()));
                 for (size_t pop_idx = 0; pop_idx < population.size();

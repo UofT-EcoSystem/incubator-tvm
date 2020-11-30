@@ -118,10 +118,12 @@ private:
         int InitPopulationThreadBind(
                 std::vector < State > * const states);
         int InitPopulationUnroll(std::vector < State > * const states);
-
-        void RandomSampleStates(const std::vector < std::vector < State > > & init_population,
+        /**
+         * @brief Randomly sample `num_measures` states from the population.
+         */
+        void RandomSampleStates(const std::vector < std::vector < State > > & population,
                                 const int num_measures,
-                                std::vector < std::vector < State > > * const best_states);
+                                std::vector < std::vector < State > > * const random_states);
 
         std::vector < State > RandomMutateTileSize(const std::vector < State > & states);
         std::vector < State > RandomMutateMaxUnrollStep(const std::vector < State > & states);
