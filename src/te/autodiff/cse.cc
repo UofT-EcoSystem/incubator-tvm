@@ -222,7 +222,7 @@ TensorExprNode::Compare_(                                                    \
     return ConditionalBool(true, var_map);                                   \
   } else {                                                                   \
     ConditionalBool                                                          \
-        cmp_result_ab = TensorExprNode(opnode->a).Compare(other_opnode->b);  \
+        cmp_result_ab = TensorExprNode(opnode->a).Compare(other_opnode->b),  \
         cmp_result_ba = TensorExprNode(opnode->b).Compare(other_opnode->a);  \
     if (cmp_result_ab && cmp_result_ba) {                                    \
       var_map.Update(cmp_result_ab.second);                                  \
