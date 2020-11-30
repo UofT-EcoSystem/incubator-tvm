@@ -101,6 +101,7 @@ private:
                                   std::vector < std::vector < State > > * const out_states);
         /**
          * @brief Search for one round.
+         * 
          */
         void SearchOneRound(
                 std::vector < std::vector < State > > * const best_states,

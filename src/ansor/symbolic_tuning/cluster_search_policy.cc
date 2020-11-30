@@ -562,29 +562,17 @@ ClusterSearchPolicyNode::RandomSampleStates(
         const int num_measures,
         std::vector < std::vector < State > > * const best_states)
 {
-        size_t rand_init_population_idx = _rng() % init_population.size();
         best_states->clear();
 
         for (int i = 0; i < num_measures; ++i)
         {
+                size_t rand_init_population_idx = _rng() % init_population.size();
                 best_states->emplace_back(cur_cluster->tasks.size());
                 for (size_t task_idx = 0;
                      task_idx < cur_cluster->tasks.size(); ++task_idx)
                 {
                         best_states->back()[task_idx]
                                 = init_population[rand_init_population_idx][task_idx];
-
-                        if (i == 0)
-                        {
-                                std::vector < float > pop_scores;
-                                State init_population_state_wbound
-                                        = cur_cluster->tasks[task_idx]
-                                                     ->compute_dag.InferBound(init_population[rand_init_population_idx][task_idx]);
-                                _program_cost_model->Predict(cur_cluster->tasks[task_idx],
-                                                     {init_population_state_wbound},
-                                                     &pop_scores);
-                                DEBUG_LOG_VAR(pop_scores[0]);
-                        }
                 }  // ∀task
         }  // for (i ∈ [0, num_measures))
 }
@@ -625,7 +613,7 @@ ClusterSearchPolicyNode::SearchOneRound(
                                        });
                         init_population.push_back(measured_states_to_use);
                 }
-                EvolutionarySearch(init_population, _num_measures_per_iter * 2, best_states);
+                EvolutionarySearch(init_population, 2 * _num_measures_per_iter, best_states);
         }
         else 
         {
@@ -1297,6 +1285,8 @@ ClusterSearchPolicyNode::Search(
                 {
                         if (!inputs.empty())
                         {
+                                CHECK(inputs .size() == cur_cluster->tasks.size());
+                                CHECK(results.size() == cur_cluster->tasks.size());
                                 for (size_t task_idx = 0;
                                      task_idx < cur_cluster->tasks.size(); ++task_idx)
                                 {
