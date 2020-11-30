@@ -205,16 +205,37 @@ TensorExprNode::Compare_(
   return opnode == other_opnode;
 }
 
-#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(op_type)  \
-TensorExprNode::ConditionalBool                        \
-TensorExprNode::Compare_(                              \
-    const op_type* const opnode,                       \
-    const TensorExprNode& other) {                     \
-  return false;                                        \
+#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)
+
+TensorExprNode::ConditionalBool
+TensorExprNode::Compare_(
+    const AddNode* const opnode,
+    const TensorExprNode& other) const {
+  const AddNode* const other_opnode = other.opref_.as<AddNode>();
+  CHECK(other_opnode != nullptr);
+  VarMap var_map;
+  
 }
 
-DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(AddNode);
-DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode);
+#define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)              \
+TensorExprNode::ConditionalBool                                          \
+TensorExprNode::Compare_(                                                \
+    const OpNodeType* const opnode,                                      \
+    const TensorExprNode& other) const {                                 \
+  const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();  \
+  CHECK(other_opnode != nullptr);                                        \
+  VarMap var_map;                                                        \
+  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                                    \
+      TensorExprNode(opnode->a).Compare(other_opnode->a), var_map);      \
+  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                                    \
+      TensorExprNode(opnode->b).Compare(other_opnode->b), var_map);      \
+  return ConditionalBool(true, var_map);                                 \
+}
+
+DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(AddNode)
+DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(SubNode)
+DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode)
+DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 
 
 }  // namespace te
