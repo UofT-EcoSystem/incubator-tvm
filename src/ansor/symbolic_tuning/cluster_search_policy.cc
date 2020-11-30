@@ -629,19 +629,17 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
         const std::vector < std::vector < State > > & random_states,
         const int remaining_num_trials)
 {
-        const size_t num_best_states
+        const size_t c_num_best_states
                 = _num_measures_per_iter - C_EPS_GREEDY * _num_measures_per_iter;
-        size_t best_idx = 0, random_idx = 0;
 
-        for (size_t inputs_size = 0;
-             inputs_size
-                     < static_cast < size_t > (std::min(_num_measures_per_iter, remaining_num_trials));
+        for (size_t inputs_size = 0, best_idx = 0, random_idx = 0;
+             inputs_size < static_cast < size_t > (std::min(_num_measures_per_iter, remaining_num_trials));
              ++inputs_size)
         {
                 const std::vector < State > * states;
                 bool has_best = best_idx < best_states.size(),
                      has_random = random_idx < random_states.size();
-                if (inputs_size < num_best_states)
+                if (inputs_size < c_num_best_states)
                 {
                         if (has_best)
                         {
@@ -697,9 +695,9 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
                      task_idx < cur_cluster->tasks.size(); ++task_idx)
                 {
                         (*inputs)[task_idx].emplace_back(cur_cluster->tasks[task_idx],
-                                                      (*states)[task_idx]);
+                                                         (*states)[task_idx]);
                 }
-        }  // while (ibatch->size() < min(num_measures_per_iter, remaining_num_trials))
+        }  // for  (inputs_size ∈ [0, min(_num_measures_per_iter, remaining_num_trials)))
 }
 
 
@@ -927,13 +925,13 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         const int num_best_states,
         std::vector < std::vector < State > > * const best_states)
 {
-        // ping-pong buffer used during the evolutionary search process
-        // [cluster_size × pop_size]
+        // Ping-Pong Buffer ([cluster_size × pop_size])
         std::vector < std::vector < State > >
                 ping_buf(cur_cluster->tasks.size(),
                          std::vector < State > (population.size())),
                 pong_buf(cur_cluster->tasks.size());
-        // scoreboard
+        size_t pong_buf_size = 0;
+        // Scoreboard, maintained in such a way that the smallest element comes first
         // [num_best_states × (cluster_size, float)]
         std::vector < StatesScorePair > scoreboard;
         // [cluster_size × num_best_states]
@@ -978,9 +976,16 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         for (int evo_search_iter = 0; evo_search_iter <= C_EVOLUTIONARY_SEARCH_NUM_ITERS;
              ++evo_search_iter)
         {
+                // make sure that the ping buffer is of the correct size
+                std::for_each(ping_buf.begin(),
+                              ping_buf.end(),
+                              [&population](const std::vector < State > & states)
+                              {
+                                      CHECK(states.size() == population.size());
+                              });
                 // =============================================================
-                // predict the performance numbers for all the search tasks in
-                // the search cluster
+                // 1. predict the performance numbers for all the search tasks in
+                //    the search cluster
                 for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                      ++task_idx)
                 {
@@ -992,12 +997,12 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
                 }
                 // =============================================================
+                // 2. ∀population, accumulate its scores and update the scoreboard
                 pop_state_strs.assign(cur_cluster->tasks.size(),
                                       std::vector < std::string > (population.size()));
                 for (size_t pop_idx = 0; pop_idx < population.size();
                      ++pop_idx)
                 {
-                        // ∀population, accumulate its scores.
                         for (size_t task_idx = 0;
                              task_idx < cur_cluster->tasks.size(); ++task_idx)
                         {
@@ -1024,6 +1029,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                 // make sure that all search tasks are consistent
                                 CHECK(std::all_of(task_indices.begin(), task_indices.end(),
                                                   state_recorded_on_scoreboard));
+                                // if there are still empty slots on the scoreboard,
+                                // push the current states directly
                                 if (scoreboard.size() < static_cast < size_t > (num_best_states))
                                 {
                                         scoreboard.emplace_back(states_per_population, acc_scores[pop_idx]);
@@ -1035,9 +1042,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                 scoreboard_set[task_idx].insert(pop_state_strs[task_idx][pop_idx]);
                                         }
                                 }
-                                // push the states onto the scoreboard if the
-                                // accumulated score is larger than the smallest
-                                // score on board.
+                                // otherwise, remove the entry with the smallest score before pushing
                                 else if (acc_scores[pop_idx] > scoreboard.front().second)
                                 {
                                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); 
@@ -1068,8 +1073,6 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                 // =============================================================
                 // Crossover
                 // =============================================================
-                size_t pong_buf_size = 0;
-
                 double sum = 0.;
                 prefix_sum_probs.resize(acc_scores.size());
                 for (size_t i = 0; i < acc_scores.size(); ++i)
@@ -1327,6 +1330,7 @@ ClusterSearchPolicyNode::Search(
                         {
                                 measurer->Measure(cur_cluster->tasks[task_idx], inputs[task_idx],
                                                   &results[task_idx]);
+                                CHECK(inputs[task_idx].size() == results[task_idx].size());
                         }
                         _measured_states_cost.assign(_num_measures_per_iter, 0.f);
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
