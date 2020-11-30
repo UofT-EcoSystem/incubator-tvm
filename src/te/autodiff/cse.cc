@@ -205,16 +205,32 @@ TensorExprNode::Compare_(
   return opnode == other_opnode;
 }
 
-#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)
-
-TensorExprNode::ConditionalBool
-TensorExprNode::Compare_(
-    const AddNode* const opnode,
-    const TensorExprNode& other) const {
-  const AddNode* const other_opnode = other.opref_.as<AddNode>();
-  CHECK(other_opnode != nullptr);
-  VarMap var_map;
-  
+#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)                     \
+TensorExprNode::ConditionalBool                                              \
+TensorExprNode::Compare_(                                                    \
+    const OpNodeType* const opnode,                                          \
+    const TensorExprNode& other) const {                                     \
+  const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();      \
+  CHECK(other_opnode != nullptr);                                            \
+  VarMap var_map;                                                            \
+  ConditionalBool                                                            \
+      cmp_result_aa = TensorExprNode(opnode->a).Compare(other_opnode->a),    \
+      cmp_result_bb = TensorExprNode(opnode->b).Compare(other_opnode->b);    \
+  if (cmp_result_aa && cmp_result_bb) {                                      \
+    var_map.Update(cmp_result_aa.second);                                    \
+    var_map.Update(cmp_result_bb.second);                                    \
+    return ConditionalBool(true, var_map);                                   \
+  } else {                                                                   \
+    ConditionalBool                                                          \
+        cmp_result_ab = TensorExprNode(opnode->a).Compare(other_opnode->b);  \
+        cmp_result_ba = TensorExprNode(opnode->b).Compare(other_opnode->a);  \
+    if (cmp_result_ab && cmp_result_ba) {                                    \
+      var_map.Update(cmp_result_ab.second);                                  \
+      var_map.Update(cmp_result_ba.second);                                  \
+      return ConditionalBool(true, var_map);                                 \
+    }                                                                        \
+  }                                                                          \
+  return false;                                                              \
 }
 
 #define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)              \
