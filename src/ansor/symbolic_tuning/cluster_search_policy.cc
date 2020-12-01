@@ -1071,7 +1071,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         break;
                 }
                 // =============================================================
-                // Crossover
+                // 3. Crossover
                 // =============================================================
                 double sum = 0.;
                 prefix_sum_probs.resize(acc_scores.size());
@@ -1156,7 +1156,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         cross_over_succ_cnt = cross_over_fail_cnt = -1;
                 }
                 // =============================================================
-                // Mutation
+                // 4. Mutation
                 // =============================================================
                 while (pong_buf_size < population.size())
                 {
