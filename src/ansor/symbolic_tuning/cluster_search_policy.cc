@@ -629,11 +629,11 @@ ClusterSearchPolicyNode::PickStatesWithEpsGreedy(
         const std::vector < std::vector < State > > & random_states,
         const int remaining_num_trials)
 {
-        const size_t c_num_best_states
+        const int c_num_best_states
                 = _max_measures_per_iter - C_EPS_GREEDY * _max_measures_per_iter;
 
         for (size_t best_idx = 0, random_idx = 0;
-             _num_measures_this_iter < static_cast < size_t > (std::min(_max_measures_per_iter, remaining_num_trials));)
+             _num_measures_this_iter < (std::min(_max_measures_per_iter, remaining_num_trials));)
         {
                 const std::vector < State > * states;
                 bool has_best = best_idx < best_states.size(),
@@ -1332,10 +1332,10 @@ ClusterSearchPolicyNode::Search(
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                              ++task_idx)
                         {
-                                CHECK(inputs [task_idx].size() == _num_measures_this_iter);
+                                CHECK(inputs [task_idx].size() == static_cast < size_t > (_num_measures_this_iter));
                                 measurer->Measure(cur_cluster->tasks[task_idx], inputs[task_idx],
                                                   &results[task_idx]);
-                                CHECK(results[task_idx].size() == _num_measures_this_iter);
+                                CHECK(results[task_idx].size() == static_cast < size_t > (_num_measures_this_iter));
                         }
                         _measured_states_thruput.assign(_num_measures_this_iter, 0.f);
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
