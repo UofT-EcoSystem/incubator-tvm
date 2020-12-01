@@ -891,7 +891,7 @@ ClusterSearchPolicyNode::RandomMutateMaxUnrollStep(
         size_t pragma_step_idx = pragma_step_indices[_rng() % pragma_step_indices.size()];
         int rand_auto_unroll_config = C_GPU_AUTO_UNROLL_CONFIGS[_rng() % 5];
 
-        std::vector < State > new_states;
+        std::vector < State > new_states(cur_cluster->tasks.size());
 
         std::transform(states.begin(),
                        states.end(),
@@ -901,6 +901,7 @@ ClusterSearchPolicyNode::RandomMutateMaxUnrollStep(
                        {
                                const PragmaStepNode * const pragma_step
                                        = state->transform_steps[pragma_step_idx].as < PragmaStepNode > ();
+                               CHECK(pragma_step != nullptr);
                                State new_state = state;
                                new_state.CopyOnWrite()->transform_steps[pragma_step_idx]
                                        = PragmaStep(pragma_step->stage_id,
@@ -1191,6 +1192,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                 LOG(INFO) << "Successfully mutated the tile sizes";
                                                 break;
                                         case 1:
+                                                LOG(INFO) << "Mutating the maximum unrolling steps";
                                                 mutated_states = RandomMutateMaxUnrollStep(ping_states);
                                                 LOG(INFO) << "Successfully mutated the maximum unrolling steps";
                                                 break;
