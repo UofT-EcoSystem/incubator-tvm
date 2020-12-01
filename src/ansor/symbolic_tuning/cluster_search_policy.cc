@@ -608,6 +608,8 @@ ClusterSearchPolicyNode::SearchOneRound(
                                         measured_states_to_use.begin(),
                                        [&indices, &i](const std::vector < State > & measured_states) -> State
                                        {
+                                               CHECK(indices[i] >= 0 &&
+                                                     indices[i] < static_cast < int > (measured_states.size()));
                                                return measured_states[indices[i]];
                                        });
                         init_population.push_back(measured_states_to_use);
@@ -999,6 +1001,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                                      ping_buf[task_idx], &scores[task_idx]);
                         CHECK(scores[task_idx].size() == ping_buf[task_idx].size());
                 }
+                LOG(INFO) << "Finished the performance prediction";
                 // =============================================================
                 // 2. ∀population, accumulate its scores and update the scoreboard
                 pop_state_strs.assign(cur_cluster->tasks.size(),
@@ -1018,6 +1021,8 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         acc_scores[pop_idx] = 
                                 std::accumulate(scores_per_population.begin(),
                                                 scores_per_population.end(), 0.f);
+                        DEBUG_LOG_VAR(pop_idx);
+                        DEBUG_LOG_VAR(acc_scores[pop_idx]);
                         auto state_recorded_on_scoreboard = 
                                 [&scoreboard_set,
                                  &pop_state_strs, &pop_idx](const size_t task_idx)
@@ -1069,6 +1074,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                         }  // if (std::any_of(task_indices.begin(), task_indices.end(),
                            //                 state_recorded_on_scoreboard))
                 }  // for (pop_idx ∈ [0, ping_buf_size))
+                LOG(INFO) << "Finished updating the scoreboard";
                 if (evo_search_iter == C_EVOLUTIONARY_SEARCH_NUM_ITERS)
                 {
                         break;
@@ -1152,6 +1158,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                 }
                         }  // if (pop_idx1 == pop_idx2)
                 }  // for (co ∈ [0, c_num_cross_overs))
+                LOG(INFO) << "Finished the crossover";
                 // turn off crossover forever if we cannot perform it successfully
                 if (cross_over_succ_cnt == 0)
                 {
@@ -1181,9 +1188,11 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                 {
                                         case 0:
                                                 mutated_states = RandomMutateTileSize(ping_states);
+                                                LOG(INFO) << "Successfully mutated the tile sizes";
                                                 break;
                                         case 1:
                                                 mutated_states = RandomMutateMaxUnrollStep(ping_states);
+                                                LOG(INFO) << "Successfully mutated the maximum unrolling steps";
                                                 break;
                                         default:
                                                 LOG(FATAL) << "Invalid rule_id=" << rule_id;
@@ -1218,6 +1227,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
                                 ++pong_buf_size;
                         }  // if (uniform_distrib(_rng) < C_EVOLUTIONARY_SEARCH_MUTATION_PROB)
                 }  // while (pong_buf_size < population.size())
+                LOG(INFO) << "Finished the mutation";
                 CHECK(pong_buf_size == population.size());
                 ping_buf = std::move(pong_buf);
                 pong_buf.assign(cur_cluster->tasks.size(), std::vector < State > ());
@@ -1249,6 +1259,8 @@ ClusterSearchPolicyNode::Search(
         hardware_params = cluster->tasks[cluster->repr_idx]->hardware_params;
         _max_measures_per_iter = max_measures_per_iter;
         _num_measures_this_iter = 0;
+        _measured_states_vec.assign(cur_cluster->tasks.size(), std::vector < State > ());
+        _measured_states_set.assign(cur_cluster->tasks.size(), std::unordered_set < std::string > ());
 
         SplitFactorizationMemo split_memo;
         std::vector < std::vector < PrimExpr > > factor_schemes

@@ -79,7 +79,7 @@ private:
 
         int _max_measures_per_iter, 
             _num_measures_this_iter;
-        // [cluster_size × num_measures_per_iter]
+        // [cluster_size × num_measures_this_iter]
         std::vector < std::unordered_set < std::string > > _measured_states_set;
         std::vector < std::vector < State > > _measured_states_vec;
         std::vector < float > _measured_states_thruput;
