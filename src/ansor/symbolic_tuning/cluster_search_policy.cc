@@ -612,13 +612,15 @@ ClusterSearchPolicyNode::SearchOneRound(
                                        });
                         init_population.push_back(measured_states_to_use);
                 }
+                DEBUG_LOG_VAR(num_use_measured);
                 EvolutionarySearch(init_population, 2 * _max_measures_per_iter, best_states);
+                LOG(INFO) << "Finished doing the evolutionary search";
         }
         else 
         {
                 RandomSampleStates(init_population,  3 * _max_measures_per_iter, best_states);
         }
-        RandomSampleStates(init_population, 10 *  num_random_states, random_states);
+        RandomSampleStates(init_population, 10 * num_random_states, random_states);
 }
 
 
@@ -1350,10 +1352,8 @@ ClusterSearchPolicyNode::Search(
                                                 += 1.f / FloatArrayMean(results[task_idx][res_idx]->costs);
                                 }
                         }
-#if SYMTUNE_DEBUG
                         LOG(INFO) << "One round of evolutionary search has been completed";
                         break;
-#endif
                 }  // for (num_trials_done ∈ [0, num_trials))
                 Array < State > best_states_from_measurer;
                 for (size_t task_idx = 0;

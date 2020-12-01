@@ -452,15 +452,8 @@ inline std::string toString(const std::vector < T > & vec){
 }
 
 // <bojian/TVM-SymbolicTuning>
-#define SYMTUNE_DEBUG 1
-
-#if SYMTUNE_DEBUG
 #define DEBUG_LOG_VAR(var)  LOG(INFO) << #var "=" << (var)
 #define DEBUG_LOG_VEC(vec)  LOG(INFO) << #vec "=" << toString(vec)
-#else
-#define DEBUG_LOG_VAR(var)
-#define DEBUG_LOG_VEC(vec)
-#endif 
 
 
 #endif  // TVM_ANSOR_UTILS_H_
