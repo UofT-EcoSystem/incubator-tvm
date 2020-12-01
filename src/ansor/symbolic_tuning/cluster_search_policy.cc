@@ -1307,6 +1307,7 @@ ClusterSearchPolicyNode::Search(
 
                         SearchOneRound(&best_states, &random_states,
                                        c_num_random_states);
+                        LOG(INFO) << "Finished searching for one round";
 #define INFER_BOUND_FOREACH(states)                                             \
         for (std::vector < State > & states_per_cluster : states)               \
         {                                                                       \
@@ -1323,6 +1324,7 @@ ClusterSearchPolicyNode::Search(
                         _num_measures_this_iter = 0;
                         PickStatesWithEpsGreedy(&inputs, best_states, random_states,
                                                 num_trials - num_trials_done);
+                        LOG(INFO) << "Finished picking states with eps-greedy strategy";
                         if (_num_measures_this_iter == 0)
                         {
                                 LOG(INFO) << "All candidates in the search space "
@@ -1337,6 +1339,7 @@ ClusterSearchPolicyNode::Search(
                                                   &results[task_idx]);
                                 CHECK(results[task_idx].size() == static_cast < size_t > (_num_measures_this_iter));
                         }
+                        LOG(INFO) << "Finished the program measurements";
                         _measured_states_thruput.assign(_num_measures_this_iter, 0.f);
                         for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
                              ++task_idx)
