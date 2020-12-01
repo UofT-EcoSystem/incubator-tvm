@@ -923,6 +923,7 @@ ClusterSearchPolicyNode::EvolutionarySearch(
         // [pop_size × cluster_size]
         const std::vector < std::vector < State > > & population,
         const int num_best_states,
+        // [num_best_states × cluster_size]
         std::vector < std::vector < State > > * const best_states)
 {
         // Ping-Pong Buffer ([cluster_size × pop_size])
@@ -1346,6 +1347,10 @@ ClusterSearchPolicyNode::Search(
                                                 += 1.f / FloatArrayMean(results[task_idx][res_idx]->costs);
                                 }
                         }
+#if SYMTUNE_DEBUG
+                        LOG(INFO) << "One round of evolutionary search has been completed";
+                        break;
+#endif
                 }  // for (num_trials_done ∈ [0, num_trials))
                 Array < State > best_states_from_measurer;
                 for (size_t task_idx = 0;
