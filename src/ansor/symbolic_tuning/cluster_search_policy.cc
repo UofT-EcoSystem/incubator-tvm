@@ -1377,7 +1377,8 @@ ClusterSearchPolicyNode::Search(
                         // if ((num_trials_done + 1) % 20 == 0)
                         // {
                                 LOG(INFO) << "Collecting the optimal performance numbers after "
-                                          << num_trials_done << " number of trials";
+                                          << num_trials_done + _num_measures_this_iter
+                                          << " number of trials";
                                 std::vector < float > best_costs;
                                 for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
                                 {
