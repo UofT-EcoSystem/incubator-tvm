@@ -1338,6 +1338,12 @@ ClusterSearchPolicyNode::Search(
                         INFER_BOUND_FOREACH(best_states);
                         INFER_BOUND_FOREACH(random_states);
                         _num_measures_this_iter = 0;
+                        for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size();
+                             ++task_idx)
+                        {
+                                inputs [task_idx].clear();
+                                results[task_idx].clear();
+                        }
                         PickStatesWithEpsGreedy(&inputs, best_states, random_states,
                                                 num_trials - num_trials_done);
                         LOG(INFO) << "Finished picking states with eps-greedy strategy";
@@ -1367,7 +1373,7 @@ ClusterSearchPolicyNode::Search(
                                 }
                         }
                         LOG(INFO) << "One round of evolutionary search has been completed";
-                        break;
+                        // break;
                 }  // for (num_trials_done ∈ [0, num_trials))
                 Array < State > best_states_from_measurer;
                 for (size_t task_idx = 0;

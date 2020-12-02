@@ -96,7 +96,7 @@ private:
                 const std::vector < std::vector < State > > & random_states,
                 const int remaining_num_trials);
         /**
-         * @brief Samples the initial population.
+         * @brief Sample the initial population.
          */
         void SampleInitPopulation(const size_t out_size,
                                   std::vector < std::vector < State > > * const out_states);
