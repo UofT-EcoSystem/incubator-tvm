@@ -1373,6 +1373,17 @@ ClusterSearchPolicyNode::Search(
                                 }
                         }
                         LOG(INFO) << "One round of evolutionary search has been completed";
+
+                        if ((num_trials_done + 1) % 20 == 0)
+                        {
+                                std::vector < float > best_costs;
+                                for (size_t task_idx = 0; task_idx < cur_cluster->tasks.size(); ++task_idx)
+                                {
+                                        best_costs.push_back(
+                                                measurer->best_ct[cur_cluster->tasks[task_idx]->workload_key]);
+                                }
+                                DEBUG_LOG_VEC(best_costs);
+                        }  // if ((num_trials_done + 1) % 20 == 0)
                         // break;
                 }  // for (num_trials_done ∈ [0, num_trials))
                 Array < State > best_states_from_measurer;
