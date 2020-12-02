@@ -208,7 +208,8 @@ TensorExprNode::ConditionalBool
 TensorExprNode::Compare_(
     const PlaceholderOpNode* const opnode,
     const TensorExprNode& other) const {
-  const PlaceholderOpNode* const other_opnode = other.opref_.as<PlaceholderOpNode>();
+  const PlaceholderOpNode* const other_opnode
+      = other.opref_.as<PlaceholderOpNode>();
   CHECK(other_opnode != nullptr);
   return opnode == other_opnode;
 }
@@ -283,7 +284,12 @@ DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 TensorExprNode::ConditionalBool
 TensorExprNode::Compare_(
     const CommReducerNode* const opnode,
-    )
+    const TensorExprNode& other) const {
+  const CommReducerNode* const other_opnode
+      = other.opref_.as<CommReducerNode>();
+  CHECK(other_opnode != nullptr);
+  
+}
 
 TensorExprNode::ConditionalBool
 TensorExprNode::Compare_(
@@ -296,11 +302,17 @@ TensorExprNode::Compare_(
     LOG(WARNING) << "Have not handled non-trivial ReduceNode's";
     return false;
   }
+  // We do NOT check the reduction axes here because they will be checked by operator==.
   ConditionalBool
       is_same_combiner
-        = ConditionalBool(opnode->combiner).Compare(other_opnode->combiner),
+        = TensorExprNode(opnode->combiner).Compare(
+          TensorExprNode(other_opnode->combiner)),
+      is_same_source
+        = TensorExprNode(opnode->source[opnode->value_index]).Compare(
+          TensorExprNode(other_opnode->source[other_opnode->value_index])),
       is_same_condition
-        = ConditionalBool(opnode->condition).Compare(other_opnode->condition);
+        = TensorExprNode(opnode->condition).Compare(
+          TensorExprNode(other_opnode->condition));
 }
 
 #define DEFINE_IMM_COMPARE(OpNodeType)                                   \
