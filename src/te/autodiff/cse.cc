@@ -360,11 +360,28 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
       other.opref_.defined()) {
     if (const ProducerLoadNode* const
         opnode = opref_.as<ProducerLoadNode>()) {
-      if (const Tensor tensor = Downcast(opnode->producer))
+      Tensor tensor = Downcast<Tensor>(opnode->producer);
+      if (tensor->op->IsInstance<ComputeOp>()) {
+        ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
+        fcompare(compute_op->body[tensor->value_index],
+                 other, this);
+      } else if (tensor->op->IsInstance<PlaceholderOp>()) {
+        fcompare(tensor->op, other, this);
+      } else {
+        LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
+      }
     }
     if (const ProducerLoadNode* const
         opnode = other.opref_.as<ProducerLoadNode>()) {
-
+      Tensor tensor = Downcast<Tensor>(opnode->producer);
+      if (tensor->op->IsInstance<ComputeOp>()) {
+        ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
+        fcompare(opref_, TensorExprNode(compute_op->body[tensor->value_index]), this);
+      } else if (tensor->op->IsInstance<PlaceholderOp>()) {
+        fcompare(opref_, TensorExprNode(tensor->op), this);
+      } else {
+        LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
+      }
     }
   }  // if (opref_.defined() && other.opref_.defined())
 }
