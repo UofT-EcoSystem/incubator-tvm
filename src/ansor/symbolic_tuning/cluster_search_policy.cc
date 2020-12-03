@@ -550,9 +550,18 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 }
         }
         LOG(INFO) << "Finished sampling the initial population";
-        LOG(INFO) << "Available # of candidates: " << out_states->size();
+        LOG(INFO) << "Available # of candidates: " << out_states->size()
+                  << " while expecting " << out_size << " candidates";
         CHECK(out_states->size() != 0)
                 << "Failed to sample the initial population";
+        if (failed_attempts == out_size)
+        {
+                LOG(INFO ) << "Number of failed attempts " << failed_attempts
+                           << "reached out_size=" << out_size;
+        }
+        std::string dummy_string;
+        std::cin >> dummy_string;
+        CHECK(dummy_string == "g");
 }
 
 
