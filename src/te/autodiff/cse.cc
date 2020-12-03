@@ -307,8 +307,8 @@ TensorExprNode::Compare_(
   for (size_t i = 0; i < opnode->result.size(); ++i) {
     RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
         TensorExprNode(opnode->result[i]).Compare(
-        TensorExprNode(other_opnode->result[i]), var_map
-        ));
+        TensorExprNode(other_opnode->result[i])), var_map
+        );
   }
 }
 
@@ -326,12 +326,14 @@ TensorExprNode::Compare_(
   // We do NOT check the reduction axes here because they will be checked by operator==.
   ConditionalBool
       is_same_combiner
-        = TensorExprNode(opnode->combiner).Compare(other_opnode->combiner),
+        = TensorExprNode(opnode->combiner).Compare(
+          TensorExprNode(other_opnode->combiner)),
       is_same_source
         = TensorExprNode(opnode->source[opnode->value_index]).Compare(
-             other_opnode->source[other_opnode->value_index]),
+          TensorExprNode(other_opnode->source[other_opnode->value_index])),
       is_same_condition
-        = TensorExprNode(opnode->condition).Compare(other_opnode->condition);
+        = TensorExprNode(opnode->condition).Compare(
+          TensorExprNode(other_opnode->condition));
 }
 
 #define DEFINE_IMM_COMPARE(OpNodeType)                                   \
