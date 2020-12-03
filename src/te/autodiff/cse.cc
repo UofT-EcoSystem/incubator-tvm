@@ -35,51 +35,43 @@ namespace te {
 namespace {
 
 
-class TensorExprNode;
-typedef std::shared_ptr<TensorExprNode> TensorExprPtr;
+// Auxiliary class for comparing between tensor expressions.
+class VarMap : public Map<Var, Var> {
+  /*!
+   *  \brief  Update this VarMap with all the entries from another VarMap.
+   *  \return true if the insertion is successful, and there is no conflict
+   *          between the two mappings, false otherwise
+   */
+ public:
+  VarMap() : Map<Var, Var>() {}
+  VarMap(std::initializer_list<std::pair<Var, Var>> init) : Map<Var, Var>(init) {}
+  bool Update(const VarMap& other);
+};  // class VarMap
+
+/*!
+ * \brief ConditionalBool is the return type of the compare method. It is a
+ *        pair consists of a boolean variable and a variable mapping. While
+ *        the former represents whether two tensor expressions MIGHT be
+ *        equivalent or not, the latter represents the variable mapping that
+ *        needs to satisfied for the equivalence relation.
+ */
+class ConditionalBool : public std::pair<bool, VarMap> {
+ public:
+  ConditionalBool(const bool is_same)
+      : std::pair<bool, VarMap>(is_same, {}) {}
+  ConditionalBool(const bool is_same, VarMap var_map)
+      : std::pair<bool, VarMap>(is_same, var_map) {}
+  operator bool() { return first; }
+};  // class ConditionalBool
 
 using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
-class TensorExprNode {
- private:
-  ObjectRef opref_;
-  // mapping from variable to axis of ComputeOp's
-  static std::unordered_map<Var, ComputeOpAxis> var_compute_op_axis_map_;
-  static Array<PrimExpr> lhs_axis_, rhs_axis_;
-
-  // Auxiliary class for comparing between tensor expressions.
-  class VarMap : public Map<Var, Var> {
-    /*!
-     *  \brief  Update this VarMap with all the entries from another VarMap.
-     *  \return true if the insertion is successful, and there is no conflict
-     *          between the two mappings, false otherwise
-     */
-   public:
-    VarMap() : Map<Var, Var>() {}
-    VarMap(std::initializer_list<std::pair<Var, Var>> init) : Map<Var, Var>(init) {}
-    bool Update(const VarMap& other);
-  };  // class VarMap
-  /*!
-   * \brief ConditionalBool is the return type of the compare method. It is a
-   *        pair consists of a boolean variable and a variable mapping. While
-   *        the former represents whether two tensor expressions MIGHT be
-   *        equivalent or not, the latter represents the variable mapping that
-   *        needs to satisfied for the equivalence relation.
-   */
-  class ConditionalBool : public std::pair<bool, VarMap> {
-   public:
-    ConditionalBool(const bool is_same)
-        : std::pair<bool, VarMap>(is_same, {}) {}
-    ConditionalBool(const bool is_same, VarMap var_map)
-        : std::pair<bool, VarMap>(is_same, var_map) {}
-    operator bool() { return first; }
-  };  // class ConditionalBool
-
+struct TensorExprNode {
   using FCompare = NodeFunctor<
       ConditionalBool(const ObjectRef&, const TensorExprNode&,
                       const TensorExprNode* const)
       >;
-  static FCompare & cmptable() {
+  static FCompare& cmptable() {
     static FCompare instance;
     return instance; 
   }
@@ -110,13 +102,16 @@ class TensorExprNode {
    * \return 
    */
   ConditionalBool Compare(const TensorExprNode& other) const;
- public:
   explicit TensorExprNode(const ObjectRef& opref) : opref_(opref) {}
   /*!
    * \brief  Compare two tensor expressions. 
    * \return true if the tensor expressions are deemed equal, false otherwise
    */
   bool operator==(const TensorExprNode& other) const;
+  ObjectRef opref_;
+  // mapping from variable to axis of ComputeOp's
+  static std::unordered_map<Var, ComputeOpAxis> var_compute_op_axis_map_;
+  static Array<PrimExpr> lhs_axis_, rhs_axis_;
 };
 
 
@@ -153,7 +148,7 @@ CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
 /*******************************************************************************
  * TensorExprTree/Node
  *******************************************************************************/
-bool TensorExprNode::VarMap::Update(
+bool VarMap::Update(
     const VarMap& other) {
   for (const std::pair<Var, Var>& var_pair : other) {
     iterator iter = find(var_pair.first);
@@ -184,7 +179,7 @@ bool TensorExprNode::VarMap::Update(
   } while (0);
 
 
-TensorExprNode::ConditionalBool
+ConditionalBool
 TensorExprNode::Compare_(
     const CallNode* const opnode,
     const TensorExprNode& other) const {
@@ -205,7 +200,7 @@ TensorExprNode::Compare_(
   return ConditionalBool(true, var_map);
 }
 
-TensorExprNode::ConditionalBool
+ConditionalBool
 TensorExprNode::Compare_(
     const PlaceholderOpNode* const opnode,
     const TensorExprNode& other) const {
@@ -215,7 +210,7 @@ TensorExprNode::Compare_(
   return opnode == other_opnode;
 }
 
-TensorExprNode::ConditionalBool
+ConditionalBool
 TensorExprNode::Compare_(
     const VarNode* const opnode,
     const TensorExprNode& other) const {
@@ -229,7 +224,7 @@ TensorExprNode::Compare_(
 }
 
 #define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)                     \
-TensorExprNode::ConditionalBool                                              \
+ConditionalBool                                                              \
 TensorExprNode::Compare_(                                                    \
     const OpNodeType* const opnode,                                          \
     const TensorExprNode& other) const {                                     \
@@ -271,7 +266,7 @@ TensorExprNode::Compare_(                                                    \
 }
 
 #define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)              \
-TensorExprNode::ConditionalBool                                          \
+ConditionalBool                                                          \
 TensorExprNode::Compare_(                                                \
     const OpNodeType* const opnode,                                      \
     const TensorExprNode& other) const {                                 \
@@ -292,7 +287,7 @@ DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(SubNode)
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode)
 DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 
-TensorExprNode::ConditionalBool
+ConditionalBool
 TensorExprNode::Compare_(
     const CommReducerNode* const opnode,
     const TensorExprNode& other) const {
@@ -312,7 +307,7 @@ TensorExprNode::Compare_(
   }
 }
 
-TensorExprNode::ConditionalBool
+ConditionalBool
 TensorExprNode::Compare_(
     const ReduceNode* const opnode,
     const TensorExprNode& other) const {
@@ -337,7 +332,7 @@ TensorExprNode::Compare_(
 }
 
 #define DEFINE_IMM_COMPARE(OpNodeType)                                   \
-TensorExprNode::ConditionalBool                                          \
+ConditionalBool                                                          \
 TensorExprNode::Compare_(                                                \
     const OpNodeType* const opnode,                                      \
     const TensorExprNode& other) const {                                 \
@@ -353,7 +348,7 @@ TensorExprNode::Compare_(                                                \
 DEFINE_IMM_COMPARE(IntImmNode)
 DEFINE_IMM_COMPARE(FloatImmNode)
 
-TensorExprNode::ConditionalBool
+ConditionalBool
 TensorExprNode::Compare(const TensorExprNode& other) const {
   static const FCompare& fcompare = cmptable();
   if (opref_.defined() &&
@@ -361,30 +356,57 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
     if (const ProducerLoadNode* const
         opnode = opref_.as<ProducerLoadNode>()) {
       Tensor tensor = Downcast<Tensor>(opnode->producer);
-      if (tensor->op->IsInstance<ComputeOp>()) {
+      if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
-        fcompare(compute_op->body[tensor->value_index],
-                 other, this);
-      } else if (tensor->op->IsInstance<PlaceholderOp>()) {
-        fcompare(tensor->op, other, this);
+        return fcompare(compute_op->body[tensor->value_index],
+                        other, this);
+      } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
+        return fcompare(tensor->op, other, this);
       } else {
         LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
+        return false;
       }
     }
     if (const ProducerLoadNode* const
         opnode = other.opref_.as<ProducerLoadNode>()) {
       Tensor tensor = Downcast<Tensor>(opnode->producer);
-      if (tensor->op->IsInstance<ComputeOp>()) {
+      if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
-        fcompare(opref_, TensorExprNode(compute_op->body[tensor->value_index]), this);
-      } else if (tensor->op->IsInstance<PlaceholderOp>()) {
-        fcompare(opref_, TensorExprNode(tensor->op), this);
+        return fcompare(opref_, TensorExprNode(compute_op->body[tensor->value_index]), this);
+      } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
+        return fcompare(opref_, TensorExprNode(tensor->op), this);
       } else {
         LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
+        return false;
       }
     }
+    return fcompare(opref_, other, this);
   }  // if (opref_.defined() && other.opref_.defined())
 }
+
+#define DISPATCH_TO_CMP(Op)                                               \
+set_dispatch<Op>([](const ObjectRef& opref, const TensorExprNode& other,  \
+                    const TensorExprNode* const pthis)                    \
+                   -> ConditionalBool {                                   \
+  if (opref->type_index() != other.opref_->type_index()) {                \
+    return false;                                                         \
+  }                                                                       \
+  return pthis->Compare_(static_cast<const Op*>(opref.get()), other);     \
+})
+
+TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
+.DISPATCH_TO_CMP(CallNode)
+.DISPATCH_TO_CMP(PlaceholderOpNode)
+.DISPATCH_TO_CMP(VarNode)
+.DISPATCH_TO_CMP(AddNode)
+.DISPATCH_TO_CMP(SubNode)
+.DISPATCH_TO_CMP(MulNode)
+.DISPATCH_TO_CMP(DivNode)
+.DISPATCH_TO_CMP(CommReducerNode)
+.DISPATCH_TO_CMP(ReduceNode)
+.DISPATCH_TO_CMP(IntImmNode)
+.DISPATCH_TO_CMP(FloatImmNode);
+
 
 }  // namespace te
 }  // namespace tvm
