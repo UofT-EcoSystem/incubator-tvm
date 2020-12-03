@@ -546,7 +546,7 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 else
                 {
                         LOG(INFO) << "State pruned for failing the lowering test";
-                        ++failed_attempts;
+                        // ++failed_attempts;
                 }
         }
         LOG(INFO) << "Finished sampling the initial population";
