@@ -44,8 +44,8 @@ class TensorExprNode {
  private:
   ObjectRef opref_;
   // mapping from variable to axis of ComputeOp's
-  /// @note ComputeOpAxis has to inherit from ObjectRef.
-  //  static Map<Var, ComputeOpAxis> var_compute_op_axis_map_;
+  static std::unordered_map<Var, ComputeOpAxis> var_compute_op_axis_map_;
+  static Array<PrimExpr> lhs_axis_, rhs_axis_;
 
   // Auxiliary class for comparing between tensor expressions.
   class VarMap : public Map<Var, Var> {
@@ -77,7 +77,6 @@ class TensorExprNode {
 
   using FCompare = NodeFunctor<
       ConditionalBool(const ObjectRef&, const TensorExprNode&,
-                      const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes,
                       const TensorExprNode* const)
       >;
   static FCompare & cmptable() {
@@ -85,17 +84,13 @@ class TensorExprNode {
     return instance; 
   }
   ConditionalBool Compare_(const CallNode* const opnode,
-                           const TensorExprNode& other,
-                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
+                           const TensorExprNode& other) const;
   ConditionalBool Compare_(const PlaceholderOpNode* const opnode,
-                           const TensorExprNode& other,
-                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
+                           const TensorExprNode& other) const;
   ConditionalBool Compare_(const VarNode* const opnode,
-                           const TensorExprNode& other,
-                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
+                           const TensorExprNode& other) const;
   ConditionalBool Compare_(const AddNode* const opnode,
-                           const TensorExprNode& other,
-                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
+                           const TensorExprNode& other) const;
   ConditionalBool Compare_(const SubNode* const opnode,
                            const TensorExprNode& other) const;
   ConditionalBool Compare_(const MulNode* const opnode,
@@ -363,8 +358,15 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
   static const FCompare& fcompare = cmptable();
   if (opref_.defined() &&
       other.opref_.defined()) {
-    if (const )
-  }
+    if (const ProducerLoadNode* const
+        opnode = opref_.as<ProducerLoadNode>()) {
+      if (const Tensor tensor = Downcast(opnode->producer))
+    }
+    if (const ProducerLoadNode* const
+        opnode = other.opref_.as<ProducerLoadNode>()) {
+
+    }
+  }  // if (opref_.defined() && other.opref_.defined())
 }
 
 }  // namespace te
