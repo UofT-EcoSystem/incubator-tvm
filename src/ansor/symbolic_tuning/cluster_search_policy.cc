@@ -557,7 +557,7 @@ ClusterSearchPolicyNode::SampleInitPopulation(
         if (failed_attempts == out_size)
         {
                 LOG(INFO ) << "Number of failed attempts " << failed_attempts
-                           << "reached out_size=" << out_size;
+                           << " reached out_size=" << out_size;
         }
         std::string dummy_string;
         std::cin >> dummy_string;
