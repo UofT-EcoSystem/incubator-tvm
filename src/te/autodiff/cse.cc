@@ -77,6 +77,7 @@ class TensorExprNode {
 
   using FCompare = NodeFunctor<
       ConditionalBool(const ObjectRef&, const TensorExprNode&,
+                      const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes,
                       const TensorExprNode* const)
       >;
   static FCompare & cmptable() {
@@ -84,13 +85,17 @@ class TensorExprNode {
     return instance; 
   }
   ConditionalBool Compare_(const CallNode* const opnode,
-                           const TensorExprNode& other) const;
+                           const TensorExprNode& other,
+                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
   ConditionalBool Compare_(const PlaceholderOpNode* const opnode,
-                           const TensorExprNode& other) const;
+                           const TensorExprNode& other,
+                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
   ConditionalBool Compare_(const VarNode* const opnode,
-                           const TensorExprNode& other) const;
+                           const TensorExprNode& other,
+                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
   ConditionalBool Compare_(const AddNode* const opnode,
-                           const TensorExprNode& other) const;
+                           const TensorExprNode& other,
+                           const std::pair<Array<PrimExpr>, Array<PrimExpr>>& axes) const;
   ConditionalBool Compare_(const SubNode* const opnode,
                            const TensorExprNode& other) const;
   ConditionalBool Compare_(const MulNode* const opnode,
@@ -353,6 +358,14 @@ TensorExprNode::Compare_(                                                \
 DEFINE_IMM_COMPARE(IntImmNode)
 DEFINE_IMM_COMPARE(FloatImmNode)
 
+TensorExprNode::ConditionalBool
+TensorExprNode::Compare(const TensorExprNode& other) const {
+  static const FCompare& fcompare = cmptable();
+  if (opref_.defined() &&
+      other.opref_.defined()) {
+    if (const )
+  }
+}
 
 }  // namespace te
 }  // namespace tvm
