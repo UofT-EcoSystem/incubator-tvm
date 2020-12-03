@@ -559,9 +559,9 @@ ClusterSearchPolicyNode::SampleInitPopulation(
                 LOG(INFO ) << "Number of failed attempts " << failed_attempts
                            << " reached out_size=" << out_size;
         }
-        std::string dummy_string;
-        std::cin >> dummy_string;
-        CHECK(dummy_string == "g");
+        // std::string dummy_string;
+        // std::cin >> dummy_string;
+        // CHECK(dummy_string == "g");
 }
 
 
@@ -1396,9 +1396,9 @@ ClusterSearchPolicyNode::Search(
                                                 measurer->best_flops[cur_cluster->tasks[task_idx]->workload_key]);
                                 }
                                 DEBUG_LOG_VEC(best_costs);
-                                std::string dummy_string;
-                                std::cin >> dummy_string;
-                                CHECK(dummy_string == "g");
+                                // std::string dummy_string;
+                                // std::cin >> dummy_string;
+                                // CHECK(dummy_string == "g");
                         // }  // if ((num_trials_done + 1) % 20 == 0)
                         // break;
                 }  // for (num_trials_done ∈ [0, num_trials))
