@@ -1398,6 +1398,7 @@ ClusterSearchPolicyNode::Search(
                                 DEBUG_LOG_VEC(best_costs);
                                 std::string dummy_string;
                                 std::cin >> dummy_string;
+                                CHECK(dummy_string == "g");
                         // }  // if ((num_trials_done + 1) % 20 == 0)
                         // break;
                 }  // for (num_trials_done ∈ [0, num_trials))
