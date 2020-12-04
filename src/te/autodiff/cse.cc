@@ -113,7 +113,7 @@ struct TensorExprNode {
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<
       Var, ComputeOpAxis,
-      ObjectPtrHash, ObjectPtrEqual> var_compute_op_axis_map;
+      ObjectPtrHash, ObjectPtrEqual> lhs_var_compute_op_axis_map, rhs_var_compute_op_axis_map;
   static Array<PrimExpr> lhs_axis, rhs_axis;
 };
 
@@ -389,14 +389,19 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
       if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
         Map<Var, PrimExpr> vmap;
+        // Traverse through the compute axes. If the compute axes are kDataPar,
+        // inline it directly, otherwise record them in the <Var, ComputeOpAxis> mapping.
         for (size_t i = 0; i < compute_op->axis.size(); ++i) {
           if (compute_op->axis[i]->iter_type == kDataPar) {
             vmap.Set(compute_op->axis[i]->var,
                      opnode->indices[i]);
+          } else {
+            lhs_var_compute_op_axis_map[compute_op->axis[i]->var]
+                = std::make_pair(compute_op.get(), i);
           }
-        }
+        }  // for (i ∈ [0, compute_op->axis.size()))
         for (size_t i = 0; i < TensorExprNode::lhs_axis.size(); ++i) {
-          TensorExprNode::lhs_axis.Set(
+          lhs_axis.Set(
               i, Substitute(TensorExprNode::lhs_axis[i], vmap));
         }
         return fcompare(compute_op->body[tensor->value_index],
@@ -415,13 +420,17 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
         Map<Var, PrimExpr> vmap;
         for (size_t i = 0; i < compute_op->axis.size(); ++i) {
+          // Ditto.
           if (compute_op->axis[i]->iter_type == kDataPar) {
             vmap.Set(compute_op->axis[i]->var,
                      opnode->indices[i]);
+          } else {
+            rhs_var_compute_op_axis_map[compute_op->axis[i]->var]
+                = std::make_pair(compute_op.get(), i);
           }
-        }
+        }  // for (i ∈ [0, compute_op->axis.size()))
         for (size_t i = 0; i < TensorExprNode::rhs_axis.size(); ++i) {
-          TensorExprNode::rhs_axis.Set(
+          rhs_axis.Set(
               i, Substitute(TensorExprNode::rhs_axis[i], vmap));
         }
         return fcompare(opref, TensorExprNode(compute_op->body[tensor->value_index]), this);
@@ -458,6 +467,11 @@ TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
 .DISPATCH_TO_CMP(ReduceNode)
 .DISPATCH_TO_CMP(IntImmNode)
 .DISPATCH_TO_CMP(FloatImmNode);
+
+bool
+TensorExprNode::operator==(const TensorExprNode& other) const {
+
+}
 
 
 }  // namespace te
