@@ -111,10 +111,10 @@ struct TensorExprNode {
   bool operator==(const TensorExprNode& other) const;
   ObjectRef opref;
   // mapping from variable to axis of ComputeOp's
-  static std::unordered_map<
-      Var, ComputeOpAxis,
-      ObjectPtrHash, ObjectPtrEqual> lhs_var_compute_op_axis_map, rhs_var_compute_op_axis_map;
-  static Array<PrimExpr> lhs_axis, rhs_axis;
+  static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
+      src_var_compute_op_axis_map,
+      tgt_var_compute_op_axis_map;
+  static Array<PrimExpr> src_axis, tgt_axis;
 };
 
 
@@ -172,11 +172,11 @@ CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
 /*******************************************************************************
  * TensorExprTree/Node
  *******************************************************************************/
-std::unordered_map<
-    Var, ComputeOpAxis,
-    ObjectPtrHash, ObjectPtrEqual> TensorExprNode::var_compute_op_axis_map;
-Array<PrimExpr> TensorExprNode::lhs_axis;
-Array<PrimExpr> TensorExprNode::rhs_axis;
+std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
+    TensorExprNode::src_var_compute_op_axis_map,
+    TensorExprNode::tgt_var_compute_op_axis_map;
+Array<PrimExpr> TensorExprNode::src_axis;
+Array<PrimExpr> TensorExprNode::tgt_axis;
 
 bool VarMap::Update(
     const VarMap& other) {
@@ -396,13 +396,13 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
             vmap.Set(compute_op->axis[i]->var,
                      opnode->indices[i]);
           } else {
-            lhs_var_compute_op_axis_map[compute_op->axis[i]->var]
+            src_var_compute_op_axis_map[compute_op->axis[i]->var]
                 = std::make_pair(compute_op.get(), i);
           }
         }  // for (i ∈ [0, compute_op->axis.size()))
-        for (size_t i = 0; i < TensorExprNode::lhs_axis.size(); ++i) {
-          lhs_axis.Set(
-              i, Substitute(TensorExprNode::lhs_axis[i], vmap));
+        for (size_t i = 0; i < TensorExprNode::src_axis.size(); ++i) {
+          src_axis.Set(
+              i, Substitute(TensorExprNode::src_axis[i], vmap));
         }
         return fcompare(compute_op->body[tensor->value_index],
                         other, this);
@@ -425,13 +425,13 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
             vmap.Set(compute_op->axis[i]->var,
                      opnode->indices[i]);
           } else {
-            rhs_var_compute_op_axis_map[compute_op->axis[i]->var]
+            tgt_var_compute_op_axis_map[compute_op->axis[i]->var]
                 = std::make_pair(compute_op.get(), i);
           }
         }  // for (i ∈ [0, compute_op->axis.size()))
-        for (size_t i = 0; i < TensorExprNode::rhs_axis.size(); ++i) {
-          rhs_axis.Set(
-              i, Substitute(TensorExprNode::rhs_axis[i], vmap));
+        for (size_t i = 0; i < TensorExprNode::tgt_axis.size(); ++i) {
+          tgt_axis.Set(
+              i, Substitute(TensorExprNode::tgt_axis[i], vmap));
         }
         return fcompare(opref, TensorExprNode(compute_op->body[tensor->value_index]), this);
       } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
@@ -470,7 +470,34 @@ TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
 
 bool
 TensorExprNode::operator==(const TensorExprNode& other) const {
-
+  ConditionalBool cmp_result = Compare(other);
+  if (!cmp_result.first) {
+    return false;
+  }
+  // Check whether two variable mappings conflict in terms of ComputeOpNode's.
+  for (auto var_map_iter_i = cmp_result.second.begin();
+       var_map_iter_i != cmp_result.second.end(); ++var_map_iter_i) {
+    for (auto var_map_iter_j = var_map_iter_i;
+         var_map_iter_j != cmp_result.second.end(); ++var_map_iter_j) {
+      const std::pair<Var, Var>& vpair_i = *var_map_iter_i, & vpair_j = *var_map_iter_j;
+      const ComputeOpAxis
+          & src_compute_op_axis_i = src_var_compute_op_axis_map[vpair_i.first],
+          & tgt_compute_op_axis_i = tgt_var_compute_op_axis_map[vpair_i.second],
+          & src_compute_op_axis_j = src_var_compute_op_axis_map[vpair_j.first],
+          & tgt_compute_op_axis_j = tgt_var_compute_op_axis_map[vpair_j.second];
+      if (src_compute_op_axis_i.first == src_compute_op_axis_j.first) {
+        if (tgt_compute_op_axis_i.first != tgt_compute_op_axis_j.first) {
+          return false;
+        }
+        if (src_compute_op_axis_i.second == src_compute_op_axis_j.second) {
+          if (tgt_compute_op_axis_i.second != tgt_compute_op_axis_j.second) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
 }
 
 
