@@ -73,8 +73,8 @@ struct TensorExprNode {
                       const TensorExprNode* const)
       >;
   static FCompare& cmptable() {
-    static FCompare instance;
-    return instance; 
+    static FCompare inst;
+    return inst;
   }
   ConditionalBool Compare_(const CallNode* const opnode,
                            const TensorExprNode& other) const;
@@ -124,8 +124,30 @@ struct TensorExprNode {
  */
 struct CSEOptimizer {
   CSEOptimizer(const Tensor& src);
-  using FOptimize = NodeFunctor<PrimExpr(const ObjectRef&, const PrimExpr&,
-                                         CSEOptimizer* const)>;
+  using FOptimize = NodeFunctor<
+      std::pair<PrimExpr, PrimExpr>(const ObjectRef&, const PrimExpr&,
+                                    CSEOptimizer* const)
+      >;
+  static FOptimize& optable() {
+    static FOptimize inst;
+    return inst;
+  }
+  std::pair<PrimExpr, PrimExpr> Optimize_(const CallNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const AddNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const SubNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const MulNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const DivNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const ReduceNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const IntImmNode* const opnode,
+                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const FloatImmNode* const opnode,
+                                          const PrimExpr& tgt_expr);
 };  // class CSEOptimizer
 
 
