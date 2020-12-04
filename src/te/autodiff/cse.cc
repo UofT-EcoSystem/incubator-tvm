@@ -28,6 +28,7 @@
 #include <tvm/node/functor.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/stmt_functor.h>
 
 
 namespace tvm {
@@ -110,20 +111,21 @@ struct TensorExprNode {
   bool operator==(const TensorExprNode& other) const;
   ObjectRef opref;
   // mapping from variable to axis of ComputeOp's
-  static std::unordered_map<Var, ComputeOpAxis> var_compute_op_axis_map;
+  static std::unordered_map<
+      Var, ComputeOpAxis,
+      ObjectPtrHash, ObjectPtrEqual> var_compute_op_axis_map;
   static Array<PrimExpr> lhs_axis, rhs_axis;
 };
 
-
-class CSEOptimizer;
 
 /*!
  * \brief The \c CSEOptimizer eliminates the common subexpressions between the
  *        source and target tensor.
  */
-class CSEOptimizer {
- public:
+struct CSEOptimizer {
   CSEOptimizer(const Tensor& src);
+  using FOptimize = NodeFunctor<PrimExpr(const ObjectRef&, const PrimExpr&,
+                                         CSEOptimizer* const)>;
 };  // class CSEOptimizer
 
 
@@ -148,6 +150,12 @@ CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
 /*******************************************************************************
  * TensorExprTree/Node
  *******************************************************************************/
+std::unordered_map<
+    Var, ComputeOpAxis,
+    ObjectPtrHash, ObjectPtrEqual> TensorExprNode::var_compute_op_axis_map;
+Array<PrimExpr> TensorExprNode::lhs_axis;
+Array<PrimExpr> TensorExprNode::rhs_axis;
+
 bool VarMap::Update(
     const VarMap& other) {
   for (const std::pair<Var, Var>& var_pair : other) {
@@ -358,6 +366,17 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
       Tensor tensor = Downcast<Tensor>(opnode->producer);
       if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
+        Map<Var, PrimExpr> vmap;
+        for (size_t i = 0; i < compute_op->axis.size(); ++i) {
+          if (compute_op->axis[i]->iter_type == kDataPar) {
+            vmap.Set(compute_op->axis[i]->var,
+                     opnode->indices[i]);
+          }
+        }
+        for (size_t i = 0; i < TensorExprNode::lhs_axis.size(); ++i) {
+          TensorExprNode::lhs_axis.Set(
+              i, Substitute(TensorExprNode::lhs_axis[i], vmap));
+        }
         return fcompare(compute_op->body[tensor->value_index],
                         other, this);
       } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
@@ -372,6 +391,17 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
       Tensor tensor = Downcast<Tensor>(opnode->producer);
       if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
+        Map<Var, PrimExpr> vmap;
+        for (size_t i = 0; i < compute_op->axis.size(); ++i) {
+          if (compute_op->axis[i]->iter_type == kDataPar) {
+            vmap.Set(compute_op->axis[i]->var,
+                     opnode->indices[i]);
+          }
+        }
+        for (size_t i = 0; i < TensorExprNode::rhs_axis.size(); ++i) {
+          TensorExprNode::rhs_axis.Set(
+              i, Substitute(TensorExprNode::rhs_axis[i], vmap));
+        }
         return fcompare(opref, TensorExprNode(compute_op->body[tensor->value_index]), this);
       } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
         return fcompare(opref, TensorExprNode(tensor->op), this);
