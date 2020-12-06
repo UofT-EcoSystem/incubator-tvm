@@ -67,7 +67,8 @@ class ConditionalBool : public std::pair<bool, VarMap> {
 
 using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
-struct TensorExprNode {
+class TensorExprNode {
+ public:
   using FCompare = NodeFunctor<
       ConditionalBool(const ObjectRef&, const TensorExprNode&,
                       const TensorExprNode* const)
@@ -100,16 +101,17 @@ struct TensorExprNode {
                            const TensorExprNode& other) const;
   /*!
    * \brief  Compare two tensor expressions (internal use).
-   * \return 
+   * \return true if the tensor expressions MIGHT be equal, with the second item
+   *         denotes the var mapping that has to be met for the equality, false otherwise
    */
   ConditionalBool Compare(const TensorExprNode& other) const;
-  explicit TensorExprNode(const ObjectRef& opref_) : opref(opref_) {}
+  explicit TensorExprNode(const ObjectRef& opref) : opref_(opref) {}
   /*!
    * \brief  Compare two tensor expressions. 
    * \return true if the tensor expressions are deemed equal, false otherwise
    */
   bool operator==(const TensorExprNode& other) const;
-  ObjectRef opref;
+  ObjectRef opref_;
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
       src_var_compute_op_axis_map,
@@ -123,7 +125,6 @@ struct TensorExprNode {
  *        source and target tensor.
  */
 struct CSEOptimizer {
-  CSEOptimizer(const Tensor& src);
   using FOptimize = NodeFunctor<
       std::pair<PrimExpr, PrimExpr>(const ObjectRef&, const PrimExpr&,
                                     CSEOptimizer* const)
@@ -144,10 +145,10 @@ struct CSEOptimizer {
                                           const PrimExpr& tgt_expr);
   std::pair<PrimExpr, PrimExpr> Optimize_(const ReduceNode* const opnode,
                                           const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const IntImmNode* const opnode,
-                                          const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const FloatImmNode* const opnode,
-                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize(const PrimExpr& expr);
+  std::pair<Tensor, Tensor> Optimize(const Tensor& tgt);
+  CSEOptimizer(const Tensor& src) : src_(src) {}
+  Tensor src_;
 };  // class CSEOptimizer
 
 
@@ -213,7 +214,7 @@ ConditionalBool
 TensorExprNode::Compare_(
     const CallNode* const opnode,
     const TensorExprNode& other) const {
-  const CallNode* const other_opnode = other.opref.as<CallNode>();
+  const CallNode* const other_opnode = other.opref_.as<CallNode>();
   CHECK(other_opnode != nullptr);
   if (!opnode->op.same_as(other_opnode->op)) {
     return false;
@@ -235,7 +236,7 @@ TensorExprNode::Compare_(
     const PlaceholderOpNode* const opnode,
     const TensorExprNode& other) const {
   const PlaceholderOpNode* const other_opnode
-      = other.opref.as<PlaceholderOpNode>();
+      = other.opref_.as<PlaceholderOpNode>();
   CHECK(other_opnode != nullptr);
   return opnode == other_opnode;
 }
@@ -244,7 +245,7 @@ ConditionalBool
 TensorExprNode::Compare_(
     const VarNode* const opnode,
     const TensorExprNode& other) const {
-  const VarNode* const other_opnode = other.opref.as<VarNode>();
+  const VarNode* const other_opnode = other.opref_.as<VarNode>();
   CHECK(other_opnode != nullptr);
   VarMap var_map{
         {GetRef<Var>(opnode),
@@ -253,63 +254,63 @@ TensorExprNode::Compare_(
   return ConditionalBool(true, var_map);
 }
 
-#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)                \
-ConditionalBool                                                         \
-TensorExprNode::Compare_(                                               \
-    const OpNodeType* const opnode,                                     \
-    const TensorExprNode& other) const {                                \
-  const OpNodeType* const other_opnode = other.opref.as<OpNodeType>();  \
-  CHECK(other_opnode != nullptr);                                       \
-  VarMap var_map;                                                       \
-  ConditionalBool                                                       \
-      cmp_result_aa                                                     \
-          = TensorExprNode(opnode->a).Compare(                          \
-            TensorExprNode(other_opnode->a)),                           \
-      cmp_result_bb                                                     \
-          = TensorExprNode(opnode->b).Compare(                          \
-            TensorExprNode(other_opnode->b));                           \
-  if (cmp_result_aa && cmp_result_bb) {                                 \
-    if (var_map.Update(cmp_result_aa.second) &&                         \
-        var_map.Update(cmp_result_bb.second)) {                         \
-      return ConditionalBool(true, var_map);                            \
-    } else {                                                            \
-      return false;                                                     \
-    }                                                                   \
-  } else {                                                              \
-    ConditionalBool                                                     \
-        cmp_result_ab                                                   \
-            = TensorExprNode(opnode->a).Compare(                        \
-              TensorExprNode(other_opnode->b)),                         \
-        cmp_result_ba                                                   \
-            = TensorExprNode(opnode->b).Compare(                        \
-              TensorExprNode(other_opnode->a));                         \
-    if (cmp_result_ab && cmp_result_ba) {                               \
-      if (var_map.Update(cmp_result_ab.second) &&                       \
-          var_map.Update(cmp_result_ba.second)) {                       \
-        return ConditionalBool(true, var_map);                          \
-      } else {                                                          \
-        return false;                                                   \
-      }                                                                 \
-    }                                                                   \
-  }                                                                     \
-  return false;                                                         \
+#define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)                 \
+ConditionalBool                                                          \
+TensorExprNode::Compare_(                                                \
+    const OpNodeType* const opnode,                                      \
+    const TensorExprNode& other) const {                                 \
+  const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();  \
+  CHECK(other_opnode != nullptr);                                        \
+  VarMap var_map;                                                        \
+  ConditionalBool                                                        \
+      cmp_result_aa                                                      \
+          = TensorExprNode(opnode->a).Compare(                           \
+            TensorExprNode(other_opnode->a)),                            \
+      cmp_result_bb                                                      \
+          = TensorExprNode(opnode->b).Compare(                           \
+            TensorExprNode(other_opnode->b));                            \
+  if (cmp_result_aa && cmp_result_bb) {                                  \
+    if (var_map.Update(cmp_result_aa.second) &&                          \
+        var_map.Update(cmp_result_bb.second)) {                          \
+      return ConditionalBool(true, var_map);                             \
+    } else {                                                             \
+      return false;                                                      \
+    }                                                                    \
+  } else {                                                               \
+    ConditionalBool                                                      \
+        cmp_result_ab                                                    \
+            = TensorExprNode(opnode->a).Compare(                         \
+              TensorExprNode(other_opnode->b)),                          \
+        cmp_result_ba                                                    \
+            = TensorExprNode(opnode->b).Compare(                         \
+              TensorExprNode(other_opnode->a));                          \
+    if (cmp_result_ab && cmp_result_ba) {                                \
+      if (var_map.Update(cmp_result_ab.second) &&                        \
+          var_map.Update(cmp_result_ba.second)) {                        \
+        return ConditionalBool(true, var_map);                           \
+      } else {                                                           \
+        return false;                                                    \
+      }                                                                  \
+    }                                                                    \
+  }                                                                      \
+  return false;                                                          \
 }
 
-#define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)             \
-ConditionalBool                                                         \
-TensorExprNode::Compare_(                                               \
-    const OpNodeType* const opnode,                                     \
-    const TensorExprNode& other) const {                                \
-  const OpNodeType* const other_opnode = other.opref.as<OpNodeType>();  \
-  CHECK(other_opnode != nullptr);                                       \
-  VarMap var_map;                                                       \
-  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                                   \
-      TensorExprNode(opnode->a).Compare(                                \
-      TensorExprNode(other_opnode->a)), var_map);                       \
-  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                                   \
-      TensorExprNode(opnode->b).Compare(                                \
-      TensorExprNode(other_opnode->b)), var_map);                       \
-  return ConditionalBool(true, var_map);                                \
+#define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)              \
+ConditionalBool                                                          \
+TensorExprNode::Compare_(                                                \
+    const OpNodeType* const opnode,                                      \
+    const TensorExprNode& other) const {                                 \
+  const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();  \
+  CHECK(other_opnode != nullptr);                                        \
+  VarMap var_map;                                                        \
+  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                                    \
+      TensorExprNode(opnode->a).Compare(                                 \
+      TensorExprNode(other_opnode->a)), var_map);                        \
+  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                                    \
+      TensorExprNode(opnode->b).Compare(                                 \
+      TensorExprNode(other_opnode->b)), var_map);                        \
+  return ConditionalBool(true, var_map);                                 \
 }
 
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(AddNode)
@@ -322,7 +323,7 @@ TensorExprNode::Compare_(
     const CommReducerNode* const opnode,
     const TensorExprNode& other) const {
   const CommReducerNode* const other_opnode
-      = other.opref.as<CommReducerNode>();
+      = other.opref_.as<CommReducerNode>();
   CHECK(other_opnode != nullptr);
   if (opnode->result.size() == 0 ||
       opnode->result.size() != other_opnode->result.size()) {
@@ -341,7 +342,7 @@ ConditionalBool
 TensorExprNode::Compare_(
     const ReduceNode* const opnode,
     const TensorExprNode& other) const {
-  const ReduceNode* const other_opnode = other.opref.as<ReduceNode>();
+  const ReduceNode* const other_opnode = other.opref_.as<ReduceNode>();
   CHECK(other_opnode != nullptr);
   if (opnode->value_index != 0 ||
       other_opnode->value_index != 0) {
@@ -361,18 +362,18 @@ TensorExprNode::Compare_(
           TensorExprNode(other_opnode->condition));
 }
 
-#define DEFINE_IMM_COMPARE(OpNodeType)                                  \
-ConditionalBool                                                         \
-TensorExprNode::Compare_(                                               \
-    const OpNodeType* const opnode,                                     \
-    const TensorExprNode& other) const {                                \
-  const OpNodeType* const other_opnode = other.opref.as<OpNodeType>();  \
-  CHECK(other_opnode != nullptr);                                       \
-  if (opnode->value == other_opnode->value) {                           \
-    return true;                                                        \
-  } else {                                                              \
-    return false;                                                       \
-  }                                                                     \
+#define DEFINE_IMM_COMPARE(OpNodeType)                                   \
+ConditionalBool                                                          \
+TensorExprNode::Compare_(                                                \
+    const OpNodeType* const opnode,                                      \
+    const TensorExprNode& other) const {                                 \
+  const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();  \
+  CHECK(other_opnode != nullptr);                                        \
+  if (opnode->value == other_opnode->value) {                            \
+    return true;                                                         \
+  } else {                                                               \
+    return false;                                                        \
+  }                                                                      \
 }
 
 DEFINE_IMM_COMPARE(IntImmNode)
@@ -381,10 +382,10 @@ DEFINE_IMM_COMPARE(FloatImmNode)
 ConditionalBool
 TensorExprNode::Compare(const TensorExprNode& other) const {
   static const FCompare& fcompare = cmptable();
-  if (opref.defined() &&
-      other.opref.defined()) {
+  if (opref_.defined() &&
+      other.opref_.defined()) {
     if (const ProducerLoadNode* const
-        opnode = opref.as<ProducerLoadNode>()) {
+        opnode = opref_.as<ProducerLoadNode>()) {
       Tensor tensor = Downcast<Tensor>(opnode->producer);
       if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
@@ -414,7 +415,7 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
       }
     }
     if (const ProducerLoadNode* const
-        opnode = other.opref.as<ProducerLoadNode>()) {
+        opnode = other.opref_.as<ProducerLoadNode>()) {
       Tensor tensor = Downcast<Tensor>(opnode->producer);
       if (tensor->op->IsInstance<ComputeOpNode>()) {
         ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
@@ -433,26 +434,26 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
           tgt_axis.Set(
               i, Substitute(TensorExprNode::tgt_axis[i], vmap));
         }
-        return fcompare(opref, TensorExprNode(compute_op->body[tensor->value_index]), this);
+        return fcompare(opref_, TensorExprNode(compute_op->body[tensor->value_index]), this);
       } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
-        return fcompare(opref, TensorExprNode(tensor->op), this);
+        return fcompare(opref_, TensorExprNode(tensor->op), this);
       } else {
         LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
         return false;
       }
     }
-    return fcompare(opref, other, this);
-  }  // if (opref.defined() && other.opref.defined())
+    return fcompare(opref_, other, this);
+  }  // if (opref_.defined() && other.opref_.defined())
 }
 
-#define DISPATCH_TO_CMP(Op)                                              \
-set_dispatch<Op>([](const ObjectRef& opref, const TensorExprNode& other, \
-                    const TensorExprNode* const pthis)                   \
-                   -> ConditionalBool {                                  \
-  if (opref->type_index() != other.opref->type_index()) {                \
-    return false;                                                        \
-  }                                                                      \
-  return pthis->Compare_(static_cast<const Op*>(opref.get()), other);    \
+#define DISPATCH_TO_CMP(Op)                                               \
+set_dispatch<Op>([](const ObjectRef& opref_, const TensorExprNode& other, \
+                    const TensorExprNode* const pthis)                    \
+                   -> ConditionalBool {                                   \
+  if (opref_->type_index() != other.opref_->type_index()) {               \
+    return false;                                                         \
+  }                                                                       \
+  return pthis->Compare_(static_cast<const Op*>(opref_.get()), other);    \
 })
 
 TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
@@ -498,6 +499,30 @@ TensorExprNode::operator==(const TensorExprNode& other) const {
     }
   }
   return true;
+}
+
+
+/*******************************************************************************
+ * CSE Optimizer
+ *******************************************************************************/
+std::pair<PrimExpr, PrimExpr>
+CSEOptimizer::Optimize(const PrimExpr& tgt) {
+  static const FOptimize& foptimize = optable();
+  PrimExpr src = Find(tgt);
+  if (src.defined()) {
+
+  }  // if (src.defined())
+}
+
+std::pair<Tensor, Tensor>
+CSEOptimizer::Optimize(const Tensor& tgt) {
+  const ComputeOpNode* tgt_compute_op = tgt->op.as<ComputeOpNode>();
+  if (tgt_compute_op != nullptr) {
+    std::pair<PrimExpr, PrimExpr>
+        new_body_stmts = Optimize(tgt_compute_op->body[tgt->value_index]);
+  } else {
+    return std::make_pair(src_, tgt);
+  }
 }
 
 
