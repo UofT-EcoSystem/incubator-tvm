@@ -133,18 +133,12 @@ struct CSEOptimizer {
     static FOptimize inst;
     return inst;
   }
-  std::pair<PrimExpr, PrimExpr> Optimize_(const CallNode* const opnode,
-                                          const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const AddNode* const opnode,
-                                          const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const SubNode* const opnode,
-                                          const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const MulNode* const opnode,
-                                          const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const DivNode* const opnode,
-                                          const PrimExpr& tgt_expr);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const ReduceNode* const opnode,
-                                          const PrimExpr& tgt_expr);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const CallNode* const opnode);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const AddNode* const opnode);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const SubNode* const opnode);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const MulNode* const opnode);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const DivNode* const opnode);
+  std::pair<PrimExpr, PrimExpr> Optimize_(const ReduceNode* const opnode);
   std::pair<PrimExpr, PrimExpr> Optimize(const PrimExpr& expr);
   std::pair<Tensor, Tensor> Optimize(const Tensor& tgt);
   CSEOptimizer(const Tensor& src) : src_(src) {}
@@ -506,11 +500,18 @@ TensorExprNode::operator==(const TensorExprNode& other) const {
  * CSE Optimizer
  *******************************************************************************/
 std::pair<PrimExpr, PrimExpr>
+CSEOptimizer::Optimize_(const AddNode* const opnode) {
+  return Add(Optimize(opnode->a),
+             Optimize(opnode->b));
+}
+
+std::pair<PrimExpr, PrimExpr>
 CSEOptimizer::Optimize(const PrimExpr& tgt) {
   static const FOptimize& foptimize = optable();
+  // locate the target expression within the source tensor
   PrimExpr src = Find(tgt);
   if (src.defined()) {
-
+    
   }  // if (src.defined())
 }
 
