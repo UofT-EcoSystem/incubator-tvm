@@ -95,6 +95,7 @@ macro(find_cuda use_cuda)
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib
         NO_DEFAULT_PATH)
+      find_library(CUDA_CUBLAS_LIBRARY cublas)
       find_library(CUDA_CUBLASLT_LIBRARY
         NAMES cublaslt cublasLt
         PATHS
