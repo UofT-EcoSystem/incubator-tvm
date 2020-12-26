@@ -451,17 +451,17 @@ set_dispatch<Op>([](const ObjectRef& opref_, const TensorExprNode& other, \
 })
 
 TVM_STATIC_IR_FUNCTOR(TensorExprNode, cmptable)
-.DISPATCH_TO_CMP(CallNode)
-.DISPATCH_TO_CMP(PlaceholderOpNode)
-.DISPATCH_TO_CMP(VarNode)
-.DISPATCH_TO_CMP(AddNode)
-.DISPATCH_TO_CMP(SubNode)
-.DISPATCH_TO_CMP(MulNode)
-.DISPATCH_TO_CMP(DivNode)
-.DISPATCH_TO_CMP(CommReducerNode)
-.DISPATCH_TO_CMP(ReduceNode)
-.DISPATCH_TO_CMP(IntImmNode)
-.DISPATCH_TO_CMP(FloatImmNode);
+    .DISPATCH_TO_CMP(CallNode)
+    .DISPATCH_TO_CMP(PlaceholderOpNode)
+    .DISPATCH_TO_CMP(VarNode)
+    .DISPATCH_TO_CMP(AddNode)
+    .DISPATCH_TO_CMP(SubNode)
+    .DISPATCH_TO_CMP(MulNode)
+    .DISPATCH_TO_CMP(DivNode)
+    .DISPATCH_TO_CMP(CommReducerNode)
+    .DISPATCH_TO_CMP(ReduceNode)
+    .DISPATCH_TO_CMP(IntImmNode)
+    .DISPATCH_TO_CMP(FloatImmNode);
 
 bool
 TensorExprNode::operator==(const TensorExprNode& other) const {
@@ -498,7 +498,7 @@ TensorExprNode::operator==(const TensorExprNode& other) const {
 
 /*******************************************************************************
  * CSE Optimizer
- *******************************************************************************/
+ *********************************************`**********************************/
 std::pair<PrimExpr, PrimExpr>
 CSEOptimizer::Optimize_(const AddNode* const opnode) {
   return Add(Optimize(opnode->a),
