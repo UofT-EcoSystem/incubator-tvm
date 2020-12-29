@@ -16,7 +16,13 @@
 # under the License.
 
 """Automatic differentiation of tensor expressions."""
+from tvm.runtime import Object
+
 from . import _ffi_api
+
+@tvm._ffi.register_object
+class GradientResult(Object):
+    """The optimized output tensor, feature maps, and input gradients."""
 
 
 def gradient(output, inputs, head=None):

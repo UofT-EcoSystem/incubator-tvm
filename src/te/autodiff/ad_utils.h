@@ -137,8 +137,9 @@ TVM_DLL Tensor RemoveJacobianAndLiftNonzeroCond(const Tensor& tensor,
  *
  * \param output The output tensor.
  * \param input_grads The gradients of input tensors.
+ * \return The optimized output tensor, feature maps, and input gradients.
  */
-std::pair<Tensor, std::vector<Tensor> >
+GradientResult
 CSE(const Tensor& output, const std::vector<Tensor>& input_grads);
 
 }  // namespace te

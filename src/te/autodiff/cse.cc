@@ -121,7 +121,7 @@ class TensorExprNode {
 
 
 /*!
- * \brief The \c CSEOptimizer eliminates the common subexpressions between the
+ * \brief The \p CSEOptimizer eliminates the common subexpressions between the
  *        source and target tensor.
  */
 class CSEOptimizer {
@@ -135,26 +135,26 @@ class CSEOptimizer {
     return inst;
   }
   /*!
-   * \brief  Perform *inplace* CSE optimization on the \c tgt tensor.
-   * \note   By *inplace*, we mean that the optimized \c tgt tensor will
+   * \brief  Perform *inplace* CSE optimization on the \p tgt tensor.
+   * \note   By *inplace*, we mean that the optimized \p tgt tensor will
    *         directly leverage the common subexpression in the form of a
    *         @c ProducerLoadNode , whereas in the non-inplace version, in the
-   *         form of a \c PlaceholderOpNode .
-   * \return optimized \c src and \c tgt tensor pair
+   *         form of a \p PlaceholderOpNode .
+   * \return optimized \p src and \p tgt tensor pair
    */
   std::pair<Tensor, Tensor> OptimizeInplace(const Tensor& tgt);
   /*!
-   * \brief  Perform CSE optimization on the \c tgt tensor.
-   * \return optimized \c src and \c tgt tensor pair. The former outputs feature
+   * \brief  Perform CSE optimization on the \p tgt tensor.
+   * \return optimized \p src and \p tgt tensor pair. The former outputs feature
    *         maps which will serve as the @c PlaceholderOpNode 's of the latter.
-   *         Note that \c src might also be part of the feature maps.
+   *         Note that \p src might also be part of the feature maps.
    */
   std::pair<std::pair<Tensor, Array<Tensor> >, Tensor>
   Optimize(const Tensor& tgt);
   CSEOptimizer(const Tensor& src) : src_(src) {}
  private:
   /*!
-   * \brief Locate the target tensor expression within \c src .
+   * \brief Locate the target tensor expression within \p src .
    */
   std::pair<bool, PrimExpr> Find(const PrimExpr& tgt) const;
   Tensor src_;

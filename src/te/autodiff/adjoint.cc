@@ -72,8 +72,17 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
   return result;
 }
 
-Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
-                       const Tensor& head_or_null) {
+GradientResult::GradientResult(Tensor output, Array<Tensor> feature_maps,
+                               Array<Tensor> input_grads) {
+  ObjectPtr<GradientResultNode> node = make_object<GradientResultNode>();
+  node->output = output;
+  node->feature_maps = feature_maps;
+  node->input_grads = input_grads;
+  data_ = std::move(node);
+}
+
+GradientResult Gradient(const Tensor& output, const Array<Tensor>& inputs,
+                        const Tensor& head_or_null) {
   // Diagonal identity tensor
   Tensor head = head_or_null.get() ? head_or_null : Identity(output);
 
@@ -134,18 +143,12 @@ Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
     }
   };
 
-  // Adjoints corresponding to inputs
-  Array<Tensor> result;
   // Compute an adjoint for each input
   std::vector<Tensor> input_grads;
   for (const Tensor& input : inputs) {
     input_grads.push_back(compute_adjoint(input));
   }
-  std::pair<Tensor, std::vector<Tensor> > out_in_grads_opted = CSE(output, input_grads);
-  result.push_back(out_in_grads_opted.first);
-  for (const Tensor& input_grad : out_in_grads_opted.second){
-    result.push_back(input_grad);
-  }
+  GradientResult result = CSE(output, input_grads);
   return result;
 }
 
