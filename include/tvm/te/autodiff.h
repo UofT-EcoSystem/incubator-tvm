@@ -72,6 +72,38 @@ Tensor Jacobian(const Tensor& output, const Tensor& input);
 Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Tensor& head);
 
 /*!
+ * \brief A wrapper for the resulting data structure returned by the \p Gradient pass.
+ */
+class GradientResultNode : public Object {
+ public:
+  Tensor output;
+  Array<Tensor> feature_maps, input_grads;
+
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const char* _type_key = "te.GradientResult";
+  TVM_DECLARE_FINAL_OBJECT_INFO(GradientResultNode, Object);
+};
+
+/*!
+ * \brief Managed reference to GradientResultNode.
+ * \sa GradientResultNode
+ */
+class GradientResult : public ObjectRef {
+ public:
+  /*!
+   * \brief Constructor by fields
+   * \param output       output tensor
+   * \param feature_maps feature maps stashed by the output tensor
+   * \param input_grads  input gradients
+   */
+  TVM_DLL GradientResult(Tensor output, Array<Tensor> feature_maps,
+                         Array<Tensor> input_grads);
+  TVM_DEFINE_OBJECT_REF_METHODS(GradientResult, ObjectRef,
+                                GradientResultNode);
+};
+
+
+/*!
  * \brief Perform reverse mode automatic differentiation.
  *
  *  Each item of the `result` field of the result is an adjoint for the corresponding item of
@@ -82,11 +114,10 @@ Tensor VectorJacobianProduct(const Tensor& output, const Tensor& input, const Te
  * \param inputs The array of input tensors. When the array is empty, will perform differentiation
  *               wrt all tensors the output depends on.
  * \param head The adjoint of the output, in other words, some tensor, by which the Jacobians
- *             will be multiplied (using tensordot axes=`output.shape`).
- *             Its shape must be of the form `prefix + output.shape`. If the null pointer is
- *             provided, the identity tensor of shape `output.shape + output.shape` will be used.
- * \return A pair whose first member is the modified \p output (to compute the adjoints), and
- *         second member is an array of adjoints corresponding to \p inputs.
+ *             will be multiplied (using tensordot axes=`output.shape`). Its shape must be of the
+ *             form `prefix + output.shape`. If the null pointer is provided, the identity tensor
+ *             of shape `output.shape + output.shape` will be used.
+ * \return The optimized output tensor, feature maps, and input gradients.
  */
 Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
                        const Tensor& head = Tensor());
