@@ -21,15 +21,14 @@
  * \file cse.cc
  * \brief Common subexpression elimination
  */
-#include "ad_utils.h"
-
-#include <sstream>
+#include <tuple>
 
 #include <tvm/node/functor.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "ad_utils.h"
 
 namespace tvm {
 namespace te {
@@ -58,7 +57,7 @@ class VarMap : public Map<Var, Var> {
  */
 class ConditionalBool : public std::pair<bool, VarMap> {
  public:
-  ConditionalBool(const bool is_same)
+  explicit ConditionalBool(const bool is_same)
       : std::pair<bool, VarMap>(is_same, {}) {}
   ConditionalBool(const bool is_same, VarMap var_map)
       : std::pair<bool, VarMap>(is_same, var_map) {}
@@ -124,7 +123,7 @@ class TensorExprNode {
  * \brief The \p CSEOptimizer eliminates the common subexpressions between the
  *        source and target tensor.
  */
-class CSEOptimizer {
+class CSEOptimizer : public ExprVisitor {
  public:
   using FOptimize = NodeFunctor<
       std::pair<PrimExpr, PrimExpr>(const ObjectRef&, const PrimExpr&,
@@ -149,12 +148,16 @@ class CSEOptimizer {
    *         maps which will serve as the @c PlaceholderOpNode 's of the latter.
    *         Note that \p src might also be part of the feature maps.
    */
-  std::pair<std::pair<Tensor, Array<Tensor> >, Tensor>
+  std::tuple<Tensor, std::vector<Tensor>, Tensor>
   Optimize(const Tensor& tgt);
-  CSEOptimizer(const Tensor& src) : src_(src) {}
+
+  explicit CSEOptimizer(const Tensor& src) : src_(src) {}
+
  private:
   /*!
-   * \brief Locate the target tensor expression within \p src .
+   * \brief  Locate the target tensor expression within \p src .
+   * \return true if the \p tgt tensor expression has been found, along with the
+   *         located expression, false otherwise
    */
   std::pair<bool, PrimExpr> Find(const PrimExpr& tgt) const;
   Tensor src_;
@@ -165,10 +168,34 @@ class CSEOptimizer {
 
 
 GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
+  Tensor opted_output = output;
+  std::vector<Tensor> stashed_feature_maps, opted_input_grads;
   // 1. Remove the common subexpressions between the input gradients.
   // 2. Remove the common subexpressions between the input gradients and output.
   //    This is in essence infering the backward dependency.
-  return GradientResult(output, {}, input_grads);
+  for (const Tensor& input_grad : input_grads) {
+    // optimized output with common subexpressions
+    std::vector<Tensor> requested_feature_maps;
+    Tensor opted_input_grad;
+    // leverage the output to eliminate the common subexpression of the input gradient
+    std::tie(opted_output,
+             requested_feature_maps,
+             opted_input_grad)
+        = CSEOptimizer(opted_output).Optimize(input_grad);
+    for (const Tensor& requested_feature_map : requested_feature_maps) {
+      // stash the feature map if this has not been done before
+      bool feature_map_already_stashed = false;
+      for (const Tensor& stashed_fm : stashed_feature_maps) {
+        if (stashed_fm.same_as(requested_feature_map)) {
+          feature_map_already_stashed = true;
+        }
+      }
+      if (!feature_map_already_stashed) {
+        stashed_feature_maps.push_back(requested_feature_map);
+      }
+    }  // for (cs ∈ opted_output_w_css.second)
+  }  // for (input_grad ∈ input_grads)
+  return GradientResult(opted_output, stashed_feature_maps, opted_input_grads);
 }
 
 
@@ -203,10 +230,10 @@ bool VarMap::Update(
   do {                                                    \
     ConditionalBool cmp_result = (cmp);                   \
     if (!cmp_result) {                                    \
-      return false;                                       \
+      return ConditionalBool(false);                      \
     } else {                                              \
       if (!var_map.Update(cmp_result.second)) {           \
-        return false;                                     \
+        return ConditionalBool(false);                    \
       }                                                   \
     }                                                     \
   } while (0);
@@ -219,10 +246,10 @@ TensorExprNode::Compare_(
   const CallNode* const other_opnode = other.opref_.as<CallNode>();
   CHECK(other_opnode != nullptr);
   if (!opnode->op.same_as(other_opnode->op)) {
-    return false;
+    return ConditionalBool(false);
   }
   if (opnode->args.size() != other_opnode->args.size()) {
-    return false;
+    return ConditionalBool(false);
   }
   VarMap var_map;
   for (size_t i = 0; i < opnode->args.size(); ++i) {
@@ -240,7 +267,7 @@ TensorExprNode::Compare_(
   const PlaceholderOpNode* const other_opnode
       = other.opref_.as<PlaceholderOpNode>();
   CHECK(other_opnode != nullptr);
-  return opnode == other_opnode;
+  return ConditionalBool(opnode == other_opnode);
 }
 
 ConditionalBool
@@ -276,7 +303,7 @@ TensorExprNode::Compare_(                                                \
         var_map.Update(cmp_result_bb.second)) {                          \
       return ConditionalBool(true, var_map);                             \
     } else {                                                             \
-      return false;                                                      \
+      return ConditionalBool(false);                                     \
     }                                                                    \
   } else {                                                               \
     ConditionalBool                                                      \
@@ -291,11 +318,11 @@ TensorExprNode::Compare_(                                                \
           var_map.Update(cmp_result_ba.second)) {                        \
         return ConditionalBool(true, var_map);                           \
       } else {                                                           \
-        return false;                                                    \
+        return ConditionalBool(false);                                   \
       }                                                                  \
     }                                                                    \
   }                                                                      \
-  return false;                                                          \
+  return ConditionalBool(false);                                         \
 }
 
 #define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)              \
@@ -329,7 +356,7 @@ TensorExprNode::Compare_(
   CHECK(other_opnode != nullptr);
   if (opnode->result.size() == 0 ||
       opnode->result.size() != other_opnode->result.size()) {
-    return false;
+    return ConditionalBool(false);
   }
   VarMap var_map;
   for (size_t i = 0; i < opnode->result.size(); ++i) {
@@ -349,8 +376,8 @@ TensorExprNode::Compare_(
   CHECK(other_opnode != nullptr);
   if (opnode->value_index != 0 ||
       other_opnode->value_index != 0) {
-    LOG(WARNING) << "Have not handled non-trivial ReduceNode's";
-    return false;
+    LOG(WARNING) << "Have not handled ReduceNode's whose value index is not 0";
+    return ConditionalBool(false);
   }
   // We do NOT check the reduction axes here because they will be checked by operator==.
   ConditionalBool
@@ -371,7 +398,7 @@ TensorExprNode::Compare_(
     var_map.Update(is_same_condition.second);
     return ConditionalBool(true, var_map);
   } else {
-    return false;
+    return ConditionalBool(false);
   }
 }
 
@@ -383,9 +410,9 @@ TensorExprNode::Compare_(                                                \
   const OpNodeType* const other_opnode = other.opref_.as<OpNodeType>();  \
   CHECK(other_opnode != nullptr);                                        \
   if (opnode->value == other_opnode->value) {                            \
-    return true;                                                         \
+    return ConditionalBool(true);                                        \
   } else {                                                               \
-    return false;                                                        \
+    return ConditionalBool(false);                                       \
   }                                                                      \
 }
 
@@ -424,7 +451,7 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
         return fcompare(tensor->op, other, this);
       } else {
         LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
-        return false;
+        return ConditionalBool(false);
       }
     }
     if (const ProducerLoadNode* const
@@ -452,12 +479,12 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
         return fcompare(opref_, TensorExprNode(tensor->op), this);
       } else {
         LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
-        return false;
+        return ConditionalBool(false);
       }
     }
     return fcompare(opref_, other, this);
   }  // if (opref_.defined() && other.opref_.defined())
-  return false;
+  return ConditionalBool(false);
 }
 
 #define DISPATCH_TO_CMP(Op)                                               \
@@ -465,7 +492,7 @@ set_dispatch<Op>([](const ObjectRef& opref_, const TensorExprNode& other, \
                     const TensorExprNode* const pthis)                    \
                    -> ConditionalBool {                                   \
   if (opref_->type_index() != other.opref_->type_index()) {               \
-    return false;                                                         \
+    return ConditionalBool(false);                                        \
   }                                                                       \
   return pthis->Compare_(static_cast<const Op*>(opref_.get()), other);    \
 })
@@ -524,9 +551,9 @@ CSEOptimizer::OptimizeInplace(const Tensor& tgt) {
   return std::make_pair(src_, tgt);
 }
 
-std::pair<std::pair<Tensor, Array<Tensor> >, Tensor>
+std::tuple<Tensor, std::vector<Tensor>, Tensor>
 CSEOptimizer::Optimize(const Tensor& tgt) {
-  return std::make_pair(std::make_pair(src_, Array<Tensor>{}), tgt);
+  return std::make_tuple(src_, std::vector<Tensor>{}, tgt);
 }
 
 }  // namespace te
