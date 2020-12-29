@@ -80,7 +80,7 @@ class GradientResultNode : public Object {
   Array<Tensor> feature_maps, input_grads;
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
-  static constexpr const char* _type_key = "te.GradientResult";
+  static constexpr const char* _type_key = "GradientResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(GradientResultNode, Object);
 };
 
