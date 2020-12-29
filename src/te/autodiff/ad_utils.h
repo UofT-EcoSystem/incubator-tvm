@@ -26,6 +26,7 @@
 
 #include <tvm/arith/int_solver.h>
 #include <tvm/runtime/container.h>
+#include <tvm/te/autodiff.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
@@ -139,8 +140,7 @@ TVM_DLL Tensor RemoveJacobianAndLiftNonzeroCond(const Tensor& tensor,
  * \param input_grads The gradients of input tensors.
  * \return The optimized output tensor, feature maps, and input gradients.
  */
-GradientResult
-CSE(const Tensor& output, const std::vector<Tensor>& input_grads);
+GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads);
 
 }  // namespace te
 }  // namespace tvm

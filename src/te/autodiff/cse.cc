@@ -164,8 +164,7 @@ class CSEOptimizer {
 }  // namespace anonymous
 
 
-std::pair<Tensor, std::vector<Tensor> >
-CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
+GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
   // 1. Apply auto-inliner to inline the injective operations. The point is to
   //    simplify the tensor expressions, and particularly tensor indices.
   
@@ -175,7 +174,7 @@ CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
   }
   // 3. Remove the common subexpressions between the input gradients and output.
   //    This is in essence infering the backward dependency.
-  return std::make_pair(output, input_grads);
+  return GradientResult(output, {}, input_grads);
 }
 
 
