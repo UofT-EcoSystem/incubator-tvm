@@ -119,8 +119,8 @@ class GradientResult : public ObjectRef {
  *             of shape `output.shape + output.shape` will be used.
  * \return The optimized output tensor, feature maps, and input gradients.
  */
-Array<Tensor> Gradient(const Tensor& output, const Array<Tensor>& inputs,
-                       const Tensor& head = Tensor());
+GradientResult Gradient(const Tensor& output, const Array<Tensor>& inputs,
+                        const Tensor& head = Tensor());
 
 }  // namespace te
 }  // namespace tvm
