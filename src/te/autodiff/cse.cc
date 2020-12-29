@@ -124,7 +124,8 @@ class TensorExprNode {
  * \brief The \c CSEOptimizer eliminates the common subexpressions between the
  *        source and target tensor.
  */
-struct CSEOptimizer {
+class CSEOptimizer {
+ public:
   using FOptimize = NodeFunctor<
       std::pair<PrimExpr, PrimExpr>(const ObjectRef&, const PrimExpr&,
                                     CSEOptimizer* const)
@@ -133,15 +134,29 @@ struct CSEOptimizer {
     static FOptimize inst;
     return inst;
   }
-  std::pair<PrimExpr, PrimExpr> Optimize_(const CallNode* const opnode);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const AddNode* const opnode);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const SubNode* const opnode);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const MulNode* const opnode);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const DivNode* const opnode);
-  std::pair<PrimExpr, PrimExpr> Optimize_(const ReduceNode* const opnode);
-  std::pair<PrimExpr, PrimExpr> Optimize(const PrimExpr& expr);
-  std::pair<Tensor, Tensor> Optimize(const Tensor& tgt);
+  /*!
+   * \brief  Perform *inplace* CSE optimization on the \c tgt tensor.
+   * \note   By *inplace*, we mean that the optimized \c tgt tensor will
+   *         directly leverage the common subexpression in the form of a
+   *         @c ProducerLoadNode , whereas in the non-inplace version, in the
+   *         form of a \c PlaceholderOpNode .
+   * \return optimized \c src and \c tgt tensor pair
+   */
+  std::pair<Tensor, Tensor> OptimizeInplace(const Tensor& tgt);
+  /*!
+   * \brief  Perform CSE optimization on the \c tgt tensor.
+   * \return optimized \c src and \c tgt tensor pair. The former outputs feature
+   *         maps which will serve as the @c PlaceholderOpNode 's of the latter.
+   *         Note that \c src might also be part of the feature maps.
+   */
+  std::pair<std::pair<Tensor, Array<Tensor> >, Tensor>
+  Optimize(const Tensor& tgt);
   CSEOptimizer(const Tensor& src) : src_(src) {}
+ private:
+  /*!
+   * \brief Locate the target tensor expression within \c src .
+   */
+  std::pair<bool, PrimExpr> Find(const PrimExpr& tgt) const;
   Tensor src_;
 };  // class CSEOptimizer
 
@@ -498,34 +513,16 @@ TensorExprNode::operator==(const TensorExprNode& other) const {
 
 /*******************************************************************************
  * CSE Optimizer
- *********************************************`**********************************/
-std::pair<PrimExpr, PrimExpr>
-CSEOptimizer::Optimize_(const AddNode* const opnode) {
-  return Add(Optimize(opnode->a),
-             Optimize(opnode->b));
-}
-
-std::pair<PrimExpr, PrimExpr>
-CSEOptimizer::Optimize(const PrimExpr& tgt) {
-  static const FOptimize& foptimize = optable();
-  // locate the target expression within the source tensor
-  PrimExpr src = Find(tgt);
-  if (src.defined()) {
-    
-  }  // if (src.defined())
-}
-
+ *******************************************************************************/
 std::pair<Tensor, Tensor>
-CSEOptimizer::Optimize(const Tensor& tgt) {
-  const ComputeOpNode* tgt_compute_op = tgt->op.as<ComputeOpNode>();
-  if (tgt_compute_op != nullptr) {
-    std::pair<PrimExpr, PrimExpr>
-        new_body_stmts = Optimize(tgt_compute_op->body[tgt->value_index]);
-  } else {
-    return std::make_pair(src_, tgt);
-  }
+CSEOptimizer::OptimizeInplace(const Tensor& tgt) {
+  return std::make_pair(src_, tgt);
 }
 
+std::pair<std::pair<Tensor, Array<Tensor> >, Tensor>
+CSEOptimizer::Optimize(const Tensor& tgt) {
+  return std::make_pair(std::make_pair(src_, Array<Tensor>{}), tgt);
+}
 
 }  // namespace te
 }  // namespace tvm
