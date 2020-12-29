@@ -164,7 +164,7 @@ class CSEOptimizer : public ExprVisitor {
 };  // class CSEOptimizer
 
 
-}  // namespace anonymous
+}  // namespace
 
 
 GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads) {
@@ -362,8 +362,7 @@ TensorExprNode::Compare_(
   for (size_t i = 0; i < opnode->result.size(); ++i) {
     RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
         TensorExprNode(opnode->result[i]).Compare(
-        TensorExprNode(other_opnode->result[i])), var_map
-        );
+        TensorExprNode(other_opnode->result[i])), var_map);
   }
   return ConditionalBool(true, var_map);
 }
