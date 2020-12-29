@@ -81,6 +81,8 @@ GradientResult::GradientResult(Tensor output, Array<Tensor> feature_maps,
   data_ = std::move(node);
 }
 
+TVM_REGISTER_NODE_TYPE(GradientResultNode);
+
 GradientResult Gradient(const Tensor& output, const Array<Tensor>& inputs,
                         const Tensor& head_or_null) {
   // Diagonal identity tensor
