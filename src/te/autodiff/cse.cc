@@ -21,12 +21,12 @@
  * \file cse.cc
  * \brief Common subexpression elimination
  */
-#include <tuple>
-
 #include <tvm/node/functor.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+
+#include <tuple>
 
 #include "ad_utils.h"
 
