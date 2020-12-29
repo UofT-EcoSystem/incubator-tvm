@@ -23,7 +23,7 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("te.GradientResult")
 class GradientResult(Object):
     """The optimized output tensor, feature maps, and input gradients."""
 

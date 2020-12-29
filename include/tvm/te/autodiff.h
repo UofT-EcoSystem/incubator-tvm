@@ -79,8 +79,14 @@ class GradientResultNode : public Object {
   Tensor output;
   Array<Tensor> feature_maps, input_grads;
 
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("output", &output);
+    v->Visit("feature_maps", &feature_maps);
+    v->Visit("input_grads", &input_grads);
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
-  static constexpr const char* _type_key = "GradientResult";
+  static constexpr const char* _type_key = "te.GradientResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(GradientResultNode, Object);
 };
 
