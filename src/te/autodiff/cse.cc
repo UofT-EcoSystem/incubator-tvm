@@ -168,10 +168,7 @@ GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads)
   // 1. Apply auto-inliner to inline the injective operations. The point is to
   //    simplify the tensor expressions, and particularly tensor indices.
   
-  // 2. Remove the common subexpresssions between the input gradients.
-  for (const Tensor& input_grad : input_grads) {
-
-  }
+  // 2. Remove the common subexpressions between the input gradients.
   // 3. Remove the common subexpressions between the input gradients and output.
   //    This is in essence infering the backward dependency.
   return GradientResult(output, {}, input_grads);

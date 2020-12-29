@@ -16,9 +16,12 @@
 # under the License.
 
 """Automatic differentiation of tensor expressions."""
+import tvm._ffi
+
 from tvm.runtime import Object
 
 from . import _ffi_api
+
 
 @tvm._ffi.register_object
 class GradientResult(Object):
