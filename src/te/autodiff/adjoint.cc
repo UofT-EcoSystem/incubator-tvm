@@ -148,7 +148,7 @@ GradientResult Gradient(const Tensor& output, const Array<Tensor>& inputs,
   // Compute an adjoint for each input
   std::vector<Tensor> input_grads;
   for (const Tensor& input : inputs) {
-    input_grads.push_back(compute_adjoint(input));
+    input_grads.push_back(InlineTensorAccess(compute_adjoint(input)));
   }
   GradientResult result = CSE(output, input_grads);
   return result;
