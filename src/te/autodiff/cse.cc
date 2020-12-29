@@ -345,6 +345,7 @@ TensorExprNode::Compare_(
         TensorExprNode(other_opnode->result[i])), var_map
         );
   }
+  return ConditionalBool(true, var_map);
 }
 
 ConditionalBool
@@ -369,6 +370,16 @@ TensorExprNode::Compare_(
       is_same_condition
         = TensorExprNode(opnode->condition).Compare(
           TensorExprNode(other_opnode->condition));
+  if (is_same_combiner && is_same_source &&
+      is_same_condition) {
+    VarMap var_map;
+    var_map.Update(is_same_combiner.second);
+    var_map.Update(is_same_source.second);
+    var_map.Update(is_same_condition.second);
+    return ConditionalBool(true, var_map);
+  } else {
+    return false;
+  }
 }
 
 #define DEFINE_IMM_COMPARE(OpNodeType)                                   \
@@ -453,6 +464,7 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
     }
     return fcompare(opref_, other, this);
   }  // if (opref_.defined() && other.opref_.defined())
+  return false;
 }
 
 #define DISPATCH_TO_CMP(Op)                                               \
