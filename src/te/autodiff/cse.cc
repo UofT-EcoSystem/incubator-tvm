@@ -57,6 +57,7 @@ class VarMap : public Map<Var, Var> {
  */
 class ConditionalBool : public std::pair<bool, VarMap> {
  public:
+  ConditionalBool() : std::pair<bool, VarMap>(false, {}) {}
   explicit ConditionalBool(const bool is_same)
       : std::pair<bool, VarMap>(is_same, {}) {}
   ConditionalBool(const bool is_same, VarMap var_map)
@@ -374,7 +375,7 @@ DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 
 ConditionalBool
 TensorExprNode::Compare_(
-    const CommReducer& const lhs, const CommReducer& const rhs) {
+    const CommReducer& lhs, const CommReducer& rhs) {
   if (lhs->result.size() == 0 ||
       lhs->result.size() != rhs->result.size()) {
     return ConditionalBool(false);
@@ -523,16 +524,18 @@ TensorExprNode::Compare(const TensorExprNode& other) {
  * CSE Optimizer
  *******************************************************************************/
 bool CSEOptimizer::VisitExpr_(const CallNode* op) {
-
+  return false;
 }
 
 bool CSEOptimizer::VisitExpr_(const AddNode* op) {
-  // return Find(op->a) || Find(op->b);
+  return false;
 }
 
 std::pair<bool, PrimExpr>
 CSEOptimizer::Find(const PrimExpr& tgt) {
   tgt_expr_.expr_ = tgt;
+
+  return std::make_pair(false, PrimExpr());
 }
 
 std::pair<Tensor, Tensor>
