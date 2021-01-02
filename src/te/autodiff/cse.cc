@@ -64,12 +64,24 @@ class ConditionalBool : public std::pair<bool, VarMap> {
   operator bool() { return first; }
 };  // class ConditionalBool
 
+class CSEOptimizer;  // Forward Declaration
 
 using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
 class TensorExprNode
     : public ExprFunctor<ConditionalBool(const PrimExpr&, const TensorExprNode&)> {
  public:
+  /*!
+   * \brief  Compare two tensor expressions. 
+   * \return true if the tensor expressions are deemed equal, false otherwise
+   */
+  bool Equal(const TensorExprNode& other);
+
+  TensorExprNode() = default;
+  explicit TensorExprNode(const PrimExpr& expr) : expr_(expr) {}
+  friend class CSEOptimizer;
+ private:
+  using ExprFunctor<ConditionalBool(const PrimExpr&, const TensorExprNode&)>::VisitExpr;
   virtual ConditionalBool VisitExpr_(const VarNode* op,
                                      const TensorExprNode& other) override final;
   // The `ProducerLoadNode`'s will be handled by the high-level `Compare` method.
@@ -89,27 +101,15 @@ class TensorExprNode
                                      const TensorExprNode& other) override final;
   virtual ConditionalBool VisitExpr_(const FloatImmNode* op,
                                      const TensorExprNode& other) override final;
- 
   /*!
    * \brief  Compare two tensor expressions (internal use).
    * \return true if the tensor expressions MIGHT be equal, with the second item
    *         denotes the var mapping that has to be met for the equality, false otherwise
    */
-  ConditionalBool Compare(const TensorExprNode& other) const;
-  /*!
-   * \brief  Compare two tensor expressions. 
-   * \return true if the tensor expressions are deemed equal, false otherwise
-   */
-  bool operator==(const TensorExprNode& other) const;
-
-  TensorExprNode() = default;
-  explicit TensorExprNode(const PrimExpr& expr) : expr_(expr) {}
- private:
+  ConditionalBool Compare(const TensorExprNode& other);
   /*! \brief Auxiliary methods for comparing between reducer and placeholder nodes.
    */
   static ConditionalBool Compare_(const CommReducer& lhs, const CommReducer& rhs);
-  static ConditionalBool Compare_(const PlaceholderOp& lhs,
-                                  const PlaceholderOp& rhs);
   PrimExpr expr_;
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
@@ -125,19 +125,6 @@ class TensorExprNode
  */
 class CSEOptimizer : public ExprFunctor<bool(const PrimExpr&)> {
  public:
-  bool VisitExpr_(const CallNode* op) override final;
-  bool VisitExpr_(const AddNode* op) override final;
-  bool VisitExpr_(const SubNode* op) override final;
-  bool VisitExpr_(const MulNode* op) override final;
-  bool VisitExpr_(const DivNode* op) override final;
-  bool VisitExpr_(const ReduceNode* op) override final;
-  /*!
-   * \brief  Locate the target tensor expression within \p src .
-   * \return true if the \p tgt tensor expression has been found, along with the
-   *         located expression, false otherwise
-   */
-  std::pair<bool, PrimExpr> Find(const PrimExpr& tgt) const;
-
   /*!
    * \brief  Perform *inplace* CSE optimization on the \p tgt tensor.
    * \note   By *inplace*, we mean that the optimized \p tgt tensor will
@@ -157,8 +144,20 @@ class CSEOptimizer : public ExprFunctor<bool(const PrimExpr&)> {
   Optimize(const Tensor& tgt);
 
   explicit CSEOptimizer(const Tensor& src) : src_(src) {}
-
  private:
+  bool VisitExpr_(const CallNode* op) override final;
+  bool VisitExpr_(const AddNode* op) override final;
+  bool VisitExpr_(const SubNode* op) override final;
+  bool VisitExpr_(const MulNode* op) override final;
+  bool VisitExpr_(const DivNode* op) override final;
+  bool VisitExpr_(const ReduceNode* op) override final;
+  /*!
+   * \brief  Locate the target tensor expression within \p src .
+   * \return true if the \p tgt tensor expression has been found, along with the
+   *         located expression, false otherwise
+   */
+  std::pair<bool, PrimExpr> Find(const PrimExpr& tgt);
+
   Tensor src_;
   TensorExprNode tgt_expr_;
 };  // class CSEOptimizer
@@ -238,6 +237,42 @@ bool VarMap::Update(
     }                                                     \
   } while (0);
 
+
+bool
+TensorExprNode::Equal(const TensorExprNode& other) {
+  src_var_compute_op_axis_map.clear();
+  tgt_var_compute_op_axis_map.clear();
+  src_axis.clear();
+  tgt_axis.clear();
+  ConditionalBool cmp_result = Compare(other);
+  if (!cmp_result.first) {
+    return false;
+  }
+  // Check whether two variable mappings conflict in terms of ComputeOpNode's.
+  for (auto var_map_iter_i = cmp_result.second.begin();
+       var_map_iter_i != cmp_result.second.end(); ++var_map_iter_i) {
+    for (auto var_map_iter_j = var_map_iter_i;
+         var_map_iter_j != cmp_result.second.end(); ++var_map_iter_j) {
+      const std::pair<Var, Var>& vpair_i = *var_map_iter_i, & vpair_j = *var_map_iter_j;
+      const ComputeOpAxis
+          & src_compute_op_axis_i = src_var_compute_op_axis_map[vpair_i.first],
+          & tgt_compute_op_axis_i = tgt_var_compute_op_axis_map[vpair_i.second],
+          & src_compute_op_axis_j = src_var_compute_op_axis_map[vpair_j.first],
+          & tgt_compute_op_axis_j = tgt_var_compute_op_axis_map[vpair_j.second];
+      if (src_compute_op_axis_i.first == src_compute_op_axis_j.first) {
+        if (tgt_compute_op_axis_i.first != tgt_compute_op_axis_j.first) {
+          return false;
+        }
+        if (src_compute_op_axis_i.second == src_compute_op_axis_j.second) {
+          if (tgt_compute_op_axis_i.second != tgt_compute_op_axis_j.second) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
 
 ConditionalBool
 TensorExprNode::VisitExpr_(
@@ -355,13 +390,6 @@ TensorExprNode::Compare_(
 }
 
 ConditionalBool
-TensorExprNode::Compare_(
-    const PlaceholderOp& lhs,
-    const PlaceholderOp& rhs) {
-  return ConditionalBool(lhs.get() == rhs.get());
-}
-
-ConditionalBool
 TensorExprNode::VisitExpr_(
     const ReduceNode* op,
     const TensorExprNode& other) {
@@ -412,7 +440,7 @@ DEFINE_IMM_COMPARE(IntImmNode)
 DEFINE_IMM_COMPARE(FloatImmNode)
 
 ConditionalBool
-TensorExprNode::Compare(const TensorExprNode& other) const {
+TensorExprNode::Compare(const TensorExprNode& other) {
   if (!expr_.defined() ||
       !other.expr_.defined()) {
     return ConditionalBool(false);
@@ -440,100 +468,71 @@ TensorExprNode::Compare(const TensorExprNode& other) const {
         src_axis.Set(
             i, Substitute(TensorExprNode::src_axis[i], vmap));
       }
-      return 
+      return VisitExpr(compute_op->body[tensor->value_index], other);
+    } else if (const PlaceholderOpNode* ph_op_node =
+               tensor->op.as<PlaceholderOpNode>()) {
 
-      return fcompare(compute_op->body[tensor->value_index],
-                      other, this);
-      } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
-        return fcompare(tensor->op, other, this);
-      } else {
-        LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
-        return ConditionalBool(false);
-      }  // if (tensor->op->IsInstance<ComputeOpNode>())
-    }  // if (const ProducerLoadNode* const
-       //     op = opref_.as<ProducerLoadNode>())
-    if (const ProducerLoadNode* const
-        op = other.opref_.as<ProducerLoadNode>()) {
-      Tensor tensor = Downcast<Tensor>(op->producer);
-      if (tensor->op->IsInstance<ComputeOpNode>()) {
-        ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
-        Map<Var, PrimExpr> vmap;
-        for (size_t i = 0; i < compute_op->axis.size(); ++i) {
-          // Ditto.
-          if (compute_op->axis[i]->iter_type == kDataPar) {
-            vmap.Set(compute_op->axis[i]->var,
-                     op->indices[i]);
-          } else {
-            tgt_var_compute_op_axis_map[compute_op->axis[i]->var]
-                = std::make_pair(compute_op.get(), i);
-          }
-        }  // for (i ∈ [0, compute_op->axis.size()))
-        for (size_t i = 0; i < TensorExprNode::tgt_axis.size(); ++i) {
-          tgt_axis.Set(
-              i, Substitute(TensorExprNode::tgt_axis[i], vmap));
-        }
-        return fcompare(opref_, TensorExprNode(compute_op->body[tensor->value_index]), this);
-      } else if (tensor->op->IsInstance<PlaceholderOpNode>()) {
-        return fcompare(opref_, TensorExprNode(tensor->op), this);
-      } else {
-        LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
-        return ConditionalBool(false);
-      }  // if (tensor->op->IsInstance<ComputeOpNode>())
-    }  // if (const ProducerLoadNode* const
-       //     op = other.opref_.as<ProducerLoadNode>())
-    return fcompare(opref_, other, this);
-  }  // if (opref_.defined() && other.opref_.defined())
-  return ConditionalBool(false);
-}
 
-bool
-TensorExprNode::operator==(const TensorExprNode& other) const {
-  ConditionalBool cmp_result = Compare(other);
-  if (!cmp_result.first) {
-    return false;
-  }
-  // Check whether two variable mappings conflict in terms of ComputeOpNode's.
-  for (auto var_map_iter_i = cmp_result.second.begin();
-       var_map_iter_i != cmp_result.second.end(); ++var_map_iter_i) {
-    for (auto var_map_iter_j = var_map_iter_i;
-         var_map_iter_j != cmp_result.second.end(); ++var_map_iter_j) {
-      const std::pair<Var, Var>& vpair_i = *var_map_iter_i, & vpair_j = *var_map_iter_j;
-      const ComputeOpAxis
-          & src_compute_op_axis_i = src_var_compute_op_axis_map[vpair_i.first],
-          & tgt_compute_op_axis_i = tgt_var_compute_op_axis_map[vpair_i.second],
-          & src_compute_op_axis_j = src_var_compute_op_axis_map[vpair_j.first],
-          & tgt_compute_op_axis_j = tgt_var_compute_op_axis_map[vpair_j.second];
-      if (src_compute_op_axis_i.first == src_compute_op_axis_j.first) {
-        if (tgt_compute_op_axis_i.first != tgt_compute_op_axis_j.first) {
-          return false;
+      /// \todo Finish the comparator for `PlaceholderOpNode`'s.
+
+
+      return ConditionalBool(false);
+    } else {
+      LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
+      return ConditionalBool(false);
+    }  // if (tensor->op->IsInstance<ComputeOpNode>())
+  }  // if (const ProducerLoadNode* const
+     //     op = opref_.as<ProducerLoadNode>())
+  // repeat the same thing for the other tensor expression
+  if (const ProducerLoadNode* const
+      op = other.expr_.as<ProducerLoadNode>()) {
+    Tensor tensor = Downcast<Tensor>(op->producer);
+    if (tensor->op->IsInstance<ComputeOpNode>()) {
+      ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
+      Map<Var, PrimExpr> vmap;
+      for (size_t i = 0; i < compute_op->axis.size(); ++i) {
+        if (compute_op->axis[i]->iter_type == kDataPar) {
+          vmap.Set(compute_op->axis[i]->var,
+                   op->indices[i]);
+        } else {
+          tgt_var_compute_op_axis_map[compute_op->axis[i]->var]
+              = std::make_pair(compute_op.get(), i);
         }
-        if (src_compute_op_axis_i.second == src_compute_op_axis_j.second) {
-          if (tgt_compute_op_axis_i.second != tgt_compute_op_axis_j.second) {
-            return false;
-          }
-        }
+      }  // for (i ∈ [0, compute_op->axis.size()))
+      for (size_t i = 0; i < TensorExprNode::tgt_axis.size(); ++i) {
+        tgt_axis.Set(
+            i, Substitute(TensorExprNode::tgt_axis[i], vmap));
       }
-    }
+      return VisitExpr(expr_, TensorExprNode(compute_op->body[tensor->value_index]));
+    } else {
+      LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
+      return ConditionalBool(false);
+    }  // if (tensor->op->IsInstance<ComputeOpNode>())
+  }  // if (const ProducerLoadNode* const
+     //     op = other.opref_.as<ProducerLoadNode>())
+  // directly return false if the type index does not match
+  if (expr_->type_index() !=
+      other.expr_->type_index()) {
+    return ConditionalBool(false);
   }
-  return true;
+  return VisitExpr(expr_, other);
 }
 
 
 /*******************************************************************************
  * CSE Optimizer
  *******************************************************************************/
-bool CSEOptimizer::Find_(const CallNode* op) {
+bool CSEOptimizer::VisitExpr_(const CallNode* op) {
 
 }
 
-bool CSEOptimizer::Find_(const AddNode* op) {
-  Find(op->a);
-  Find(op->b);
+bool CSEOptimizer::VisitExpr_(const AddNode* op) {
+  // return Find(op->a) || Find(op->b);
 }
 
 std::pair<bool, PrimExpr>
-CSEOptimizer::Find(const PrimExpr& tgt) const {
-  tgt_expr_ = TensorExprNode(tgt);
+CSEOptimizer::Find(const PrimExpr& tgt) {
+  tgt_expr_.expr_ = tgt;
 }
 
 std::pair<Tensor, Tensor>
