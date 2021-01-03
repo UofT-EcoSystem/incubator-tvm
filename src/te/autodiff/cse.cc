@@ -21,6 +21,7 @@
  * \file cse.cc
  * \brief Common subexpression elimination
  */
+#include <tvm/arith/analyzer.h>
 #include <tvm/node/functor.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
@@ -112,10 +113,11 @@ class TensorExprNode
    */
   static ConditionalBool Compare_(const CommReducer& lhs, const CommReducer& rhs);
   PrimExpr expr_;
+  arith::Analyzer analyzer_;
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-      lhs_var_compute_op_axis_map_,
-      rhs_var_compute_op_axis_map_;
+      lhs_var_comp_op_axis_map_,
+      rhs_var_comp_op_axis_map_;
   // LHS and RHS axes
   static Array<std::pair<Var, PrimExpr>> lhs_axis_, rhs_axis_;
 };
@@ -236,8 +238,6 @@ bool VarMap::Update(
 
 bool
 TensorExprNode::Equal(const TensorExprNode& other) {
-  lhs_var_compute_op_axis_map_.clear();
-  rhs_var_compute_op_axis_map_.clear();
   ConditionalBool cmp_result = Compare(other);
   if (!cmp_result.first) {
     return false;
@@ -249,16 +249,16 @@ TensorExprNode::Equal(const TensorExprNode& other) {
          var_map_iter_j != cmp_result.second.end(); ++var_map_iter_j) {
       const std::pair<Var, Var>& vpair_i = *var_map_iter_i, & vpair_j = *var_map_iter_j;
       const ComputeOpAxis
-          & lhs_compute_op_axis_i = lhs_var_compute_op_axis_map_[vpair_i.first],
-          & rhs_compute_op_axis_i = rhs_var_compute_op_axis_map_[vpair_i.second],
-          & lhs_compute_op_axis_j = lhs_var_compute_op_axis_map_[vpair_j.first],
-          & rhs_compute_op_axis_j = rhs_var_compute_op_axis_map_[vpair_j.second];
-      if (lhs_compute_op_axis_i.first == lhs_compute_op_axis_j.first) {
-        if (rhs_compute_op_axis_i.first != rhs_compute_op_axis_j.first) {
+          & lhs_comp_op_axis_i = lhs_var_comp_op_axis_map_[vpair_i.first],
+          & rhs_comp_op_axis_i = rhs_var_comp_op_axis_map_[vpair_i.second],
+          & lhs_comp_op_axis_j = lhs_var_comp_op_axis_map_[vpair_j.first],
+          & rhs_comp_op_axis_j = rhs_var_comp_op_axis_map_[vpair_j.second];
+      if (lhs_comp_op_axis_i.first == lhs_comp_op_axis_j.first) {
+        if (rhs_comp_op_axis_i.first != rhs_comp_op_axis_j.first) {
           return false;
         }
-        if (lhs_compute_op_axis_i.second == lhs_compute_op_axis_j.second) {
-          if (rhs_compute_op_axis_i.second != rhs_compute_op_axis_j.second) {
+        if (lhs_comp_op_axis_i.second == lhs_comp_op_axis_j.second) {
+          if (rhs_comp_op_axis_i.second != rhs_comp_op_axis_j.second) {
             return false;
           }
         }
@@ -439,6 +439,9 @@ TensorExprNode::Compare(const TensorExprNode& other) {
       !other.expr_.defined()) {
     return ConditionalBool(false);
   }
+  if (expr_.get() == other.expr_.get()) {
+    return ConditionalBool(true);
+  }
   // If any of the LHS and/or RHS are ProducerLoadNode's, unpack them to
   // obtain the compute operation or the placeholder.
   if (const ProducerLoadNode* const
@@ -457,21 +460,21 @@ TensorExprNode::Compare(const TensorExprNode& other) {
         vmap.Set(lhs_axis_[i].first, lhs_axis_[i].second);
       }
       for (size_t i = 0; i < compute_op->axis.size(); ++i) {
+        Var compute_op_axis_var = compute_op->axis[i]->var;
         if (compute_op->axis[i]->iter_type == kDataPar) {
-          lhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
-                                          Substitute(op->indices[i], vmap)
-                                          ));
+          lhs_axis_.Set(
+              i, std::make_pair(compute_op_axis_var,
+                                analyzer_.Simplify(Substitute(op->indices[i], vmap))));
         } else {
-          lhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
-                                          compute_op->axis[i]->var));
-          lhs_var_compute_op_axis_map_[compute_op->axis[i]->var]
-              = std::make_pair(compute_op.get(), i);
+          lhs_axis_.Set(
+              i, std::make_pair(compute_op_axis_var, compute_op_axis_var));
+          lhs_var_comp_op_axis_map_[compute_op_axis_var] = std::make_pair(compute_op.get(), i);
         }
       }  // for (i ∈ range(0, compute_op->axis.size()))
       return VisitExpr(compute_op->body[tensor->value_index], other);
     } else if (const PlaceholderOpNode* ph_op_node =
                tensor->op.as<PlaceholderOpNode>()) {
-      // If LHS is a placeholder, we compare the src and tgt axes.
+      // If LHS is a placeholder, we compare the LHS and RHS axes.
       if (const ProducerLoadNode* const
           other_op = other.expr_.as<ProducerLoadNode>()) {
         Tensor other_tensor = Downcast<Tensor>(other_op->producer);
@@ -491,10 +494,11 @@ TensorExprNode::Compare(const TensorExprNode& other) {
             }
             VarMap var_map;
             for (size_t i = 0; i < op->indices.size(); ++i) {
+              PrimExpr
+                  lhs_index = analyzer_.Simplify(Substitute(op->indices[i], vmap)),
+                  rhs_index = analyzer_.Simplify(Substitute(other_op->indices[i], other_vmap));
               RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
-                  TensorExprNode(Substitute(op->indices[i], vmap)).Compare(
-                  TensorExprNode(Substitute(other_op->indices[i], other_vmap))),
-                  var_map);
+                  TensorExprNode(lhs_index).Compare(TensorExprNode(rhs_index)), var_map);
             }
             return ConditionalBool(true, var_map);
           }
@@ -518,15 +522,15 @@ TensorExprNode::Compare(const TensorExprNode& other) {
         vmap.Set(rhs_axis_[i].first, rhs_axis_[i].second);
       }
       for (size_t i = 0; i < compute_op->axis.size(); ++i) {
+        Var compute_op_axis_var = compute_op->axis[i]->var;
         if (compute_op->axis[i]->iter_type == kDataPar) {
-          rhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
-                                          Substitute(op->indices[i], vmap)
-                                          ));
+          rhs_axis_.Set(
+              i, std::make_pair(compute_op_axis_var,
+                                analyzer_.Simplify(Substitute(op->indices[i], vmap))));
         } else {
-          rhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
-                                          compute_op->axis[i]->var));
-          rhs_var_compute_op_axis_map_[compute_op->axis[i]->var]
-              = std::make_pair(compute_op.get(), i);
+          rhs_axis_.Set(
+              i, std::make_pair(compute_op_axis_var, compute_op_axis_var));
+          rhs_var_comp_op_axis_map_[compute_op_axis_var] = std::make_pair(compute_op.get(), i);
         }
       }  // for (i ∈ range(0, compute_op->axis.size()))
       return VisitExpr(expr_, TensorExprNode(compute_op->body[tensor->value_index]));
@@ -544,8 +548,8 @@ TensorExprNode::Compare(const TensorExprNode& other) {
 }
 
 std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-    TensorExprNode::lhs_var_compute_op_axis_map_,
-    TensorExprNode::rhs_var_compute_op_axis_map_;
+    TensorExprNode::lhs_var_comp_op_axis_map_,
+    TensorExprNode::rhs_var_comp_op_axis_map_;
 Array<std::pair<Var, PrimExpr>> TensorExprNode::lhs_axis_;
 Array<std::pair<Var, PrimExpr>> TensorExprNode::rhs_axis_;
 
