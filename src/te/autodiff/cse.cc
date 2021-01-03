@@ -114,10 +114,10 @@ class TensorExprNode
   PrimExpr expr_;
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-      src_var_compute_op_axis_map_,
-      tgt_var_compute_op_axis_map_;
+      lhs_var_compute_op_axis_map_,
+      rhs_var_compute_op_axis_map_;
   // LHS and RHS axes
-  static Array<std::pair<Var, PrimExpr>> src_axis_, tgt_axis_;
+  static Array<std::pair<Var, PrimExpr>> lhs_axis_, rhs_axis_;
 };
 
 
@@ -236,10 +236,8 @@ bool VarMap::Update(
 
 bool
 TensorExprNode::Equal(const TensorExprNode& other) {
-  src_var_compute_op_axis_map_.clear();
-  tgt_var_compute_op_axis_map_.clear();
-  src_axis_.clear();
-  tgt_axis_.clear();
+  lhs_var_compute_op_axis_map_.clear();
+  rhs_var_compute_op_axis_map_.clear();
   ConditionalBool cmp_result = Compare(other);
   if (!cmp_result.first) {
     return false;
@@ -251,16 +249,16 @@ TensorExprNode::Equal(const TensorExprNode& other) {
          var_map_iter_j != cmp_result.second.end(); ++var_map_iter_j) {
       const std::pair<Var, Var>& vpair_i = *var_map_iter_i, & vpair_j = *var_map_iter_j;
       const ComputeOpAxis
-          & src_compute_op_axis_i = src_var_compute_op_axis_map[vpair_i.first],
-          & tgt_compute_op_axis_i = tgt_var_compute_op_axis_map[vpair_i.second],
-          & src_compute_op_axis_j = src_var_compute_op_axis_map[vpair_j.first],
-          & tgt_compute_op_axis_j = tgt_var_compute_op_axis_map[vpair_j.second];
-      if (src_compute_op_axis_i.first == src_compute_op_axis_j.first) {
-        if (tgt_compute_op_axis_i.first != tgt_compute_op_axis_j.first) {
+          & lhs_compute_op_axis_i = lhs_var_compute_op_axis_map_[vpair_i.first],
+          & rhs_compute_op_axis_i = rhs_var_compute_op_axis_map_[vpair_i.second],
+          & lhs_compute_op_axis_j = lhs_var_compute_op_axis_map_[vpair_j.first],
+          & rhs_compute_op_axis_j = rhs_var_compute_op_axis_map_[vpair_j.second];
+      if (lhs_compute_op_axis_i.first == lhs_compute_op_axis_j.first) {
+        if (rhs_compute_op_axis_i.first != rhs_compute_op_axis_j.first) {
           return false;
         }
-        if (src_compute_op_axis_i.second == src_compute_op_axis_j.second) {
-          if (tgt_compute_op_axis_i.second != tgt_compute_op_axis_j.second) {
+        if (lhs_compute_op_axis_i.second == lhs_compute_op_axis_j.second) {
+          if (rhs_compute_op_axis_i.second != rhs_compute_op_axis_j.second) {
             return false;
           }
         }
@@ -449,24 +447,27 @@ TensorExprNode::Compare(const TensorExprNode& other) {
     CHECK(tensor.defined());
     if (tensor->op->IsInstance<ComputeOpNode>()) {
       ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
-      Map<Var, PrimExpr> vmap;
+      CHECK(compute_op->axis.size() ==
+            op->indices.size());
       // Traverse through the compute axes. If the compute axes are kDataPar,
       // inline it directly by doing substitution, otherwise record them in the
       // <Var, ComputeOpAxis> mapping.
-      src_axis_.clear();
+      Map<Var, PrimExpr> vmap;
+      for (size_t i = 0; i < lhs_axis_.size(); ++i) {
+        vmap.Set(lhs_axis_[i].first, lhs_axis_[i].second);
+      }
       for (size_t i = 0; i < compute_op->axis.size(); ++i) {
         if (compute_op->axis[i]->iter_type == kDataPar) {
-          vmap.Set(compute_op->axis[i]->var,
-                   op->indices[i]);
+          lhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
+                                          Substitute(op->indices[i], vmap)
+                                          ));
         } else {
-          src_var_compute_op_axis_map_[compute_op->axis[i]->var]
+          lhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
+                                          compute_op->axis[i]->var));
+          lhs_var_compute_op_axis_map_[compute_op->axis[i]->var]
               = std::make_pair(compute_op.get(), i);
         }
-        src_axis_.push_back(compute_op->axis[i]);
-      }  // for (i ∈ [0, compute_op->axis.size()))
-      for (size_t i = 0; i < src_axis_.size(); ++i) {
-        src_axis_.Set(i, Substitute(src_axis_[i], vmap));
-      }
+      }  // for (i ∈ range(0, compute_op->axis.size()))
       return VisitExpr(compute_op->body[tensor->value_index], other);
     } else if (const PlaceholderOpNode* ph_op_node =
                tensor->op.as<PlaceholderOpNode>()) {
@@ -481,9 +482,21 @@ TensorExprNode::Compare(const TensorExprNode& other) {
                 << "LHS and RHS are accessing the same tensor but have different sizes"
                 << "(" << op->indices.size() << " vs. "
                        << other_op->indices.size() << ")";
-            for (size_t i = 0; i < src_axis_.size(); ++i) {
-
+            Map<Var, PrimExpr> vmap, other_vmap;
+            for (size_t i = 0; i < lhs_axis_.size(); ++i) {
+              vmap.Set(lhs_axis_[i].first, lhs_axis_[i].second);
             }
+            for (size_t i = 0; i < rhs_axis_.size(); ++i) {
+              other_vmap.Set(rhs_axis_[i].first, rhs_axis_[i].second);
+            }
+            VarMap var_map;
+            for (size_t i = 0; i < op->indices.size(); ++i) {
+              RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
+                  TensorExprNode(Substitute(op->indices[i], vmap)).Compare(
+                  TensorExprNode(Substitute(other_op->indices[i], other_vmap))),
+                  var_map);
+            }
+            return ConditionalBool(true, var_map);
           }
         }
       }  // if (other_op = other.expr_.as<ProducerLoadNode>())
@@ -499,19 +512,23 @@ TensorExprNode::Compare(const TensorExprNode& other) {
     Tensor tensor = Downcast<Tensor>(op->producer);
     if (tensor->op->IsInstance<ComputeOpNode>()) {
       ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
+      // ditto
       Map<Var, PrimExpr> vmap;
+      for (size_t i = 0; i < rhs_axis_.size(); ++i) {
+        vmap.Set(rhs_axis_[i].first, rhs_axis_[i].second);
+      }
       for (size_t i = 0; i < compute_op->axis.size(); ++i) {
         if (compute_op->axis[i]->iter_type == kDataPar) {
-          vmap.Set(compute_op->axis[i]->var,
-                   op->indices[i]);
+          rhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
+                                          Substitute(op->indices[i], vmap)
+                                          ));
         } else {
-          tgt_var_compute_op_axis_map_[compute_op->axis[i]->var]
+          rhs_axis_.Set(i, std::make_pair(compute_op->axis[i]->var,
+                                          compute_op->axis[i]->var));
+          rhs_var_compute_op_axis_map_[compute_op->axis[i]->var]
               = std::make_pair(compute_op.get(), i);
         }
-      }  // for (i ∈ [0, compute_op->axis.size()))
-      for (size_t i = 0; i < tgt_axis_.size(); ++i) {
-        tgt_axis_.Set(i, Substitute(tgt_axis_[i], vmap));
-      }
+      }  // for (i ∈ range(0, compute_op->axis.size()))
       return VisitExpr(expr_, TensorExprNode(compute_op->body[tensor->value_index]));
     } else {
       LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
@@ -527,10 +544,10 @@ TensorExprNode::Compare(const TensorExprNode& other) {
 }
 
 std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-    TensorExprNode::src_var_compute_op_axis_map_,
-    TensorExprNode::tgt_var_compute_op_axis_map_;
-Array<PrimExpr> TensorExprNode::src_axis_;
-Array<PrimExpr> TensorExprNode::tgt_axis_;
+    TensorExprNode::lhs_var_compute_op_axis_map_,
+    TensorExprNode::rhs_var_compute_op_axis_map_;
+Array<std::pair<Var, PrimExpr>> TensorExprNode::lhs_axis_;
+Array<std::pair<Var, PrimExpr>> TensorExprNode::rhs_axis_;
 
 /*******************************************************************************
  * CSE Optimizer
