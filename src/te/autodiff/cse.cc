@@ -85,7 +85,7 @@ class TensorExprNode
   using ExprFunctor<ConditionalBool(const PrimExpr&, const TensorExprNode&)>::VisitExpr;
   virtual ConditionalBool VisitExpr_(const VarNode* op,
                                      const TensorExprNode& other) override final;
-  // The `ProducerLoadNode`'s will be handled by the high-level `Compare` method.
+  // The ProducerLoadNode's will be handled by the high-level Compare method.
   virtual ConditionalBool VisitExpr_(const CallNode* op,
                                      const TensorExprNode& other) override final;
   virtual ConditionalBool VisitExpr_(const AddNode* op,
@@ -114,9 +114,10 @@ class TensorExprNode
   PrimExpr expr_;
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-      src_var_compute_op_axis_map,
-      tgt_var_compute_op_axis_map;
-  static Array<PrimExpr> src_axis, tgt_axis;
+      src_var_compute_op_axis_map_,
+      tgt_var_compute_op_axis_map_;
+  // LHS and RHS axes
+  static Array<std::pair<Var, PrimExpr>> src_axis_, tgt_axis_;
 };
 
 
@@ -202,12 +203,6 @@ GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads)
 /*******************************************************************************
  * TensorExprTree/Node
  *******************************************************************************/
-std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-    TensorExprNode::src_var_compute_op_axis_map,
-    TensorExprNode::tgt_var_compute_op_axis_map;
-Array<PrimExpr> TensorExprNode::src_axis;
-Array<PrimExpr> TensorExprNode::tgt_axis;
-
 bool VarMap::Update(
     const VarMap& other) {
   for (const std::pair<Var, Var>& var_pair : other) {
@@ -241,10 +236,10 @@ bool VarMap::Update(
 
 bool
 TensorExprNode::Equal(const TensorExprNode& other) {
-  src_var_compute_op_axis_map.clear();
-  tgt_var_compute_op_axis_map.clear();
-  src_axis.clear();
-  tgt_axis.clear();
+  src_var_compute_op_axis_map_.clear();
+  tgt_var_compute_op_axis_map_.clear();
+  src_axis_.clear();
+  tgt_axis_.clear();
   ConditionalBool cmp_result = Compare(other);
   if (!cmp_result.first) {
     return false;
@@ -446,44 +441,58 @@ TensorExprNode::Compare(const TensorExprNode& other) {
       !other.expr_.defined()) {
     return ConditionalBool(false);
   }
-  // If any of the LHS and/or RHS are `ProducerLoadNode`'s, unpack them to
+  // If any of the LHS and/or RHS are ProducerLoadNode's, unpack them to
   // obtain the compute operation or the placeholder.
   if (const ProducerLoadNode* const
       op = expr_.as<ProducerLoadNode>()) {
     Tensor tensor = Downcast<Tensor>(op->producer);
+    CHECK(tensor.defined());
     if (tensor->op->IsInstance<ComputeOpNode>()) {
       ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
       Map<Var, PrimExpr> vmap;
       // Traverse through the compute axes. If the compute axes are kDataPar,
-      // inline it directly, otherwise record them in the <Var, ComputeOpAxis> mapping.
+      // inline it directly by doing substitution, otherwise record them in the
+      // <Var, ComputeOpAxis> mapping.
+      src_axis_.clear();
       for (size_t i = 0; i < compute_op->axis.size(); ++i) {
         if (compute_op->axis[i]->iter_type == kDataPar) {
           vmap.Set(compute_op->axis[i]->var,
                    op->indices[i]);
         } else {
-          src_var_compute_op_axis_map[compute_op->axis[i]->var]
+          src_var_compute_op_axis_map_[compute_op->axis[i]->var]
               = std::make_pair(compute_op.get(), i);
         }
+        src_axis_.push_back(compute_op->axis[i]);
       }  // for (i ∈ [0, compute_op->axis.size()))
-      for (size_t i = 0; i < TensorExprNode::src_axis.size(); ++i) {
-        src_axis.Set(
-            i, Substitute(TensorExprNode::src_axis[i], vmap));
+      for (size_t i = 0; i < src_axis_.size(); ++i) {
+        src_axis_.Set(i, Substitute(src_axis_[i], vmap));
       }
       return VisitExpr(compute_op->body[tensor->value_index], other);
     } else if (const PlaceholderOpNode* ph_op_node =
                tensor->op.as<PlaceholderOpNode>()) {
+      // If LHS is a placeholder, we compare the src and tgt axes.
+      if (const ProducerLoadNode* const
+          other_op = other.expr_.as<ProducerLoadNode>()) {
+        Tensor other_tensor = Downcast<Tensor>(other_op->producer);
+        if (const PlaceholderOpNode* other_ph_op_node =
+            other_tensor->op.as<PlaceholderOpNode>()) {
+          if (ph_op_node == other_ph_op_node) {
+            CHECK(op->indices.size() == other_op->indices.size())
+                << "LHS and RHS are accessing the same tensor but have different sizes"
+                << "(" << op->indices.size() << " vs. "
+                       << other_op->indices.size() << ")";
+            for (size_t i = 0; i < src_axis_.size(); ++i) {
 
-
-      /// \todo Finish the comparator for `PlaceholderOpNode`'s.
-
-
+            }
+          }
+        }
+      }  // if (other_op = other.expr_.as<ProducerLoadNode>())
       return ConditionalBool(false);
     } else {
       LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
       return ConditionalBool(false);
     }  // if (tensor->op->IsInstance<ComputeOpNode>())
-  }  // if (const ProducerLoadNode* const
-     //     op = opref_.as<ProducerLoadNode>())
+  }  // if (op = expr_.as<ProducerLoadNode>())
   // repeat the same thing for the other tensor expression
   if (const ProducerLoadNode* const
       op = other.expr_.as<ProducerLoadNode>()) {
@@ -496,21 +505,19 @@ TensorExprNode::Compare(const TensorExprNode& other) {
           vmap.Set(compute_op->axis[i]->var,
                    op->indices[i]);
         } else {
-          tgt_var_compute_op_axis_map[compute_op->axis[i]->var]
+          tgt_var_compute_op_axis_map_[compute_op->axis[i]->var]
               = std::make_pair(compute_op.get(), i);
         }
       }  // for (i ∈ [0, compute_op->axis.size()))
-      for (size_t i = 0; i < TensorExprNode::tgt_axis.size(); ++i) {
-        tgt_axis.Set(
-            i, Substitute(TensorExprNode::tgt_axis[i], vmap));
+      for (size_t i = 0; i < tgt_axis_.size(); ++i) {
+        tgt_axis_.Set(i, Substitute(tgt_axis_[i], vmap));
       }
       return VisitExpr(expr_, TensorExprNode(compute_op->body[tensor->value_index]));
     } else {
       LOG(WARNING) << "Unhandled tensor OpType: " << tensor->op;
       return ConditionalBool(false);
     }  // if (tensor->op->IsInstance<ComputeOpNode>())
-  }  // if (const ProducerLoadNode* const
-     //     op = other.opref_.as<ProducerLoadNode>())
+  }  // if (op = other.expr_.as<ProducerLoadNode>())
   // directly return false if the type index does not match
   if (expr_->type_index() !=
       other.expr_->type_index()) {
@@ -519,6 +526,11 @@ TensorExprNode::Compare(const TensorExprNode& other) {
   return VisitExpr(expr_, other);
 }
 
+std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
+    TensorExprNode::src_var_compute_op_axis_map_,
+    TensorExprNode::tgt_var_compute_op_axis_map_;
+Array<PrimExpr> TensorExprNode::src_axis_;
+Array<PrimExpr> TensorExprNode::tgt_axis_;
 
 /*******************************************************************************
  * CSE Optimizer
