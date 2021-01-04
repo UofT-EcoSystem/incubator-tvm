@@ -51,11 +51,11 @@ class VarMap : public Map<Var, Var> {
 };  // class VarMap
 
 /*!
- * \brief ConditionalBool is the return type of the compare method. It is a
- *        pair consists of a boolean variable and a variable mapping. While
- *        the former represents whether two tensor expressions MIGHT be
- *        equivalent or not, the latter represents the variable mapping that
- *        needs to satisfied for the equivalence relation.
+ * \brief The \p ConditionalBool is the return type of the compare method. It is
+ *        a pair of a boolean variable and a variable mapping. While the former
+ *        represents whether two tensor expressions MIGHT be equivalent or not,
+ *        the latter represents the variable mapping that needs to satisfied for
+ *        the equivalence relation.
  */
 class ConditionalBool : public std::pair<bool, VarMap> {
  public:
