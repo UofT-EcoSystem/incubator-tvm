@@ -37,44 +37,12 @@ namespace te {
 namespace {
 
 
-// Auxiliary class for comparing between tensor expressions.
-class VarMap : public Map<Var, Var> {
-  /*!
-   *  \brief  Update this VarMap with all the entries from another VarMap.
-   *  \return true if the insertion is successful, and there is no conflict
-   *          between the two mappings, false otherwise
-   */
- public:
-  VarMap() : Map<Var, Var>() {}
-  VarMap(std::initializer_list<std::pair<Var, Var>> init) : Map<Var, Var>(init) {}
-  bool Update(const VarMap& other);
-};  // class VarMap
-
-/*!
- * \brief The \p ConditionalBool is the return type of the compare method. It is
- *        a pair of a boolean variable and a variable mapping. While the former
- *        represents whether two tensor expressions MIGHT be equivalent or not,
- *        the latter represents the variable mapping that needs to satisfied for
- *        the equivalence relation.
- */
-class ConditionalBool : public std::pair<bool, VarMap> {
- public:
-  ConditionalBool() : std::pair<bool, VarMap>(false, {}) {}
-  explicit ConditionalBool(const bool is_same)
-      : std::pair<bool, VarMap>(is_same, {}) {}
-  ConditionalBool(const bool is_same, VarMap var_map)
-      : std::pair<bool, VarMap>(is_same, var_map) {}
-  operator bool() { return first; }
-};  // class ConditionalBool
-
 class CSEOptimizer;  // Forward Declaration
 
 using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
 class TensorExprNode
-    : public ExprFunctor<ConditionalBool(const PrimExpr&,
-                                         const Array<std::pair<IterVar, PrimExpr>>&,
-                                         const TensorExprNode&)> {
+    : public ExprFunctor<bool(const PrimExpr&, const TensorExprNode&)> {
  public:
   /*!
    * \brief  Compare two tensor expressions. 
@@ -83,47 +51,33 @@ class TensorExprNode
   bool Equal(const TensorExprNode& other);
 
   TensorExprNode() = default;
-  explicit TensorExprNode(const PrimExpr& expr, const Array<IterVar>) : expr_(expr) {}
+  explicit TensorExprNode(const PrimExpr& expr) : expr_(expr) {}
   friend class CSEOptimizer;
  private:
-  virtual ConditionalBool VisitExpr_(const VarNode* op,
-                                     const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const VarNode* op,
+                          const TensorExprNode& other) override final;
   // The ProducerLoadNode's will be handled by the high-level Compare method.
-  virtual ConditionalBool VisitExpr_(const CallNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const AddNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const SubNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const MulNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const DivNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const ReduceNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const IntImmNode* op,
-                                     const TensorExprNode& other) override final;
-  virtual ConditionalBool VisitExpr_(const FloatImmNode* op,
-                                     const TensorExprNode& other) override final;
-  /*!
-   * \brief  Compare two tensor expressions (internal use).
-   * \return true if the tensor expressions MIGHT be equal, with the second item
-   *         denotes the var mapping that has to be met for the equality, false otherwise
-   */
-  ConditionalBool Compare(const TensorExprNode& other);
+  virtual bool VisitExpr_(const CallNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const AddNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const SubNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const MulNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const DivNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const ReduceNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const IntImmNode* op,
+                          const TensorExprNode& other) override final;
+  virtual bool VisitExpr_(const FloatImmNode* op,
+                          const TensorExprNode& other) override final;
   /*! \brief Auxiliary methods for comparing between reducer and placeholder nodes.
    */
-  static ConditionalBool Compare_(const CommReducer& lhs, const CommReducer& rhs);
+  static bool Compare_(const CommReducer& lhs, const CommReducer& rhs);
 
   PrimExpr expr_;
-  Array<std::pair<IterVar, PrimExpr>> axis_;
-
-  // analyzer is used for simplifying expressions
-  arith::Analyzer analyzer_;
-  // mapping from variable to axis of ComputeOp's
-  static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-      lhs_var_comp_op_axis_map_,
-      rhs_var_comp_op_axis_map_;
 };
 
 
@@ -235,160 +189,77 @@ GradientResult CSE(const Tensor& output, const std::vector<Tensor>& input_grads)
 /*******************************************************************************
  * TensorExprTree/Node
  *******************************************************************************/
-bool VarMap::Update(
-    const VarMap& other) {
-  for (const std::pair<Var, Var>& var_pair : other) {
-    iterator iter = find(var_pair.first);
-    if (iter != end()) {
-      if (!(*iter).second.same_as(var_pair.second)) {
-        // In the case when previously created mapping contradicts with the
-        // current one, return false and skip the insertion.
-        return false;
-      }
-    } else {  // if (iter == this->end())
-      // Create the variable mapping if it has not been created before.
-      Set(var_pair.first, var_pair.second);
-    }
-  }  // for (var_pair ∈ other)
-  return true;
-}
-
-#define RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(cmp, var_map)  \
-  do {                                                    \
-    ConditionalBool cmp_result = (cmp);                   \
-    if (!cmp_result) {                                    \
-      return ConditionalBool(false);                      \
-    } else {                                              \
-      if (!var_map.Update(cmp_result.second)) {           \
-        return ConditionalBool(false);                    \
-      }                                                   \
-    }                                                     \
-  } while (0);
-
-
 bool
-TensorExprNode::Equal(const TensorExprNode& other) {
-  ConditionalBool cmp_result = Compare(other);
-  if (!cmp_result.first) {
-    return false;
-  }
-  // Check whether two variable mappings conflict in terms of ComputeOpNode's.
-  for (auto var_map_iter_i = cmp_result.second.begin();
-       var_map_iter_i != cmp_result.second.end(); ++var_map_iter_i) {
-    for (auto var_map_iter_j = var_map_iter_i;
-         var_map_iter_j != cmp_result.second.end(); ++var_map_iter_j) {
-      const std::pair<Var, Var>& vpair_i = *var_map_iter_i, & vpair_j = *var_map_iter_j;
-      const ComputeOpAxis
-          & lhs_comp_op_axis_i = lhs_var_comp_op_axis_map_[vpair_i.first],
-          & rhs_comp_op_axis_i = rhs_var_comp_op_axis_map_[vpair_i.second],
-          & lhs_comp_op_axis_j = lhs_var_comp_op_axis_map_[vpair_j.first],
-          & rhs_comp_op_axis_j = rhs_var_comp_op_axis_map_[vpair_j.second];
-      if (lhs_comp_op_axis_i.first == lhs_comp_op_axis_j.first) {
-        if (rhs_comp_op_axis_i.first != rhs_comp_op_axis_j.first) {
-          return false;
-        }
-        if (lhs_comp_op_axis_i.second == lhs_comp_op_axis_j.second) {
-          if (rhs_comp_op_axis_i.second != rhs_comp_op_axis_j.second) {
-            return false;
-          }
-        }
-      }
-    }
-  }
-  return true;
-}
-
-ConditionalBool
 TensorExprNode::VisitExpr_(
     const VarNode* op,
     const TensorExprNode& other) {
   const VarNode* const other_op = other.expr_.as<VarNode>();
   CHECK(other_op != nullptr);
-  VarMap var_map{
-        {GetRef<Var>(op),
-         GetRef<Var>(other_op)}
-      };
-  return ConditionalBool(true, var_map);
+  return true;  // always assume that IterVar's are equal
 }
 
-ConditionalBool
+bool
 TensorExprNode::VisitExpr_(
     const CallNode* op,
     const TensorExprNode& other) {
   const CallNode* const other_op = other.expr_.as<CallNode>();
   CHECK(other_op != nullptr);
   if (!op->op.same_as(other_op->op)) {
-    return ConditionalBool(false);
+    return false;
   }
   if (op->args.size() != other_op->args.size()) {
-    return ConditionalBool(false);
+    return false;
   }
-  VarMap var_map;
   for (size_t i = 0; i < op->args.size(); ++i) {
-    RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
-        TensorExprNode(op->args[i]).Compare(
-        TensorExprNode(other_op->args[i])), var_map);
+    if (!TensorExprNode(op->args[i]).Equal(
+         TensorExprNode(other_op->args[i]))) {
+      return false;
+    }
   }
-  return ConditionalBool(true, var_map);
+  return true;
 }
 
 #define DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(OpNodeType)            \
-ConditionalBool                                                     \
+bool                                                                \
 TensorExprNode::VisitExpr_(                                         \
     const OpNodeType* op,                                           \
     const TensorExprNode& other) {                                  \
   const OpNodeType* const other_op = other.expr_.as<OpNodeType>();  \
   CHECK(other_op != nullptr);                                       \
-  VarMap var_map;                                                   \
-  ConditionalBool                                                   \
-      cmp_result_aa                                                 \
-          = TensorExprNode(op->a).Compare(                          \
-            TensorExprNode(other_op->a)),                           \
-      cmp_result_bb                                                 \
-          = TensorExprNode(op->b).Compare(                          \
-            TensorExprNode(other_op->b));                           \
+  bool cmp_result_aa = TensorExprNode(op->a).Equal(                 \
+                       TensorExprNode(other_op->a)),                \
+       cmp_result_bb = TensorExprNode(op->b).Equal(                 \
+                       TensorExprNode(other_op->b));                \
   if (cmp_result_aa && cmp_result_bb) {                             \
-    if (var_map.Update(cmp_result_aa.second) &&                     \
-        var_map.Update(cmp_result_bb.second)) {                     \
-      return ConditionalBool(true, var_map);                        \
-    } else {                                                        \
-      return ConditionalBool(false);                                \
-    }                                                               \
+    return true;                                                    \
   } else {                                                          \
-    ConditionalBool                                                 \
-        cmp_result_ab                                               \
-            = TensorExprNode(op->a).Compare(                        \
-              TensorExprNode(other_op->b)),                         \
-        cmp_result_ba                                               \
-            = TensorExprNode(op->b).Compare(                        \
-              TensorExprNode(other_op->a));                         \
+    bool cmp_result_ab = TensorExprNode(op->a).Equal(               \
+                         TensorExprNode(other_op->b)),              \
+         cmp_result_ba = TensorExprNode(op->b).Equal(               \
+                         TensorExprNode(other_op->a));              \
     if (cmp_result_ab && cmp_result_ba) {                           \
-      if (var_map.Update(cmp_result_ab.second) &&                   \
-          var_map.Update(cmp_result_ba.second)) {                   \
-        return ConditionalBool(true, var_map);                      \
-      } else {                                                      \
-        return ConditionalBool(false);                              \
-      }                                                             \
+      return true;                                                  \
     }                                                               \
   }                                                                 \
-  return ConditionalBool(false);                                    \
+  return false;                                                     \
 }
 
 #define DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(OpNodeType)         \
-ConditionalBool                                                     \
+bool                                                                \
 TensorExprNode::VisitExpr_(                                         \
     const OpNodeType* op,                                           \
     const TensorExprNode& other) {                                  \
   const OpNodeType* const other_op = other.expr_.as<OpNodeType>();  \
   CHECK(other_op != nullptr);                                       \
-  VarMap var_map;                                                   \
-  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                               \
-      TensorExprNode(op->a).Compare(                                \
-      TensorExprNode(other_op->a)), var_map);                       \
-  RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(                               \
-      TensorExprNode(op->b).Compare(                                \
-      TensorExprNode(other_op->b)), var_map);                       \
-  return ConditionalBool(true, var_map);                            \
+  if (!TensorExprNode(op->a).Equal(                                 \
+       TensorExprNode(other_op->a))) {                              \
+    return false;                                                   \
+  }                                                                 \
+  if (!TensorExprNode(op->b).Equal(                                 \
+       TensorExprNode(other_op->b))) {                              \
+    return false;                                                   \
+  }                                                                 \
+  return true;                                                      \
 }
 
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(AddNode)
@@ -396,24 +267,23 @@ DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(SubNode)
 DEFINE_BINARY_OP_COMMUTATIVE_COMPARE(MulNode)
 DEFINE_BINARY_OP_NONCOMMUTATIVE_COMPARE(DivNode)
 
-ConditionalBool
+bool
 TensorExprNode::Compare_(
     const CommReducer& lhs, const CommReducer& rhs) {
   if (lhs->result.size() == 0 ||
       lhs->result.size() != rhs->result.size()) {
-    return ConditionalBool(false);
+    return false;
   }
-  VarMap var_map;
   for (size_t i = 0; i < lhs->result.size(); ++i) {
-    RETURN_IF_FALSE_ELSE_UPDATE_VARMAP(
-        TensorExprNode(lhs->result[i]).Compare(
-        TensorExprNode(rhs->result[i])),
-        var_map);
+    if (!TensorExprNode(lhs->result[i]).Equal(
+         TensorExprNode(rhs->result[i]))) {
+      return false;
+    }
   }
-  return ConditionalBool(true, var_map);
+  return true;
 }
 
-ConditionalBool
+bool
 TensorExprNode::VisitExpr_(
     const ReduceNode* op,
     const TensorExprNode& other) {
@@ -422,27 +292,19 @@ TensorExprNode::VisitExpr_(
   if (op->value_index != 0 ||
       other_op->value_index != 0) {
     LOG(WARNING) << "Have not handled ReduceNode's whose value index is not 0";
-    return ConditionalBool(false);
+    return false;
   }
   // We do NOT check the reduction axes here because they will be checked by operator==.
-  ConditionalBool
-      is_same_combiner
-        = Compare_(op->combiner, other_op->combiner),
-      is_same_source
-        = TensorExprNode(op->source[op->value_index]).Compare(
-          TensorExprNode(other_op->source[other_op->value_index])),
-      is_same_condition
-        = TensorExprNode(op->condition).Compare(
-          TensorExprNode(other_op->condition));
+  bool is_same_combiner = Compare_(op->combiner, other_op->combiner),
+       is_same_source = TensorExprNode(op->source[op->value_index]).Equal(
+                        TensorExprNode(other_op->source[other_op->value_index])),
+       is_same_condition = TensorExprNode(op->condition).Equal(
+                           TensorExprNode(other_op->condition));
   if (is_same_combiner && is_same_source &&
       is_same_condition) {
-    VarMap var_map;
-    var_map.Update(is_same_combiner.second);
-    var_map.Update(is_same_source.second);
-    var_map.Update(is_same_condition.second);
-    return ConditionalBool(true, var_map);
+    return true;
   } else {
-    return ConditionalBool(false);
+    return false;
   }
 }
 
