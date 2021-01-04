@@ -28,6 +28,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <tuple>
+#include <functional>
 
 #include "ad_utils.h"
 
@@ -126,8 +127,13 @@ class TensorExprNode
 /*!
  * \brief The \p CSEOptimizer eliminates the common subexpressions between the
  *        source and target tensor.
+ * \note  The \p CSEOptimizer inherits from the \p ExprFunctor interface twice.
+ *        The former is responsible for optimizing the target expression while
+ *        the latter searching the target within the source.
  */
-class CSEOptimizer : public ExprFunctor<bool(const PrimExpr&)> {
+class CSEOptimizer
+    : public ExprFunctor<PrimExpr(const PrimExpr&)>,
+      public ExprFunctor<void(const PrimExpr&, PrimExpr* const)> {
  public:
   /*!
    * \brief  Perform *inplace* CSE optimization on the \p tgt tensor.
@@ -149,21 +155,42 @@ class CSEOptimizer : public ExprFunctor<bool(const PrimExpr&)> {
 
   explicit CSEOptimizer(const Tensor& src) : src_(src) {}
  private:
-  bool VisitExpr_(const CallNode* op) override final;
-  bool VisitExpr_(const AddNode* op) override final;
-  bool VisitExpr_(const SubNode* op) override final;
-  bool VisitExpr_(const MulNode* op) override final;
-  bool VisitExpr_(const DivNode* op) override final;
-  bool VisitExpr_(const ReduceNode* op) override final;
+#define DECLARE_OP_SEARCH_AND_OPTMIZE(Op)            \
+  PrimExpr VisitExpr_(const Op* op) override final;  \
+  void VisitExpr_(const Op* op, PrimExpr* const) override final;
+
+  DECLARE_OP_SEARCH_AND_OPTMIZE(ProducerLoadNode)
+  DECLARE_OP_SEARCH_AND_OPTMIZE(CallNode)
+  DECLARE_OP_SEARCH_AND_OPTMIZE(AddNode)
+  DECLARE_OP_SEARCH_AND_OPTMIZE(SubNode)
+  DECLARE_OP_SEARCH_AND_OPTMIZE(MulNode)
+  DECLARE_OP_SEARCH_AND_OPTMIZE(DivNode)
+  DECLARE_OP_SEARCH_AND_OPTMIZE(ReduceNode)
+  /*!
+   * \brief  Optimize the target expression.
+   * \return two expressions correspond respectively to the optimized source and
+   *         target expression
+   */
+  std::pair<PrimExpr, PrimExpr> Optimize(const PrimExpr& tgt);
   /*!
    * \brief  Locate the target tensor expression within \p src .
    * \return true if the \p tgt tensor expression has been found, along with the
    *         located expression, false otherwise
    */
-  std::pair<bool, PrimExpr> Find(const PrimExpr& tgt);
+  PrimExpr Search(const PrimExpr& tgt);
+  /*! \brief Infer the extent (i.e., shape) of an experssion.
+   *  \sa    WrapProducerLoad
+   */
+  std::vector<PrimExpr> InferExtents(const PrimExpr& expr);
+  /*! \brief Wrap the expression into a \p ProducerLoadNode .
+   */
+  ProducerLoad WrapProducerLoad(const PrimExpr& expr);
 
   Tensor src_;
+  // internal variables
   TensorExprNode tgt_expr_;
+  bool optimize_inplace_;
+  unsigned feature_maps_cnt_ = 0;
 };  // class CSEOptimizer
 
 
@@ -556,21 +583,6 @@ Array<std::pair<Var, PrimExpr>> TensorExprNode::rhs_axis_;
 /*******************************************************************************
  * CSE Optimizer
  *******************************************************************************/
-bool CSEOptimizer::VisitExpr_(const CallNode* op) {
-  return false;
-}
-
-bool CSEOptimizer::VisitExpr_(const AddNode* op) {
-  return false;
-}
-
-std::pair<bool, PrimExpr>
-CSEOptimizer::Find(const PrimExpr& tgt) {
-  tgt_expr_.expr_ = tgt;
-
-  return std::make_pair(false, PrimExpr());
-}
-
 std::pair<Tensor, Tensor>
 CSEOptimizer::OptimizeInplace(const Tensor& tgt) {
   return std::make_pair(src_, tgt);
@@ -579,6 +591,55 @@ CSEOptimizer::OptimizeInplace(const Tensor& tgt) {
 std::tuple<Tensor, std::vector<Tensor>, Tensor>
 CSEOptimizer::Optimize(const Tensor& tgt) {
   return std::make_tuple(src_, std::vector<Tensor>{}, tgt);
+}
+
+ProducerLoad
+CSEOptimizer::WrapProducerLoad(const PrimExpr& expr) {
+  std::vector<PrimExpr> extents = InferExtents(expr);
+  if (expr->IsInstance<ProducerLoad>()) {
+    LOG(INFO) << expr << " is already in the format of a ProducerLoadNode";
+    return Downcast<ProducerLoad>(expr);
+  }
+  std::vector<IterVar> axis;
+  std::vector<PrimExpr> indices;
+  for (const PrimExpr& extent : extents) {
+    IterVar iv = IterVar(Range::FromMinExtent(PrimExpr(0), extent),
+                         Var(),
+                         kDataPar);
+    axis.push_back(iv);
+    indices.push_back(iv->var);
+  }
+  return ProducerLoad(Tensor(extents, expr.dtype(),
+                             ComputeOp("feature_maps_" +
+                                       std::to_string(feature_maps_cnt_++),
+                                       "feature_maps",
+                                       {}, axis, {expr}),
+                             0),
+                      indices);
+}
+
+std::pair<PrimExpr, PrimExpr>
+CSEOptimizer::Optimize(const PrimExpr& tgt) {
+  PrimExpr src = Search(tgt);
+  if (!src.defined()) {
+    return std::make_pair(PrimExpr(), tgt);
+  }
+  // If the optimization is inplace, then the target expression will be
+  // optimized to a ProducerLoadNode. Otherwise, a PlaceholderOpNode. In either
+  // case, a wrapper is needed on top of the src tensor expression.
+  ProducerLoad wrapped_src = WrapProducerLoad(src);
+  if (optimize_inplace_) {
+    return std::make_pair(wrapped_src, wrapped_src);
+  } else {
+    Tensor tensor = Downcast<Tensor>(wrapped_src->producer);
+    return std::make_pair(
+        wrapped_src,
+        ProducerLoad(Tensor(tensor->shape, tensor->dtype,
+                            PlaceholderOp(tensor->op->name,
+                                          tensor->shape, tensor->dtype),
+                            0),
+                     indices));
+  }
 }
 
 }  // namespace te
