@@ -72,7 +72,9 @@ class CSEOptimizer;  // Forward Declaration
 using ComputeOpAxis = std::pair<const ComputeOpNode*, size_t>;
 
 class TensorExprNode
-    : public ExprFunctor<ConditionalBool(const PrimExpr&, const TensorExprNode&)> {
+    : public ExprFunctor<ConditionalBool(const PrimExpr&,
+                                         const Array<std::pair<IterVar, PrimExpr>>&,
+                                         const TensorExprNode&)> {
  public:
   /*!
    * \brief  Compare two tensor expressions. 
@@ -81,10 +83,9 @@ class TensorExprNode
   bool Equal(const TensorExprNode& other);
 
   TensorExprNode() = default;
-  explicit TensorExprNode(const PrimExpr& expr) : expr_(expr) {}
+  explicit TensorExprNode(const PrimExpr& expr, const Array<IterVar>) : expr_(expr) {}
   friend class CSEOptimizer;
  private:
-  using ExprFunctor<ConditionalBool(const PrimExpr&, const TensorExprNode&)>::VisitExpr;
   virtual ConditionalBool VisitExpr_(const VarNode* op,
                                      const TensorExprNode& other) override final;
   // The ProducerLoadNode's will be handled by the high-level Compare method.
@@ -113,14 +114,16 @@ class TensorExprNode
   /*! \brief Auxiliary methods for comparing between reducer and placeholder nodes.
    */
   static ConditionalBool Compare_(const CommReducer& lhs, const CommReducer& rhs);
+
   PrimExpr expr_;
+  Array<std::pair<IterVar, PrimExpr>> axis_;
+
+  // analyzer is used for simplifying expressions
   arith::Analyzer analyzer_;
   // mapping from variable to axis of ComputeOp's
   static std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
       lhs_var_comp_op_axis_map_,
       rhs_var_comp_op_axis_map_;
-  // LHS and RHS axes
-  static Array<std::pair<Var, PrimExpr>> lhs_axis_, rhs_axis_;
 };
 
 

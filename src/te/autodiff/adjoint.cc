@@ -150,7 +150,7 @@ GradientResult Gradient(const Tensor& output, const Array<Tensor>& inputs,
   for (const Tensor& input : inputs) {
     input_grads.push_back(InlineTensorAccess(compute_adjoint(input)));
   }
-  GradientResult result = CSE(output, input_grads);
+  GradientResult result = CSE(InlineTensorAccess(output), input_grads);
   return result;
 }
 
