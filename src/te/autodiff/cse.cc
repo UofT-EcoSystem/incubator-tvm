@@ -51,7 +51,8 @@ class TensorExprNode
   bool Equal(const TensorExprNode& other);
 
   TensorExprNode() = default;
-  explicit TensorExprNode(const PrimExpr& expr) : expr_(expr) {}
+  explicit TensorExprNode(const PrimExpr& expr,
+                          const Array<IterVar>& axis) : expr_(expr) {}
   friend class CSEOptimizer;
  private:
   virtual bool VisitExpr_(const VarNode* op,
@@ -78,6 +79,7 @@ class TensorExprNode
   static bool Compare_(const CommReducer& lhs, const CommReducer& rhs);
 
   PrimExpr expr_;
+  Array<IterVar> axis_;
 };
 
 
@@ -309,30 +311,30 @@ TensorExprNode::VisitExpr_(
 }
 
 #define DEFINE_IMM_COMPARE(OpNodeType)                              \
-ConditionalBool                                                     \
+bool                                                                \
 TensorExprNode::VisitExpr_(                                         \
     const OpNodeType* op,                                           \
     const TensorExprNode& other) {                                  \
   const OpNodeType* const other_op = other.expr_.as<OpNodeType>();  \
   CHECK(other_op != nullptr);                                       \
   if (op->value == other_op->value) {                               \
-    return ConditionalBool(true);                                   \
+    return true;                                                    \
   } else {                                                          \
-    return ConditionalBool(false);                                  \
+    return false;                                                   \
   }                                                                 \
 }
 
 DEFINE_IMM_COMPARE(IntImmNode)
 DEFINE_IMM_COMPARE(FloatImmNode)
 
-ConditionalBool
-TensorExprNode::Compare(const TensorExprNode& other) {
+bool
+TensorExprNode::Equal(const TensorExprNode& other) {
   if (!expr_.defined() ||
       !other.expr_.defined()) {
-    return ConditionalBool(false);
+    return false;
   }
   if (expr_.get() == other.expr_.get()) {
-    return ConditionalBool(true);
+    return true;
   }
   // If any of the LHS and/or RHS are ProducerLoadNode's, unpack them to
   // obtain the compute operation or the placeholder.
@@ -344,25 +346,6 @@ TensorExprNode::Compare(const TensorExprNode& other) {
       ComputeOp compute_op = Downcast<ComputeOp>(tensor->op);
       CHECK(compute_op->axis.size() ==
             op->indices.size());
-      // Traverse through the compute axes. If the compute axes are kDataPar,
-      // inline it directly by doing substitution, otherwise record them in the
-      // <Var, ComputeOpAxis> mapping.
-      Map<Var, PrimExpr> vmap;
-      for (size_t i = 0; i < lhs_axis_.size(); ++i) {
-        vmap.Set(lhs_axis_[i].first, lhs_axis_[i].second);
-      }
-      for (size_t i = 0; i < compute_op->axis.size(); ++i) {
-        Var compute_op_axis_var = compute_op->axis[i]->var;
-        if (compute_op->axis[i]->iter_type == kDataPar) {
-          lhs_axis_.Set(
-              i, std::make_pair(compute_op_axis_var,
-                                analyzer_.Simplify(Substitute(op->indices[i], vmap))));
-        } else {
-          lhs_axis_.Set(
-              i, std::make_pair(compute_op_axis_var, compute_op_axis_var));
-          lhs_var_comp_op_axis_map_[compute_op_axis_var] = std::make_pair(compute_op.get(), i);
-        }
-      }  // for (i ∈ range(0, compute_op->axis.size()))
       return VisitExpr(compute_op->body[tensor->value_index], other);
     } else if (const PlaceholderOpNode* ph_op_node =
                tensor->op.as<PlaceholderOpNode>()) {
@@ -438,12 +421,6 @@ TensorExprNode::Compare(const TensorExprNode& other) {
   }
   return VisitExpr(expr_, other);
 }
-
-std::unordered_map<Var, ComputeOpAxis, ObjectPtrHash, ObjectPtrEqual>
-    TensorExprNode::lhs_var_comp_op_axis_map_,
-    TensorExprNode::rhs_var_comp_op_axis_map_;
-Array<std::pair<Var, PrimExpr>> TensorExprNode::lhs_axis_;
-Array<std::pair<Var, PrimExpr>> TensorExprNode::rhs_axis_;
 
 /*******************************************************************************
  * CSE Optimizer
