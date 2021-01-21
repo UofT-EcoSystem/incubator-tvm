@@ -580,7 +580,8 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
         preds.emplace_back(value < dom->extent);
 
         // <bojian/TVM-SymbolicTuning>
-        LOG(INFO) << "Emplacing predicate " << value << "<" << dom->extent;
+        LOG(INFO) << "Emplacing predicate (" << value << "<" << dom->extent 
+                  << ") for " << stage;
 
       }
     }
