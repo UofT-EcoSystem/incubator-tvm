@@ -450,7 +450,7 @@ ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Sta
       MakeBoundCheck(stage, dom_map, ret.main_vmap, false, std::unordered_set<IterVar>());
 
   // <bojian/TVM-SymbolicTuning>
-  LOG(INFO) << std::endl << "Finsihed creating the main predicates";
+  LOG(INFO) << std::endl << "Finished creating the main predicates";
 
   for (auto& e : ret.main_predicates) {
     e = likely(e);
