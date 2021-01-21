@@ -498,7 +498,7 @@ ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Sta
   // copy elison here.
 
   // <bojian/TVM-SymbolicTuning>
-  LOG(INFO) << "Finished the creation of " << ret;
+  LOG(INFO) << "Finished the creation of ComputeLoopNest";
 
   return ret;
 }
