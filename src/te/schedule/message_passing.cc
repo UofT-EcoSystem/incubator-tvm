@@ -560,7 +560,9 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
                                      bool skip_ivar_domain,
                                      const std::unordered_set<IterVar>& skip_iter) {
   // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
   LOG(INFO) << "Making bound check for " << stage;
+#endif
 
   arith::Analyzer analyzer;
 
@@ -582,18 +584,11 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
     analyzer.Bind(entry.first->var, entry.second);
   }
 
-  auto iter_vars_tostr =
-      [](const Array<IterVar>& iter_vars) -> std::string {
-        std::ostringstream strout;
-        strout << "[";
-        for (const IterVar& iv : iter_vars) {
-          strout << iv << ", ";
-        }
-        strout << "]";
-        return strout.str();
-      };
-  LOG(INFO) <<  "all_iter_vars=" << iter_vars_tostr(stage->all_iter_vars) << ", "
-            << "root_iter_vars=" << iter_vars_tostr(stage->op->root_iter_vars());
+  // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
+  LOG(INFO) <<  "all_iter_vars=" << exprs_tostr(stage->all_iter_vars) << ", "
+            << "root_iter_vars=" << exprs_tostr(stage->op->root_iter_vars());
+#endif
 
   for (const IterVar& iv : stage->all_iter_vars) {
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;

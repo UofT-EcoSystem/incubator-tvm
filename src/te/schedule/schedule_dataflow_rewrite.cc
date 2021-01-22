@@ -449,13 +449,9 @@ Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array, const std
   ICHECK(tensor_array.size() > 0) << "size of tensor_array must be greater than 0";
 
   // <bojian/TVM-SymbolicTuning> Added the logging for cache_write steps.
-  std::ostringstream strout;
-  strout << "[";
-  for (const Tensor& tensor : tensor_array) {
-    strout << tensor << ", ";
-  }
-  strout << "]";
-  LOG(INFO) << "Caching tensors " << strout.str();
+#if defined(SYMTUNE_DEBUG_TRACE)
+  LOG(INFO) << "Caching tensors " << exprs_tostr(tensor_array);
+#endif
 
   Tensor tensor = tensor_array[0];
   Stage orig_stage = operator[](tensor->op);
