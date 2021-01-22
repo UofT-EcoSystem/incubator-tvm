@@ -26,6 +26,10 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 
+// <bojian/TVM-SymbolicTuning>
+#include "../symtune.h"
+
+
 namespace tvm {
 namespace te {
 
@@ -482,7 +486,9 @@ void PassUpBoundCheck(const Stage& s, const Map<IterVar, Range>& dom_map,
   auto& state = *p_state;
 
   // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
   const Stage& stage = s;
+#endif
 
   for (size_t i = s->relations.size(); i != 0; --i) {
     IterVarRelation rel = s->relations[i - 1];
@@ -497,7 +503,9 @@ void PassUpBoundCheck(const Stage& s, const Map<IterVar, Range>& dom_map,
           state[s->parent] = true;
 
           // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
           LOG(INFO) << "Bound checking is required for " << stage;
+#endif
 
         } else {
           if (analyzer->CanProve(dom_map.at(s->parent)->extent == factor * step)) {
@@ -510,7 +518,9 @@ void PassUpBoundCheck(const Stage& s, const Map<IterVar, Range>& dom_map,
             state[s->parent] = true;
 
             // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
             LOG(INFO) << "Bound checking is required for " << stage;
+#endif
 
           }
         }
@@ -518,7 +528,9 @@ void PassUpBoundCheck(const Stage& s, const Map<IterVar, Range>& dom_map,
         state[s->parent] = true;
 
         // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
         LOG(INFO) << "Bound checking is required for " << stage;
+#endif
 
       }
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
@@ -593,8 +605,10 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
         preds.emplace_back(value < dom->extent);
 
         // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
         LOG(INFO) << "Inserting predicate (" << value << "<" << dom->extent 
                   << ") for " << stage;
+#endif
 
       }
     }
@@ -615,35 +629,31 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
       if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < iv->dom->extent)) {
 
         // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_SCHED_OPT)
         if (stage->origin_op->name.find(".local") !=
             std::string::npos) {
           LOG(WARNING) << "\'.local\' spotted in " << stage << ". Assuming it is a cache write "
                           "whose boundary check can be neglected";
           continue;
         }
+#endif
 
         preds.emplace_back(value < iv->dom->extent);
 
         // <bojian/TVM-SymbolicTuning>
+#if defined(SYMTUNE_DEBUG_TRACE)
         LOG(INFO) << "Inserting predicate (" << value << " < " << iv->dom->extent
                   << ") for " << stage;
+#endif
 
       }
     }
   }
 
   // <bojian/TVM-SymbolicTuning>
-  auto predicates_tostr =
-      [](const std::vector<PrimExpr>& predicates) -> std::string {
-        std::ostringstream strout;
-        strout << "[";
-        for (const PrimExpr& predicate : predicates) {
-          strout << predicate << ", ";
-        }
-        strout << "]";
-        return strout.str();
-      };
-  LOG(INFO) << "Inserting predicates=" << predicates_tostr(preds);
+#if defined(SYMTUNE_DEBUG_TRACE)
+  LOG(INFO) << "Inserting predicates=" << exprs_tostr(preds);
+#endif
 
   return preds;
 }
