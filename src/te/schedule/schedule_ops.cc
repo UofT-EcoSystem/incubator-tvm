@@ -418,9 +418,7 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
 
 #if defined(SYMTUNE_SCHED_OPT_SPLIT_BLOCKIDX)
   BlockIdxSplitter blockidx_splitter;
-
   body = post_proc(std::move(body));
-
   blockidx_splitter(body);
 #if defined(SYMTUNE_DEBUG_TRACE)
   LOG(INFO) << "BodyStmt after PostProc=" << body;
