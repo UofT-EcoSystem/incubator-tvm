@@ -621,6 +621,7 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
                           "whose boundary check can be neglected";
           continue;
         }
+
         preds.emplace_back(value < iv->dom->extent);
 
         // <bojian/TVM-SymbolicTuning>
