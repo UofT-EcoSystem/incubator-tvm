@@ -102,6 +102,9 @@ def ckpt_measure_pair_in_file(
                   ('%s_sched.log' % ckpt_file_suffix), 'w') as fout:
             fout.write('{}'.format(tvm.lower(sched, in_args, simple_mode=True)))
         with open(ckpt_file_prefix + 
+                  ('%d_pysched.log' % ckpt_file_suffix), 'w') as fout:
+            fout.write('{}'.format(dag.print_python_code_from_state(best_input.state)))
+        with open(ckpt_file_prefix + 
                   ('%s_cuda_kernel.log' % ckpt_file_suffix), 'w') as fout:
             fout.write('{}'.format(cuda_kernel.imported_modules[0].get_source()))
 
