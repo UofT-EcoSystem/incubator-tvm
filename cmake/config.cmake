@@ -122,7 +122,7 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
 # <bojian/TVM-AutoDiff>
 # set(USE_LLVM OFF)
-USE_LLVM=/usr/lib/llvm/bin/llvm-config
+set(USE_LLVM /usr/lib/llvm/bin/llvm-config)
 
 #---------------------------------------------
 # Contrib libraries
