@@ -415,17 +415,18 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
   SchedulePostProc post_proc;
   post_proc.Init(sch);
 
-  if (dmlc::GetEnv("SYMTUNE_SCHED_OPT", 0)) {
-    BlockIdxSplitter blockidx_splitter;
-    body = post_proc(std::move(body));
-    blockidx_splitter(body);
-#if defined(SYMTUNE_DEBUG_TRACE)
-    LOG(INFO) << "BodyStmt after PostProc=" << body;
-#endif
-    return body;
-  } else {
-    return post_proc(std::move(body));
-  }
+  return post_proc(std::move(body));
+//   if (dmlc::GetEnv("SYMTUNE_SCHED_OPT", 0)) {
+//     BlockIdxSplitter blockidx_splitter;
+//     body = post_proc(std::move(body));
+//     blockidx_splitter(body);
+// #if defined(SYMTUNE_DEBUG_TRACE)
+//     LOG(INFO) << "BodyStmt after PostProc=" << body;
+// #endif
+//     return body;
+//   } else {
+//     return post_proc(std::move(body));
+//   }
 }
 
 TVM_REGISTER_GLOBAL("schedule.ScheduleOps").set_body([](TVMArgs args, TVMRetValue* ret) {

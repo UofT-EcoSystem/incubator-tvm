@@ -603,9 +603,11 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
       if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < dom->extent)) {
         if (dmlc::GetEnv("SYMTUNE_SCHED_OPT", 0)) {
           if (prev_predicate.defined()) {
+#if defined(SYMTUNE_DEBUG_TRACE)
             LOG(WARNING) << "Predicate (" << value << "<" << dom->extent << ") "
                          << "is assumed to be a subset of "
                          << "(" << prev_predicate << ")";
+#endif
             continue;
           }
         }
@@ -643,8 +645,10 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
         if (dmlc::GetEnv("SYMTUNE_SCHED_OPT", 0)) {
           if (stage->origin_op->name.find(".local") !=
               std::string::npos) {
+#if defined(SYMTUNE_DEBUG_TRACE)
             LOG(WARNING) << "\'.local\' spotted in " << stage << ". Assuming it is a cache write "
                             "whose boundary check can be neglected";
+#endif
             continue;
           }
         }
