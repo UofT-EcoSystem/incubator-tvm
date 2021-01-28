@@ -640,7 +640,7 @@ std::vector<PrimExpr> MakeBoundCheck(const Stage& stage, const Map<IterVar, Rang
       if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < iv->dom->extent)) {
 
         // <bojian/TVM-SymbolicTuning>
-        if (dmlc::GetEnv("SYMTUNE_SCHED_OPT", 0) {
+        if (dmlc::GetEnv("SYMTUNE_SCHED_OPT", 0)) {
           if (stage->origin_op->name.find(".local") !=
               std::string::npos) {
             LOG(WARNING) << "\'.local\' spotted in " << stage << ". Assuming it is a cache write "
