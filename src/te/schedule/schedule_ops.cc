@@ -408,9 +408,9 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
     }
   }
   // <bojian/TVM-SymbolicTuning>
-  if (dmlc::GetEnv("SYMTUNE_DEBUG_TRACE", 0)) {
-    LOG(INFO) << "BodyStmt=" << body;
-  }
+  // if (dmlc::GetEnv("SYMTUNE_DEBUG_TRACE", 0)) {
+  //   LOG(INFO) << "BodyStmt=" << body;
+  // }
 
   SchedulePostProc post_proc;
   post_proc.Init(sch);
